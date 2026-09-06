@@ -47,19 +47,6 @@ export default function Page() {
             </h1>
             <p>{t.hero.p}</p>
             <StoreBadges appStore={LINKS.appStore} googlePlay={LINKS.googlePlay} />
-            <div className="trust">
-              <div className="avatars">
-                <i>Ə</i>
-                <i>A</i>
-                <i>N</i>
-                <i>M</i>
-              </div>
-              <span>
-                <b>{t.hero.trustB}</b>
-                <br />
-                {t.hero.trust}
-              </span>
-            </div>
           </div>
           <div className="hero-visual" aria-hidden="true">
             <div className="red-orb" />
