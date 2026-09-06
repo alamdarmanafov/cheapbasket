@@ -80,14 +80,29 @@ Sxem: `supabase/migrations/0001_init.sql` (stores, products, prices + tarixçə 
 
 1. Supabase → **SQL Editor** → `0001_init.sql` məzmununu işə sal, sonra `seed.sql`.
 2. **Project Settings → API** → URL və `anon` key-i `.env` faylına yaz (`.env.example`-a bax).
-3. `npm start` — tətbiq `product_prices` view-undan oxuyur; env yoxdursa demo kataloqla işləyir.
-4. Demo məhsulları silib real məlumat daxil etmək üçün: `supabase/seed/clear_demo.sql` (marketlər qalır).
+3. `npm start` — tətbiq `stores`, `product_prices`, `branches` cədvəllərindən oxuyur. Env yoxdursa tətbiq konfiqurasiya xəbərdarlığı göstərir (demo rejim yoxdur).
+4. Market zəncirləri: `supabase/seed/stores.sql` (sonra admin paneldən idarə olunur). Köhnə demo məlumatı silmək üçün `supabase/seed/clear_demo.sql`.
 
 Vercel-də eyni iki dəyişəni **Settings → Environment Variables** bölməsinə əlavə et.
 
 ## Qeydiyyat və bildirişlər
 
 E-poçt, Apple və Google ilə giriş Supabase Auth üzərindən (`src/store/auth.tsx`, ekran: `/auth`), push bildirişlər Expo Notifications ilə (`src/lib/notifications.ts`, tokenlər `push_tokens`). Konsol addımları: **[docs/QEYDIYYAT_VE_BILDIRISLER.md](docs/QEYDIYYAT_VE_BILDIRISLER.md)**.
+
+## Admin panel
+
+`admin/` — Next.js paneli (saytdan ayrı, ayrıca Vercel layihəsi, **Root Directory: `admin`**, env: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`). Marketlər, məhsullar və hər market üzrə qiymətlər, filiallar (koordinat), istifadəçilər (Plus planı), bütün cihazlara push.
+
+Giriş: tətbiqdə e-poçt ilə qeydiyyatdan keçmiş hesab + Supabase-də admin kimi qeyd:
+
+```sql
+-- əvvəl supabase/migrations/0004_admin.sql işlədilməlidir
+insert into admins (user_id) select id from auth.users where email = 'sənin@epoçtun';
+```
+
+```bash
+cd admin && npm install && npm run dev   # http://localhost:3100
+```
 
 ## Sayt (landing page)
 
