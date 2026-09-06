@@ -1,0 +1,180 @@
+import React from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { Product, Store, cheapest, StorePrice } from '@/data/products';
+import { colors, radius, space } from '@/theme';
+import { Price, Row, Txt } from './ui';
+import { useBasket } from '@/store/basket';
+import { freshness, freshnessLevel } from '@/lib/format';
+
+/** Product visual on a soft tinted background — stands in for photography. */
+export function ProductArt({ product, size = 56, emojiScale = 0.5 }: { product: Product; size?: number; emojiScale?: number }) {
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size >= 120 ? radius.xl : radius.md,
+        backgroundColor: product.tint,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Txt style={{ fontSize: size * emojiScale, lineHeight: size * emojiScale * 1.25 }}>{product.emoji}</Txt>
+    </View>
+  );
+}
+
+export function StoreAvatar({ store, size = 32 }: { store: Store; size?: number }) {
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: store.color,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Txt v="captionStrong" color={colors.white} style={{ fontSize: size * 0.38, lineHeight: size * 0.5 }}>
+        {store.initial}
+      </Txt>
+    </View>
+  );
+}
+
+/** A product row with cheapest price and a one-tap add button. */
+export function ProductRow({ product, showStore = true }: { product: Product; showStore?: boolean }) {
+  const router = useRouter();
+  const basket = useBasket();
+  const c = cheapest(product);
+  const inBasket = basket.has(product.id);
+  return (
+    <Pressable
+      onPress={() => router.push(`/product/${product.id}`)}
+      style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.fill }]}
+      accessibilityRole="button"
+    >
+      <ProductArt product={product} />
+      <View style={{ flex: 1, marginLeft: space.md }}>
+        <Txt v="bodyStrong" numberOfLines={1}>
+          {product.brand} {product.name}
+        </Txt>
+        <Txt v="caption" color={colors.gray} numberOfLines={1} style={{ marginTop: 2 }}>
+          {product.size}
+          {showStore && c.price != null && (
+            <>
+              {'  ·  '}
+              <Txt v="caption" color={colors.success}>
+                ən ucuz {c.store.name}
+              </Txt>
+            </>
+          )}
+        </Txt>
+      </View>
+      <View style={{ alignItems: 'flex-end', marginLeft: space.sm }}>
+        {c.price != null ? <Price value={c.price} size="sm" /> : <Txt v="caption" color={colors.gray}>—</Txt>}
+      </View>
+      <Pressable
+        onPress={(e) => {
+          e.stopPropagation();
+          basket.add(product);
+        }}
+        hitSlop={8}
+        accessibilityLabel="Səbətə əlavə et"
+        style={({ pressed }) => [
+          styles.add,
+          inBasket && { backgroundColor: colors.successSoft },
+          pressed && { transform: [{ scale: 0.9 }] },
+        ]}
+      >
+        <Ionicons name={inBasket ? 'checkmark' : 'add'} size={20} color={inBasket ? colors.success : colors.white} />
+      </Pressable>
+    </Pressable>
+  );
+}
+
+/** One line in a price comparison list. */
+export function PriceLine({ item, rank, best }: { item: StorePrice; rank: number; best: number }) {
+  const unavailable = item.price == null;
+  const diff = item.price != null ? item.price - best : 0;
+  return (
+    <Row style={[styles.priceLine, rank === 0 && styles.priceLineBest]}>
+      <View style={{ width: 24, alignItems: 'center' }}>
+        {rank === 0 ? (
+          <Txt style={{ fontSize: 18, lineHeight: 22 }}>🥇</Txt>
+        ) : (
+          <Txt v="caption" color={colors.grayLight}>
+            {rank + 1}
+          </Txt>
+        )}
+      </View>
+      <StoreAvatar store={item.store} size={28} />
+      <View style={{ flex: 1, marginLeft: space.md }}>
+        <Txt v={rank === 0 ? 'bodyStrong' : 'body'} color={unavailable ? colors.grayLight : colors.dark}>
+          {item.store.name}
+        </Txt>
+        {unavailable ? (
+          <Txt v="caption" color={colors.grayLight}>
+            Hazırda mövcud deyil
+          </Txt>
+        ) : rank === 0 ? (
+          <Txt v="caption" color={colors.success}>
+            Ən ucuz qiymət
+          </Txt>
+        ) : (
+          <Txt v="caption" color={colors.gray}>
+            +{diff.toFixed(2)} ₼ baha
+          </Txt>
+        )}
+      </View>
+      {item.price != null ? (
+        <Price value={item.price} size="md" color={rank === 0 ? colors.primary : colors.dark} />
+      ) : (
+        <Ionicons name="remove-circle-outline" size={20} color={colors.grayLight} />
+      )}
+    </Row>
+  );
+}
+
+export function Freshness({ minutes }: { minutes: number }) {
+  const level = freshnessLevel(minutes);
+  const color = level === 'fresh' ? colors.success : level === 'ok' ? colors.warning : colors.gray;
+  return (
+    <Row gap={6}>
+      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
+      <Txt v="caption" color={colors.gray}>
+        Son yenilənmə: {freshness(minutes)}
+      </Txt>
+    </Row>
+  );
+}
+
+const styles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: space.md,
+    paddingHorizontal: space.lg,
+    backgroundColor: colors.white,
+  },
+  add: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: space.md,
+  },
+  priceLine: {
+    paddingVertical: space.md,
+    paddingHorizontal: space.md,
+    borderRadius: radius.md,
+  },
+  priceLineBest: {
+    backgroundColor: colors.primarySoft,
+  },
+});
