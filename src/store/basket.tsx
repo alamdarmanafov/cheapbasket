@@ -1,8 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useAuth } from './auth';
-import { getProduct, Product, StoreId } from '@/data/products';
+import { Product, StoreId } from '@/data/products';
 import { PlanId } from '@/data/plans';
-import { hasSupabase } from '@/lib/supabase';
 import { BasketLine, optimize, Optimization } from '@/lib/optimizer';
 
 interface BasketState {
@@ -25,27 +24,9 @@ interface BasketState {
 
 const BasketCtx = createContext<BasketState | null>(null);
 
-/** Demo basket — only when Supabase is not configured (offline prototype). */
-const SEED: Array<[string, number]> = [
-  ['sutas-sud-1l', 1],
-  ['yumurta-10', 1],
-  ['toyuq-file-1kg', 1],
-  ['duyu-1kg', 1],
-  ['zeytun-yagi-500', 1],
-  ['nescafe-gold-95', 1],
-  ['pendir-atena-400', 1],
-  ['corek-tandir', 1],
-  ['sire-portagal-1l', 1],
-  ['sampun-400', 1],
-];
 
 export function BasketProvider({ children }: { children: React.ReactNode }) {
-  const [lines, setLines] = useState<BasketLine[]>(() =>
-    (hasSupabase ? [] : SEED).flatMap(([id, qty]) => {
-      const product = getProduct(id);
-      return product ? [{ product, qty }] : [];
-    }),
-  );
+  const [lines, setLines] = useState<BasketLine[]>([]);
   const [chosenStore, setChosenStore] = useState<StoreId | null>(null);
   const [plan, setPlan] = useState<PlanId>('free');
   const auth = useAuth();

@@ -6,7 +6,7 @@ import { colors, radius, shadow, space } from '@/theme';
 import { Btn, Chip, IconBtn, Price, Row, Txt } from '@/components/ui';
 import { StoreAvatar } from '@/components/product';
 import { MiniMap } from '@/components/MiniMap';
-import { STORES, STORE_IDS, StoreId, USER_LOCATION, nearestBranch } from '@/data/products';
+import { StoreId, catalog, getStore, nearestBranch, storeIds } from '@/data/products';
 import { useBasket } from '@/store/basket';
 
 /** Full-screen map: the user, the nearest branch of the chosen store, and directions. */
@@ -17,11 +17,12 @@ export default function MapScreen() {
   const params = useLocalSearchParams<{ store?: string }>();
   const { lines, count, optimization: o } = useBasket();
   const bestStore = o.best?.store.id;
-  const initial = (STORE_IDS.includes(params.store as StoreId) ? params.store : bestStore ?? 'araz') as StoreId;
+  const ids = storeIds();
+  const initial = (ids.includes(params.store as StoreId) ? params.store : bestStore ?? ids[0] ?? '') as StoreId;
   const [storeId, setStoreId] = useState<StoreId>(initial);
 
   useEffect(() => {
-    if (params.store && STORE_IDS.includes(params.store as StoreId)) setStoreId(params.store as StoreId);
+    if (params.store && storeIds().includes(params.store as StoreId)) setStoreId(params.store as StoreId);
   }, [params.store]);
 
   const branch = nearestBranch(storeId);
@@ -32,7 +33,7 @@ export default function MapScreen() {
 
   const openDirections = () => {
     if (!branch) return;
-    const url = `https://www.google.com/maps/dir/?api=1&origin=${USER_LOCATION.lat},${USER_LOCATION.lng}&destination=${branch.lat},${branch.lng}&travelmode=walking`;
+    const url = `https://www.google.com/maps/dir/?api=1&origin=${catalog.location.lat},${catalog.location.lng}&destination=${branch.lat},${branch.lng}&travelmode=walking`;
     Linking.openURL(url).catch(() => undefined);
   };
 
@@ -42,8 +43,8 @@ export default function MapScreen() {
         <Row gap={space.sm} style={{ paddingTop: insets.top + space.sm, paddingHorizontal: space.lg }}>
           <IconBtn name="chevron-back" bg={colors.white} onPress={() => (router.canGoBack() ? router.back() : router.replace('/markets'))} label="Geri" />
           <Row gap={6} style={{ flex: 1, flexWrap: 'wrap' }}>
-            {STORE_IDS.map((id) => (
-              <Chip key={id} text={STORES[id].name} active={id === storeId} onPress={() => setStoreId(id)} />
+            {ids.map((id) => (
+              <Chip key={id} text={getStore(id).name} active={id === storeId} onPress={() => setStoreId(id)} />
             ))}
           </Row>
         </Row>
@@ -52,7 +53,7 @@ export default function MapScreen() {
             Filial tapılmadı
           </Txt>
           <Txt v="caption" color={colors.gray} center style={{ marginTop: space.sm }}>
-            {STORES[storeId].name} üçün Supabase → branches cədvəlinə filial (ad, ünvan, lat, lng) əlavə et.
+            {getStore(storeId).name} üçün admin paneldən filial (ad, ünvan, lat, lng) əlavə et.
           </Txt>
         </View>
       </View>
@@ -68,15 +69,15 @@ export default function MapScreen() {
       <Row gap={space.sm} style={{ position: 'absolute', top: insets.top + space.sm, left: space.lg, right: space.lg }}>
         <IconBtn name="chevron-back" bg={colors.white} onPress={() => (router.canGoBack() ? router.back() : router.replace('/markets'))} label="Geri" />
         <Row gap={6} style={{ flex: 1, flexWrap: 'wrap' }}>
-          {STORE_IDS.map((id) => (
-            <Chip key={id} text={STORES[id].name + (id === bestStore && lines.length ? ' 🏆' : '')} active={id === storeId} onPress={() => setStoreId(id)} />
+          {ids.map((id) => (
+            <Chip key={id} text={getStore(id).name + (id === bestStore && lines.length ? ' 🏆' : '')} active={id === storeId} onPress={() => setStoreId(id)} />
           ))}
         </Row>
       </Row>
 
       <View style={[styles.card, { paddingBottom: insets.bottom + space.md }]}>
         <Row gap={space.md}>
-          <StoreAvatar store={STORES[storeId]} size={44} />
+          <StoreAvatar store={getStore(storeId)} size={44} />
           <View style={{ flex: 1 }}>
             <Row gap={6}>
               <Txt v="bodyStrong">{branch.name}</Txt>

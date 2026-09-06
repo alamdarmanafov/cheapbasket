@@ -8,6 +8,8 @@ import { CatalogProvider } from '@/store/catalog';
 import { AuthProvider } from '@/store/auth';
 import { PhoneFrame } from '@/components/PhoneFrame';
 import { colors } from '@/theme';
+import { hasSupabase } from '@/lib/supabase';
+import { View, Text } from 'react-native';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
@@ -19,6 +21,13 @@ export default function RootLayout() {
   }, [loaded, error]);
 
   if (!loaded && !error) return null;
+  if (!hasSupabase)
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, backgroundColor: colors.bg }}>
+        <Text style={{ fontSize: 18, fontWeight: '700', textAlign: 'center' }}>Konfiqurasiya yoxdur</Text>
+        <Text style={{ color: colors.gray, textAlign: 'center', marginTop: 8 }}>EXPO_PUBLIC_SUPABASE_URL və EXPO_PUBLIC_SUPABASE_ANON_KEY təyin edilməyib (.env / Vercel / EAS).</Text>
+      </View>
+    );
 
   return (
     <CatalogProvider>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowRight, Check, ChevronDown, Clock, ExternalLink, MapPin, ScanLine, Search, ShoppingBasket, Star } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, Clock, ExternalLink, MapPin, ScanLine, Search, ShoppingBasket } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { StoreBadges } from '@/components/StoreBadges';
 import { CONTENT, LINKS, PRICING, Lang } from '@/components/content';
@@ -178,27 +178,6 @@ export default function Page() {
                 {t.pricing.plusCta}
               </a>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Reviews */}
-      <section className="reviews">
-        <div className="container">
-          <h2>{t.reviews.h2}</h2>
-          <div className="review-grid">
-            {t.reviews.items.map(([text, name, city]) => (
-              <div className="review" key={name}>
-                <div className="stars" aria-label="5/5">
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <Star key={n} size={14} fill="currentColor" />
-                  ))}
-                </div>
-                <p>“{text}”</p>
-                <b>{name}</b>
-                <small> · {city}</small>
-              </div>
-            ))}
           </div>
         </div>
       </section>

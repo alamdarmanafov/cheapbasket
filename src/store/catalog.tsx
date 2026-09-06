@@ -1,50 +1,89 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { BRANCHES, PRODUCTS, Product, Branch, catalog } from '@/data/products';
-import { fetchBranches, fetchProducts } from '@/lib/catalog';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { Platform } from 'react-native';
+import * as Location from 'expo-location';
+import { Product, Branch, Store, LatLng, DEFAULT_LOCATION, catalog, withDistances } from '@/data/products';
+import { fetchBranches, fetchProducts, fetchStores } from '@/lib/catalog';
 import { hasSupabase } from '@/lib/supabase';
 
 interface CatalogState {
+  stores: Store[];
   products: Product[];
   branches: Branch[];
+  location: LatLng;
+  /** Human-readable place for the header (city / district), when known. */
+  place: string | null;
+  locationGranted: boolean | null;
   loading: boolean;
-  source: 'mock' | 'supabase';
+  error: string | null;
   refresh: () => Promise<void>;
+  requestLocation: () => Promise<void>;
 }
 
 const Ctx = createContext<CatalogState | null>(null);
 
-/** Loads the catalog from Supabase (when configured) and publishes it to the registry + screens. */
+/** Loads stores/products/branches from Supabase and the device location; publishes both to the registry. */
 export function CatalogProvider({ children }: { children: React.ReactNode }) {
-  const [products, setProducts] = useState<Product[]>(hasSupabase ? [] : PRODUCTS);
-  const [branches, setBranches] = useState<Branch[]>(hasSupabase ? [] : BRANCHES);
+  const [stores, setStores] = useState<Store[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [location, setLocation] = useState<LatLng>(DEFAULT_LOCATION);
+  const [place, setPlace] = useState<string | null>(null);
+  const [locationGranted, setLocationGranted] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(hasSupabase);
-  const [source, setSource] = useState<'mock' | 'supabase'>('mock');
+  const [error, setError] = useState<string | null>(null);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     if (!hasSupabase) return;
     setLoading(true);
+    setError(null);
     try {
-      // Never block the UI on a slow/blocked network: fall back to the bundled catalog after 8s.
-      const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('catalog timeout')), 8000));
-      const [p, b] = await Promise.race([Promise.all([fetchProducts(), fetchBranches()]), timeout]);
+      const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Şəbəkə cavab vermir')), 10000));
+      const [s, p, b] = await Promise.race([Promise.all([fetchStores(), fetchProducts(), fetchBranches(catalog.location)]), timeout]);
+      catalog.stores = s;
       catalog.products = p;
-      setProducts(p);
       catalog.branches = b;
+      setStores(s);
+      setProducts(p);
       setBranches(b);
-      setSource('supabase');
-    } catch {
-      // Network failed: keep the demo catalog only when Supabase is not configured.
-      setSource(hasSupabase ? 'supabase' : 'mock');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  const requestLocation = useCallback(async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      setLocationGranted(status === 'granted');
+      if (status !== 'granted') return;
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      catalog.location = loc;
+      setLocation(loc);
+      setBranches((prev) => {
+        const next = withDistances(prev, loc);
+        catalog.branches = next;
+        return next;
+      });
+      if (Platform.OS !== 'web') {
+        const [geo] = await Location.reverseGeocodeAsync({ latitude: loc.lat, longitude: loc.lng }).catch(() => []);
+        if (geo) setPlace([geo.district || geo.subregion, geo.city || geo.region].filter(Boolean).join(', ') || null);
+      }
+    } catch {
+      setLocationGranted(false);
+    }
+  }, []);
 
   useEffect(() => {
     refresh();
-  }, []);
+    requestLocation();
+  }, [refresh, requestLocation]);
 
-  const value = useMemo(() => ({ products, branches, loading, source, refresh }), [products, branches, loading, source]);
+  const value = useMemo(
+    () => ({ stores, products, branches, location, place, locationGranted, loading, error, refresh, requestLocation }),
+    [stores, products, branches, location, place, locationGranted, loading, error, refresh, requestLocation],
+  );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

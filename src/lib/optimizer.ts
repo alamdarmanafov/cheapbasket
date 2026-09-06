@@ -1,4 +1,4 @@
-import { Product, STORE_IDS, STORES, StoreId, Store } from '@/data/products';
+import { Product, Store, StoreId, catalog } from '@/data/products';
 
 export interface BasketLine {
   product: Product;
@@ -16,7 +16,7 @@ export interface StoreTotal {
 export interface Optimization {
   /** Every store, best first: full coverage before partial, then cheapest. */
   ranked: StoreTotal[];
-  /** The AI's pick — the cheapest store that can supply the whole basket (or the most of it). */
+  /** The pick — cheapest store that can supply the whole basket (or the most of it). */
   best: StoreTotal | null;
   /** Most expensive full-coverage store — what "one supermarket" would cost at worst. */
   worst: StoreTotal | null;
@@ -32,18 +32,21 @@ const lineCost = (l: BasketLine, store: StoreId) => {
 };
 
 export function optimize(lines: BasketLine[]): Optimization {
-  if (lines.length === 0) return { ranked: [], best: null, worst: null, saving: 0, cheapestSplitTotal: 0 };
+  const stores = catalog.stores;
+  if (lines.length === 0 || stores.length === 0) return { ranked: [], best: null, worst: null, saving: 0, cheapestSplitTotal: 0 };
 
-  const ranked: StoreTotal[] = STORE_IDS.map((id) => {
-    let total = 0;
-    const missing: BasketLine[] = [];
-    for (const l of lines) {
-      const c = lineCost(l, id);
-      if (c == null) missing.push(l);
-      else total += c;
-    }
-    return { store: STORES[id], total, missing };
-  }).sort((a, b) => a.missing.length - b.missing.length || a.total - b.total);
+  const ranked: StoreTotal[] = stores
+    .map((store) => {
+      let total = 0;
+      const missing: BasketLine[] = [];
+      for (const l of lines) {
+        const c = lineCost(l, store.id);
+        if (c == null) missing.push(l);
+        else total += c;
+      }
+      return { store, total, missing };
+    })
+    .sort((a, b) => a.missing.length - b.missing.length || a.total - b.total);
 
   const best = ranked[0] ?? null;
   const full = ranked.filter((r) => r.missing.length === 0);
@@ -52,7 +55,7 @@ export function optimize(lines: BasketLine[]): Optimization {
 
   let cheapestSplitTotal = 0;
   for (const l of lines) {
-    const costs = STORE_IDS.map((s) => lineCost(l, s)).filter((c): c is number => c != null);
+    const costs = stores.map((s) => lineCost(l, s.id)).filter((c): c is number => c != null);
     if (costs.length) cheapestSplitTotal += Math.min(...costs);
   }
 

@@ -14,7 +14,7 @@ import { registerForPush, unregisterPush } from '@/lib/notifications';
 
 const ROWS: Array<{ label: string; icon: keyof typeof Ionicons.glyphMap; value?: string; route?: string; plus?: boolean }> = [
   { label: 'Mənim məlumatlarım', icon: 'person-outline' },
-  { label: 'Ünvanlarım', icon: 'location-outline' },
+  { label: 'Lokasiya', icon: 'location-outline' },
   { label: 'Sevimli marketlər', icon: 'storefront-outline' },
   { label: 'Qənaət statistikası', icon: 'trending-up-outline', route: '/savings', plus: true },
   { label: 'Dil', icon: 'language-outline', value: 'Azərbaycan' },
@@ -65,6 +65,7 @@ export default function Profile() {
             <Txt v="bodyStrong">{displayName}</Txt>
             <Txt v="caption" color={colors.gray} style={{ fontSize: 11, marginTop: 2 }}>
               {auth.user ? auth.user.email ?? (auth.user.app_metadata?.provider === 'apple' ? 'Apple hesabı' : 'Google hesabı') : 'Daxil ol və ya qeydiyyatdan keç'}
+              {cat.place ? ` · ${cat.place}` : ''}
             </Txt>
           </View>
           {auth.user ? (
@@ -151,7 +152,7 @@ export default function Profile() {
           Səbətini yarat. Ən sərfəli marketi tap. Get və al.
         </Txt>
         <Txt v="caption" color={colors.grayLight} style={{ fontSize: 11 }}>
-          Cheap Basket v1.0 · Məlumat: {cat.loading ? 'yüklənir…' : cat.source === 'supabase' ? `Supabase (${cat.products.length} məhsul)` : 'demo kataloq'}
+          Cheap Basket v1.0 · {cat.loading ? 'yüklənir…' : cat.error ? `xəta: ${cat.error}` : `${cat.stores.length} market · ${cat.products.length} məhsul`}
         </Txt>
       </View>
     </ScrollView>

@@ -8,7 +8,7 @@ import { colors, radius, shadow, space } from '@/theme';
 import { Btn, Divider, IconBtn, Pill, Price, Row, Txt } from '@/components/ui';
 import { Freshness, ProductArt, StoreAvatar } from '@/components/product';
 import { StateView } from '@/components/states';
-import { Product, STORES, StoreId, catalog, cheapest, findByBarcode, sortedPrices } from '@/data/products';
+import { Product, StoreId, catalog, cheapest, findByBarcode, getStore, sortedPrices } from '@/data/products';
 import { useBasket } from '@/store/basket';
 
 type Phase = 'scanning' | 'searching' | 'found' | 'notfound' | 'error';
@@ -30,8 +30,8 @@ export default function Scan() {
   const lockRef = useRef(false);
 
   // Which store is the user standing in? Defaults to the AI's best store for their basket.
-  const hereId = ((params.store as StoreId) || basket.optimization.best?.store.id || 'araz') as StoreId;
-  const here = STORES[hereId];
+  const hereId = ((params.store as StoreId) || basket.optimization.best?.store.id || catalog.stores[0]?.id || '') as StoreId;
+  const here = getStore(hereId);
 
   useEffect(() => {
     if (Platform.OS !== 'web' && permission && !permission.granted && permission.canAskAgain) requestPermission();
@@ -177,7 +177,7 @@ function FoundSheet({
   const prices = sortedPrices(product);
   const c = cheapest(product);
   const herePrice = product.prices[here];
-  const hereStore = STORES[here];
+  const hereStore = getStore(here);
   const diff = herePrice != null && c.price != null ? herePrice - c.price : null;
   const verdict: { tone: 'success' | 'warning' | 'neutral'; title: string; body: string } =
     herePrice == null

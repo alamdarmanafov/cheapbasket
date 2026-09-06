@@ -26,10 +26,14 @@ export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(auth.lastError ? translate(auth.lastError) : null);
   const [info, setInfo] = useState<string | null>(null);
 
-  const done = () => (router.canGoBack() ? router.back() : router.replace('/profile'));
+  const done = () => router.replace('/');
+  const asGuest = () => {
+    auth.continueAsGuest();
+    router.replace('/');
+  };
 
   const run = async (key: string, fn: () => Promise<{ error?: string; needsConfirm?: boolean }>) => {
     setBusy(key);
@@ -37,7 +41,7 @@ export default function AuthScreen() {
     setInfo(null);
     const r = await fn();
     setBusy(null);
-    if (r.error) setError(translate(r.error));
+    if (r.error) setError(`${translate(r.error)}${translate(r.error) !== r.error ? `\n(${r.error})` : ''}`);
     else if (r.needsConfirm) setInfo('E-poçtuna təsdiq linki göndərdik. Linkə klikləyib girişi tamamla.');
     else if (mode === 'reset') setInfo('Şifrə sıfırlama linki e-poçtuna göndərildi.');
     else done();
@@ -53,9 +57,9 @@ export default function AuthScreen() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScreenHeader closeIcon />
+      {(auth.session || auth.guest) && <ScreenHeader closeIcon />}
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: insets.bottom + space.xxl }} keyboardShouldPersistTaps="handled">
-        <View style={{ alignItems: 'center', marginTop: space.sm }}>
+        <View style={{ alignItems: 'center', marginTop: auth.session || auth.guest ? space.sm : insets.top + space.xxl }}>
           <LogoMark size={56} />
           <Txt v="title" center style={{ marginTop: space.md }}>
             {mode === 'signup' ? 'Hesab yarat' : mode === 'reset' ? 'Şifrəni sıfırla' : 'Xoş gəldin'}
@@ -144,7 +148,7 @@ export default function AuthScreen() {
           </Pressable>
         </Row>
 
-        <Pressable onPress={done} style={{ alignSelf: 'center', marginTop: space.lg }} hitSlop={8}>
+        <Pressable onPress={asGuest} style={{ alignSelf: 'center', marginTop: space.lg }} hitSlop={8}>
           <Txt v="caption" color={colors.grayLight}>
             Qonaq kimi davam et
           </Txt>
@@ -175,6 +179,13 @@ function translate(m: string): string {
   if (l.includes('password should be')) return 'Şifrə ən azı 6 simvol olmalıdır.';
   if (l.includes('rate limit')) return 'Çox cəhd. Bir az sonra yenidən yoxla.';
   if (l.includes('provider is not enabled') || l.includes('unsupported provider')) return 'Bu giriş üsulu hələ aktiv edilməyib (Supabase → Auth → Providers).';
+  if (l.includes('signups not allowed') || l.includes('signup is disabled')) return 'Qeydiyyat bağlıdır (Supabase → Auth → Providers → Email → Allow new users to sign up).';
+  if (l.includes('database error saving new user')) return 'Bazada profil yaradıla bilmədi — 0003_auth_and_push.sql migrasiyası işlədilməyib.';
+  if (l.includes('redirect_uri_mismatch')) return 'Google-da redirect URI səhvdir (Google Cloud → Clients → Authorized redirect URIs).';
+  if (l.includes('invalid_client')) return 'Apple Services ID / secret səhvdir (Supabase → Providers → Apple).';
+  if (l.includes('bad_oauth_state') || l.includes('flow state')) return 'Giriş sessiyası itdi — eyni brauzerdə yenidən cəhd et.';
+  if (l.includes('requested path is invalid') || l.includes('redirect')) return 'Redirect URL Supabase-də icazəli deyil (Auth → URL Configuration → Redirect URLs).';
+  if (l.includes('invalid email')) return 'E-poçt ünvanı düzgün deyil.';
   return m;
 }
 

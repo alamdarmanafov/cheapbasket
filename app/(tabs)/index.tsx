@@ -177,13 +177,13 @@ export default function Home() {
             </ScrollView>
           </>
         )}
-        {cat.source === 'supabase' && !cat.loading && cat.products.length === 0 && (
+        {!cat.loading && cat.products.length === 0 && (
           <View style={[styles.summary, { marginTop: 14 }]}>
             <Txt style={{ fontSize: 28, lineHeight: 34 }}>🗂️</Txt>
             <View style={{ flex: 1, marginLeft: 12 }}>
-              <Txt v="bodyStrong">Kataloq hələ boşdur</Txt>
+              <Txt v="bodyStrong">{cat.error ? 'Kataloq yüklənmədi' : 'Kataloq hələ boşdur'}</Txt>
               <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>
-                Supabase → products və prices cədvəllərinə məhsul əlavə et.
+                {cat.error ?? 'Admin paneldən məhsul və qiymət əlavə et.'}
               </Txt>
             </View>
           </View>

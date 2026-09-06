@@ -1,6 +1,6 @@
 import React from 'react';
 import Svg, { Circle, Line, Path, Rect, Text as SvgText } from 'react-native-svg';
-import { Branch, STORES, USER_LOCATION, catalog } from '@/data/products';
+import { Branch, catalog, getStore } from '@/data/products';
 import { colors } from '@/theme';
 
 /**
@@ -8,11 +8,14 @@ import { colors } from '@/theme';
  * Production swaps this for react-native-maps and keeps the same pins/labels.
  */
 export function MiniMap({ width, height, branch, showOthers = true, labels = true }: { width: number; height: number; branch: Branch; showOthers?: boolean; labels?: boolean }) {
+  const me = catalog.location;
+  // Scale the viewport so the selected branch always fits.
+  const span = Math.max(0.03, Math.abs(branch.lng - me.lng) * 2.6, Math.abs(branch.lat - me.lat) * 3.4);
   const project = (lat: number, lng: number) => ({
-    x: width / 2 + (lng - USER_LOCATION.lng) * (width / 0.06),
-    y: height * 0.58 - (lat - USER_LOCATION.lat) * (height / 0.045),
+    x: width / 2 + (lng - me.lng) * (width / span),
+    y: height * 0.58 - (lat - me.lat) * (height / (span * 0.75)),
   });
-  const user = project(USER_LOCATION.lat, USER_LOCATION.lng);
+  const user = project(me.lat, me.lng);
   const target = project(branch.lat, branch.lng);
   const midX = (user.x + target.x) / 2;
   const route = `M ${user.x} ${user.y} L ${midX} ${user.y} L ${midX} ${target.y} L ${target.x} ${target.y}`;
@@ -34,8 +37,8 @@ export function MiniMap({ width, height, branch, showOthers = true, labels = tru
           const p = project(b.lat, b.lng);
           return (
             <React.Fragment key={b.id}>
-              <Circle cx={p.x} cy={p.y} r={11} fill={STORES[b.storeId].color} opacity={0.3} />
-              <Circle cx={p.x} cy={p.y} r={5} fill={STORES[b.storeId].color} />
+              <Circle cx={p.x} cy={p.y} r={11} fill={getStore(b.storeId).color} opacity={0.3} />
+              <Circle cx={p.x} cy={p.y} r={5} fill={getStore(b.storeId).color} />
             </React.Fragment>
           );
         })}

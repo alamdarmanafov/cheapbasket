@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -11,6 +11,8 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { StateView } from '@/components/states';
 import { PlusLock, PlusTag } from '@/components/PlusLock';
 import { cheapest, getProduct, maxSaving, sortedPrices } from '@/data/products';
+import { fetchPriceHistory } from '@/lib/catalog';
+import { hasSupabase } from '@/lib/supabase';
 import { useBasket } from '@/store/basket';
 
 /** Product comparison + detail: one screen, price first. */
@@ -20,6 +22,12 @@ export default function ProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const basket = useBasket();
   const product = getProduct(String(id));
+  const [history, setHistory] = useState<number[]>(product?.history ?? []);
+  const cheapestStoreId = product ? cheapest(product).store.id : null;
+  useEffect(() => {
+    if (!product || !hasSupabase || !cheapestStoreId) return;
+    fetchPriceHistory(product.id, cheapestStoreId).then(setHistory).catch(() => undefined);
+  }, [product, cheapestStoreId]);
 
   if (!product) {
     return (
@@ -37,7 +45,7 @@ export default function ProductScreen() {
   const saving = maxSaving(product);
   const inBasket = basket.has(product.id);
   const unavailableEverywhere = c.price == null;
-  const h = product.history;
+  const h = history;
   const hasHistory = h.length >= 2;
   const delta = hasHistory ? h[h.length - 1] - h[0] : 0;
   const best = basket.optimization.best;

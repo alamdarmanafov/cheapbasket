@@ -29,6 +29,11 @@ interface AuthState {
   resetPassword: (email: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  /** User chose to continue without an account this session. */
+  guest: boolean;
+  continueAsGuest: () => void;
+  /** Last error a provider sent back through the redirect URL (web), for display. */
+  lastError: string | null;
 }
 
 const Ctx = createContext<AuthState | null>(null);
@@ -42,6 +47,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(hasSupabase);
+  const [guest, setGuest] = useState(false);
+  const [lastError, setLastError] = useState<string | null>(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
+    const p = new URLSearchParams(window.location.hash.replace(/^#/, '') || window.location.search.replace(/^\?/, ''));
+    const d = p.get('error_description') || p.get('error');
+    return d ? decodeURIComponent(d.replace(/\+/g, ' ')) : null;
+  });
 
   const loadProfile = useCallback(async (userId: string | undefined) => {
     if (!supabase || !userId) {
@@ -160,8 +172,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setProfile(null);
       },
       refreshProfile: () => loadProfile(session?.user.id),
+      guest,
+      continueAsGuest: () => setGuest(true),
+      lastError,
     }),
-    [loading, session, profile, loadProfile], // eslint-disable-line react-hooks/exhaustive-deps
+    [loading, session, profile, loadProfile, guest, lastError], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

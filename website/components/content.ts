@@ -20,8 +20,6 @@ const az = {
     h1b: 'ən sərfəli marketi',
     h1c: ' tap.',
     p: 'Almaq istədiyin məhsulları səbətə əlavə et. Cheap Basket qiymətləri müqayisə etsin və sənə ən sərfəli marketi göstərsin.',
-    trustB: '10.000+ istifadəçi',
-    trust: 'Artıq daha ağıllı alış-veriş edir',
   },
   how: {
     h2: 'Necə işləyir?',
@@ -60,14 +58,6 @@ const az = {
     plusCta: 'Plus-a keç',
     popular: 'ƏN POPULYAR',
   },
-  reviews: {
-    h2: 'İstifadəçilərimiz nə deyir?',
-    items: [
-      ['Artıq marketə getməzdən əvvəl mütləq yoxlayıram. Hər dəfə qənaət edirəm!', 'Nigar R.', 'Bakı'],
-      ['Çox rahatdır. Xəritə ilə yaxın filialı göstərməsi superdir.', 'Tural M.', 'Sumqayıt'],
-      ['10 məhsulluq səbətdə 3–4 manat fərq çıxır. Ayda ciddi qənaətdir.', 'Aysel K.', 'Gəncə'],
-    ],
-  },
   faq: {
     h2: 'Tez-tez verilən suallar',
     items: [
@@ -99,8 +89,6 @@ const en: typeof az = {
     h1b: 'cheapest supermarket',
     h1c: ' before you go.',
     p: 'Add what you need to your basket. Cheap Basket compares prices across supermarkets and tells you where the whole basket costs least.',
-    trustB: '10,000+ users',
-    trust: 'already shop smarter',
   },
   how: {
     h2: 'How it works',
@@ -138,14 +126,6 @@ const en: typeof az = {
     plusItems: ['Unlimited baskets', 'Price history', 'Price-drop alerts', 'AI recommendations', 'Savings statistics'],
     plusCta: 'Go Plus',
     popular: 'MOST POPULAR',
-  },
-  reviews: {
-    h2: 'What our users say',
-    items: [
-      ['I always check before going to the store now. I save every single time!', 'Nigar R.', 'Baku'],
-      ['So convenient. Showing the nearest branch on the map is brilliant.', 'Tural M.', 'Sumgait'],
-      ['A 10-item basket differs by 3–4 manat between stores. That adds up every month.', 'Aysel K.', 'Ganja'],
-    ],
   },
   faq: {
     h2: 'Frequently asked questions',

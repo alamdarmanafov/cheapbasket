@@ -22,21 +22,25 @@ const norm = (s: string) => s.toLowerCase().replace(/ə/g, 'e').replace(/ı/g, '
 
 /** Greedy budget basket: essentials first, then fill with cheapest extras. */
 function budgetBasket(budget: number): { products: Product[]; total: number } {
-  const essentials = ['sutas-sud-1l', 'yumurta-10', 'corek-tandir', 'duyu-1kg', 'toyuq-file-1kg', 'pomidor-1kg', 'banan-1kg', 'sirab-1-5l'];
+  // One product per category first (a balanced basket), then the cheapest extras.
   const picked: Product[] = [];
   let total = 0;
   const tryAdd = (p: Product | undefined) => {
     if (!p) return;
     const price = cheapest(p).price ?? 0;
-    if (total + price <= budget) {
+    if (price > 0 && total + price <= budget) {
       picked.push(p);
       total += price;
     }
   };
-  essentials.forEach((id) => tryAdd(getProduct(id)));
-  catalog.products.filter((p) => !picked.includes(p))
-    .sort((a, b) => (cheapest(a).price ?? 0) - (cheapest(b).price ?? 0))
-    .forEach(tryAdd);
+  const byPrice = [...catalog.products].sort((a, b) => (cheapest(a).price ?? 0) - (cheapest(b).price ?? 0));
+  const seen = new Set<string>();
+  for (const p of byPrice) {
+    if (seen.has(p.category)) continue;
+    seen.add(p.category);
+    tryAdd(p);
+  }
+  byPrice.filter((p) => !picked.includes(p)).forEach(tryAdd);
   return { products: picked, total };
 }
 
@@ -55,7 +59,8 @@ export function reply(input: string, context?: { productId?: string }): AiReply 
   }
 
   if (q.includes('alternativ') || q.includes('ucuz')) {
-    const base = getProduct(context?.productId ?? 'nescafe-gold-95') ?? catalog.products[0];
+    const base = (context?.productId ? getProduct(context.productId) : undefined) ?? catalog.products[0];
+    if (!base) return { text: 'Kataloqda hələ məhsul yoxdur.' };
     const alts = cheaperAlternatives(base, 3);
     const list = alts.length > 0 ? alts : catalog.products.filter((p) => p.id !== base.id).slice(0, 3);
     return {
@@ -66,8 +71,8 @@ export function reply(input: string, context?: { productId?: string }): AiReply 
   }
 
   if (q.includes('seher') || q.includes('breakfast')) {
-    const ids = ['sutas-sud-1l', 'yumurta-10', 'corek-tandir', 'pendir-atena-400', 'kere-yagi-200'];
-    const products = ids.map(getProduct).filter((p): p is Product => !!p);
+    const wanted = ['süd', 'yumurta', 'çörək', 'pendir', 'yağ'];
+    const products = catalog.products.filter((p) => wanted.some((w) => p.category.toLowerCase().includes(w) || p.name.toLowerCase().includes(w))).slice(0, 6);
     const total = products.reduce((a, p) => a + (cheapest(p).price ?? 0), 0);
     return {
       text: `Səhər yeməyi üçün ${products.length} məhsul təklif edirəm. Ən ucuz seçimlə cəmi ${total.toFixed(2)} ₼.`,
@@ -77,9 +82,17 @@ export function reply(input: string, context?: { productId?: string }): AiReply 
   }
 
   if (q.includes('market') || q.includes('hansi')) {
+    // Count in how many products each store is the cheapest.
+    const wins = new Map<string, number>();
+    for (const p of catalog.products) {
+      const c = cheapest(p);
+      if (c.price != null) wins.set(c.store.name, (wins.get(c.store.name) ?? 0) + 1);
+    }
+    const ranked = [...wins.entries()].sort((a, b) => b[1] - a[1]);
+    if (!ranked.length) return { text: 'Kataloqda hələ qiymət yoxdur.' };
     return {
-      text: 'Bu həftə süd məhsulları və çörəkdə Araz, içkilərdə Bazarstore, qəhvə və makaronda Bravo daha ucuzdur. Səbətini AI ilə bölsən orta hesabla 8–12% qənaət edirsən.',
-      chips: ['Səbətimi optimallaşdır', '50 manatlıq səbət hazırla'],
+      text: `Hazırda ${ranked.map(([n, c]) => `${n} ${c} məhsulda`).join(', ')} ən ucuzdur. Dəqiq cavab üçün səbətini yığ, bütün səbət üzrə hesablayım.`,
+      chips: ['Ən sərfəli marketi tap', '50 manatlıq səbət hazırla'],
     };
   }
 
