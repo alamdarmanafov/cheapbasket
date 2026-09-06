@@ -107,8 +107,9 @@ create policy "own basket items" on basket_items for all
   with check (exists (select 1 from baskets b where b.id = basket_id and b.user_id = auth.uid()));
 create policy "own profile" on profiles for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
--- One view the app reads: product + all store prices + freshness
-create or replace view product_prices as
+-- One view the app reads: product + all store prices + freshness.
+-- security_invoker: the view runs with the querying user's RLS, not the creator's.
+create or replace view product_prices with (security_invoker = true) as
 select p.id, p.barcode, p.name, p.brand, p.size, p.category, p.emoji, p.tint, p.image_url, p.rating,
        jsonb_object_agg(s.id, pr.price) filter (where s.id is not null) as prices,
        max(pr.updated_at) as updated_at
