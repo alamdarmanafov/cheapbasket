@@ -42,3 +42,7 @@ yarn-error.*
 
 # env
 .env
+
+# Firebase (add locally / via EAS secrets)
+google-services.json
+GoogleService-Info.plist

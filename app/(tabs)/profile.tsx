@@ -1,5 +1,5 @@
-import React from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import React, { useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,13 +9,14 @@ import { LogoMark } from '@/components/Logo';
 import { PlusTag } from '@/components/PlusLock';
 import { useBasket } from '@/store/basket';
 import { useCatalog } from '@/store/catalog';
+import { useAuth } from '@/store/auth';
+import { registerForPush, unregisterPush } from '@/lib/notifications';
 
 const ROWS: Array<{ label: string; icon: keyof typeof Ionicons.glyphMap; value?: string; route?: string; plus?: boolean }> = [
   { label: 'Mənim məlumatlarım', icon: 'person-outline' },
   { label: 'Ünvanlarım', icon: 'location-outline', value: 'Nərimanov, Bakı' },
   { label: 'Sevimli marketlər', icon: 'storefront-outline', value: 'Araz, Bravo, Neptun' },
   { label: 'Qənaət statistikası', icon: 'trending-up-outline', value: '17.40 ₼', route: '/savings', plus: true },
-  { label: 'Qiymət düşüşü bildirişi', icon: 'notifications-outline', value: 'Açıq', plus: true },
   { label: 'Dil', icon: 'language-outline', value: 'Azərbaycan' },
   { label: 'Valyuta', icon: 'cash-outline', value: '₼ AZN' },
   { label: 'Dəstək', icon: 'chatbubble-ellipses-outline' },
@@ -27,6 +28,25 @@ export default function Profile() {
   const insets = useSafeAreaInsets();
   const { isPlus } = useBasket();
   const cat = useCatalog();
+  const auth = useAuth();
+  const [notif, setNotif] = useState(false);
+  const [notifBusy, setNotifBusy] = useState(false);
+  const displayName = auth.profile?.display_name || auth.user?.user_metadata?.display_name || auth.user?.user_metadata?.full_name || auth.user?.email?.split('@')[0] || 'Qonaq';
+  const initial = displayName.trim().charAt(0).toUpperCase() || 'Q';
+
+  const toggleNotif = async (v: boolean) => {
+    setNotifBusy(true);
+    if (v) {
+      const r = await registerForPush(auth.user?.id ?? null);
+      if (r.status === 'granted') setNotif(true);
+      else if (r.status === 'unsupported') Alert.alert('Bildirişlər', 'Push bildirişlər yalnız real cihazda (iOS/Android) işləyir.');
+      else Alert.alert('Bildirişlər', 'İcazə verilmədi. Telefonun Ayarlarından bildirişləri aç.');
+    } else {
+      await unregisterPush(auth.user?.id ?? null);
+      setNotif(false);
+    }
+    setNotifBusy(false);
+  };
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingTop: insets.top + space.md, padding: space.lg, paddingBottom: space.xxl }}>
       <Row style={{ justifyContent: 'space-between' }}>
@@ -34,20 +54,34 @@ export default function Profile() {
         <IconBtn name="settings-outline" bg={colors.white} label="Tənzimləmələr" />
       </Row>
 
-      <Row style={styles.card} gap={12}>
-        <View style={styles.avatar}>
-          <Txt v="title" color={colors.white}>
-            Ə
-          </Txt>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Txt v="bodyStrong">Ələmdar</Txt>
-          <Txt v="caption" color={colors.gray} style={{ fontSize: 11, marginTop: 2 }}>
-            İstifadəçi hesabı · Bakı
-          </Txt>
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={colors.grayLight} />
-      </Row>
+      <Pressable onPress={() => (auth.user ? undefined : router.push('/auth'))} style={({ pressed }) => [styles.card, pressed && !auth.user && { opacity: 0.9 }]}>
+        <Row gap={12}>
+          <View style={styles.avatar}>
+            <Txt v="title" color={colors.white}>
+              {initial}
+            </Txt>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Txt v="bodyStrong">{displayName}</Txt>
+            <Txt v="caption" color={colors.gray} style={{ fontSize: 11, marginTop: 2 }}>
+              {auth.user ? auth.user.email ?? (auth.user.app_metadata?.provider === 'apple' ? 'Apple hesabı' : 'Google hesabı') : 'Daxil ol və ya qeydiyyatdan keç'}
+            </Txt>
+          </View>
+          {auth.user ? (
+            <Pressable onPress={() => auth.signOut()} hitSlop={8}>
+              <Txt v="captionStrong" color={colors.primary}>
+                Çıxış
+              </Txt>
+            </Pressable>
+          ) : (
+            <View style={styles.loginBtn}>
+              <Txt v="captionStrong" color={colors.white}>
+                Daxil ol
+              </Txt>
+            </View>
+          )}
+        </Row>
+      </Pressable>
 
       <Pressable onPress={() => router.push('/plus')} style={({ pressed }) => [styles.plus, pressed && { opacity: 0.92 }]}>
         <Txt style={{ fontSize: 26, lineHeight: 32 }}>⭐</Txt>
@@ -75,6 +109,21 @@ export default function Profile() {
       </Pressable>
 
       <View style={styles.rows}>
+        <Row style={[styles.row, styles.rowLine]} gap={12}>
+          <Ionicons name="notifications-outline" size={20} color={colors.dark} />
+          <View style={{ flex: 1 }}>
+            <Row gap={8}>
+              <Txt v="body" style={{ fontSize: 13 }}>
+                Qiymət düşüşü bildirişi
+              </Txt>
+              {!isPlus && <PlusTag />}
+            </Row>
+            <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>
+              Səbətindəki məhsul ucuzlaşanda
+            </Txt>
+          </View>
+          <Switch value={notif} disabled={notifBusy || !isPlus} onValueChange={toggleNotif} trackColor={{ true: colors.primary, false: colors.line }} thumbColor={colors.white} />
+        </Row>
         {ROWS.map((r, i) => (
           <Pressable
             key={r.label}
@@ -111,6 +160,7 @@ export default function Profile() {
 
 const styles = StyleSheet.create({
   card: { backgroundColor: colors.white, borderRadius: 17, padding: 14, marginTop: 15, ...shadow.card },
+  loginBtn: { backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 12, height: 32, justifyContent: 'center' },
   avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   plus: { marginTop: 12, borderRadius: 17, backgroundColor: colors.dark, padding: 14, flexDirection: 'row', alignItems: 'center' },
   savings: { marginTop: 12, borderRadius: 17, backgroundColor: colors.success, padding: 16, flexDirection: 'row', alignItems: 'center' },

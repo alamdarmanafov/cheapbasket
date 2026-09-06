@@ -19,7 +19,8 @@
       "bundleIdentifier": "az.cheapbasket.app",
       "infoPlist": {
         "NSCameraUsageDescription": "Barkodu skan etmək və məhsulun şəklini çəkmək üçün kameraya icazə lazımdır."
-      }
+      },
+      "usesAppleSignIn": true
     },
     "android": {
       "package": "az.cheapbasket.app",
@@ -54,7 +55,17 @@
         {
           "cameraPermission": "Barkodu skan etmək və məhsulun şəklini çəkmək üçün kameraya icazə lazımdır."
         }
-      ]
+      ],
+      "expo-apple-authentication",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#E53935",
+          "defaultChannel": "price-drops"
+        }
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": false

@@ -1,4 +1,5 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useAuth } from './auth';
 import { getProduct, Product, StoreId } from '@/data/products';
 import { PlanId } from '@/data/plans';
 import { BasketLine, optimize, Optimization } from '@/lib/optimizer';
@@ -46,6 +47,10 @@ export function BasketProvider({ children }: { children: React.ReactNode }) {
   );
   const [chosenStore, setChosenStore] = useState<StoreId | null>(null);
   const [plan, setPlan] = useState<PlanId>('free');
+  const auth = useAuth();
+  useEffect(() => {
+    if (auth.profile) setPlan(auth.profile.plan);
+  }, [auth.profile]);
 
   const add = useCallback((p: Product, qty = 1) => {
     setLines((ls) => {

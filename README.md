@@ -84,6 +84,10 @@ Sxem: `supabase/migrations/0001_init.sql` (stores, products, prices + tarixçə 
 
 Vercel-də eyni iki dəyişəni **Settings → Environment Variables** bölməsinə əlavə et.
 
+## Qeydiyyat və bildirişlər
+
+E-poçt, Apple və Google ilə giriş Supabase Auth üzərindən (`src/store/auth.tsx`, ekran: `/auth`), push bildirişlər Expo Notifications ilə (`src/lib/notifications.ts`, tokenlər `push_tokens`). Konsol addımları: **[docs/QEYDIYYAT_VE_BILDIRISLER.md](docs/QEYDIYYAT_VE_BILDIRISLER.md)**.
+
 ## Sayt (landing page)
 
 `website/` — Next.js 14 landing səhifəsi (`design/cheap-basket-website.zip` dizaynı əsasında): hero, "Necə işləyir", 10 məhsul / 4 market bloku, üstünlüklər, Free/Plus, rəylər, FAQ, yükləmə, footer; AZ/EN keçidi; telefon mockup-larında tətbiqin real ekranları.
