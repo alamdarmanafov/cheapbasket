@@ -3,8 +3,9 @@ const base = require('./app.json');
 
 module.exports = ({ config }) => {
   const expo = { ...base.expo, ...config };
-  if (fs.existsSync('./google-services.json')) {
-    expo.android = { ...expo.android, googleServicesFile: './google-services.json' };
-  }
+  // Android push (FCM): local file in the repo root, or the file secret uploaded with
+  // `eas env:create --name GOOGLE_SERVICES_JSON --type file` for EAS builds.
+  const googleServices = process.env.GOOGLE_SERVICES_JSON || (fs.existsSync('./google-services.json') ? './google-services.json' : null);
+  if (googleServices) expo.android = { ...expo.android, googleServicesFile: googleServices };
   return expo;
 };

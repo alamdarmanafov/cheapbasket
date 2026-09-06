@@ -11,6 +11,11 @@ import { useAuth } from '@/store/auth';
 
 type Mode = 'signin' | 'signup' | 'reset';
 
+/** Which social providers are configured in Supabase. Set EXPO_PUBLIC_AUTH_PROVIDERS=google,apple once Apple is set up. */
+const PROVIDERS = (process.env.EXPO_PUBLIC_AUTH_PROVIDERS ?? 'google').split(',').map((s) => s.trim());
+const SHOW_APPLE = PROVIDERS.includes('apple');
+const SHOW_GOOGLE = PROVIDERS.includes('google');
+
 /** Sign in / sign up: email + password, Apple, Google. Guests can keep using the app. */
 export default function AuthScreen() {
   const router = useRouter();
@@ -70,8 +75,13 @@ export default function AuthScreen() {
 
         {mode !== 'reset' && (
           <>
-            <Btn title="Apple ilə davam et" variant="dark" icon="logo-apple" loading={busy === 'apple'} onPress={() => run('apple', auth.signInApple)} style={{ marginTop: space.xl }} />
-            <Btn title="Google ilə davam et" variant="secondary" icon="logo-google" loading={busy === 'google'} onPress={() => run('google', auth.signInGoogle)} style={{ marginTop: space.sm, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line }} />
+            {SHOW_APPLE && (
+              <Btn title="Apple ilə davam et" variant="dark" icon="logo-apple" loading={busy === 'apple'} onPress={() => run('apple', auth.signInApple)} style={{ marginTop: space.xl }} />
+            )}
+            {SHOW_GOOGLE && (
+              <Btn title="Google ilə davam et" variant="secondary" icon="logo-google" loading={busy === 'google'} onPress={() => run('google', auth.signInGoogle)} style={{ marginTop: SHOW_APPLE ? space.sm : space.xl, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line }} />
+            )}
+            {(SHOW_APPLE || SHOW_GOOGLE) && (
             <Row gap={space.md} style={{ marginVertical: space.lg }}>
               <View style={{ flex: 1 }}>
                 <Divider />
@@ -83,6 +93,7 @@ export default function AuthScreen() {
                 <Divider />
               </View>
             </Row>
+            )}
           </>
         )}
 
