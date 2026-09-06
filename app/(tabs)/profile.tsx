@@ -8,6 +8,7 @@ import { IconBtn, Price, Row, Txt } from '@/components/ui';
 import { LogoMark } from '@/components/Logo';
 import { PlusTag } from '@/components/PlusLock';
 import { useBasket } from '@/store/basket';
+import { useCatalog } from '@/store/catalog';
 
 const ROWS: Array<{ label: string; icon: keyof typeof Ionicons.glyphMap; value?: string; route?: string; plus?: boolean }> = [
   { label: 'Mənim məlumatlarım', icon: 'person-outline' },
@@ -25,6 +26,7 @@ export default function Profile() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isPlus } = useBasket();
+  const cat = useCatalog();
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingTop: insets.top + space.md, padding: space.lg, paddingBottom: space.xxl }}>
       <Row style={{ justifyContent: 'space-between' }}>
@@ -100,7 +102,7 @@ export default function Profile() {
           Səbətini yarat. Ən sərfəli marketi tap. Get və al.
         </Txt>
         <Txt v="caption" color={colors.grayLight} style={{ fontSize: 11 }}>
-          Cheap Basket v1.0
+          Cheap Basket v1.0 · Məlumat: {cat.loading ? 'yüklənir…' : cat.source === 'supabase' ? `Supabase (${cat.products.length} məhsul)` : 'demo kataloq'}
         </Txt>
       </View>
     </ScrollView>

@@ -24,7 +24,9 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
     if (!hasSupabase) return;
     setLoading(true);
     try {
-      const [p, b] = await Promise.all([fetchProducts(), fetchBranches()]);
+      // Never block the UI on a slow/blocked network: fall back to the bundled catalog after 8s.
+      const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('catalog timeout')), 8000));
+      const [p, b] = await Promise.race([Promise.all([fetchProducts(), fetchBranches()]), timeout]);
       if (p.length) {
         catalog.products = p;
         setProducts(p);
@@ -34,6 +36,8 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
         catalog.branches = b;
         setBranches(b);
       }
+    } catch {
+      setSource('mock');
     } finally {
       setLoading(false);
     }
