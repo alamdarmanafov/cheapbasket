@@ -12,7 +12,7 @@ import { useAuth } from '@/store/auth';
 type Mode = 'signin' | 'signup' | 'reset';
 
 /** Which social providers are configured in Supabase. Set EXPO_PUBLIC_AUTH_PROVIDERS=google,apple once Apple is set up. */
-const PROVIDERS = (process.env.EXPO_PUBLIC_AUTH_PROVIDERS ?? 'google').split(',').map((s: string) => s.trim());
+const PROVIDERS = (process.env.EXPO_PUBLIC_AUTH_PROVIDERS ?? 'google,apple').split(',').map((s: string) => s.trim());
 const SHOW_APPLE = PROVIDERS.includes('apple');
 const SHOW_GOOGLE = PROVIDERS.includes('google');
 
