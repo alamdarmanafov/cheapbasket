@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { FlatList, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -7,7 +7,8 @@ import { colors, radius, space } from '@/theme';
 import { Chip, Divider, Row, Txt } from '@/components/ui';
 import { ProductRow } from '@/components/product';
 import { ProductRowSkeleton, StateView } from '@/components/states';
-import { POPULAR_SEARCHES, PRODUCTS, Product, searchProducts } from '@/data/products';
+import { POPULAR_SEARCHES, Product, searchProducts } from '@/data/products';
+import { useCatalog } from '@/store/catalog';
 import { useBasket } from '@/store/basket';
 
 const RECENT = ['Sütaş süd', 'Nescafé', 'Toyuq filesi'];
@@ -41,7 +42,7 @@ export default function Search() {
     return () => clearTimeout(t);
   }, []);
 
-  const allProducts = useMemo(() => PRODUCTS, []);
+  const { products: allProducts } = useCatalog();
   const showBrowse = !q.trim();
 
   return (

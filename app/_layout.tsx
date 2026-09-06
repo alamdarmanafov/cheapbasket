@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold } from '@expo-google-fonts/inter';
 import { BasketProvider } from '@/store/basket';
+import { CatalogProvider } from '@/store/catalog';
 import { PhoneFrame } from '@/components/PhoneFrame';
 import { colors } from '@/theme';
 
@@ -19,6 +20,7 @@ export default function RootLayout() {
   if (!loaded && !error) return null;
 
   return (
+    <CatalogProvider>
     <BasketProvider>
       <PhoneFrame>
         <StatusBar style="dark" />
@@ -33,5 +35,6 @@ export default function RootLayout() {
         </Stack>
       </PhoneFrame>
     </BasketProvider>
+    </CatalogProvider>
   );
 }

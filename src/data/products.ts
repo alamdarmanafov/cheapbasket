@@ -310,17 +310,20 @@ export const PRODUCTS: Product[] = [
   },
 ];
 
+/** Runtime registry: starts with the bundled mock and is replaced by Supabase data when configured. */
+export const catalog = { products: PRODUCTS as Product[], branches: [] as Branch[] };
+
 export const POPULAR_SEARCHES = ['Süd', 'Yumurta', 'Qəhvə', 'Toyuq', 'Düyü', 'Çörək'];
 
 /** Home-screen quick picks for a first-time or returning user. */
 export const FEATURED_IDS = ['sutas-sud-1l', 'nescafe-gold-95', 'coca-cola-1l', 'pomidor-1kg', 'sokolad-milka'];
 
 export function getProduct(id: string): Product | undefined {
-  return PRODUCTS.find((p) => p.id === id);
+  return catalog.products.find((p) => p.id === id);
 }
 
 export function findByBarcode(code: string): Product | undefined {
-  return PRODUCTS.find((p) => p.barcode === code);
+  return catalog.products.find((p) => p.barcode === code);
 }
 
 const norm = (s: string) =>
@@ -337,7 +340,7 @@ const norm = (s: string) =>
 export function searchProducts(query: string): Product[] {
   const q = norm(query.trim());
   if (!q) return [];
-  return PRODUCTS.filter((p) => norm(`${p.brand} ${p.name} ${p.category}`).includes(q));
+  return catalog.products.filter((p) => norm(`${p.brand} ${p.name} ${p.category}`).includes(q));
 }
 
 export interface StorePrice {
@@ -373,7 +376,7 @@ export function maxSaving(p: Product): number {
 /** Alternatives in the same category, cheaper first. */
 export function cheaperAlternatives(p: Product, limit = 3): Product[] {
   const base = cheapest(p).price ?? Infinity;
-  return PRODUCTS.filter((x) => x.id !== p.id && x.category === p.category)
+  return catalog.products.filter((x) => x.id !== p.id && x.category === p.category)
     .sort((a, b) => (cheapest(a).price ?? 0) - (cheapest(b).price ?? 0))
     .filter((x) => (cheapest(x).price ?? Infinity) <= base + 1)
     .slice(0, limit);
@@ -404,5 +407,6 @@ export const BRANCHES: Branch[] = [
 ];
 
 export function nearestBranch(storeId: StoreId): Branch {
-  return BRANCHES.filter((b) => b.storeId === storeId).sort((a, b) => a.distanceKm - b.distanceKm)[0];
+  const all = catalog.branches.length ? catalog.branches : BRANCHES;
+  return all.filter((b) => b.storeId === storeId).sort((a, b) => a.distanceKm - b.distanceKm)[0] ?? BRANCHES.find((b) => b.storeId === storeId)!;
 }

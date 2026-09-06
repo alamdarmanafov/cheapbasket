@@ -1,6 +1,6 @@
 import React from 'react';
 import Svg, { Circle, Line, Path, Rect, Text as SvgText } from 'react-native-svg';
-import { Branch, BRANCHES, STORES, USER_LOCATION } from '@/data/products';
+import { Branch, BRANCHES, STORES, USER_LOCATION, catalog } from '@/data/products';
 import { colors } from '@/theme';
 
 /**
@@ -30,7 +30,7 @@ export function MiniMap({ width, height, branch, showOthers = true, labels = tru
       <Rect x={width * 0.3} y={height * 0.2} width={width * 0.2} height={height * 0.1} rx={10} fill="#E8F0F4" />
       {streets}
       {showOthers &&
-        BRANCHES.filter((b) => b.id !== branch.id).map((b) => {
+        (catalog.branches.length ? catalog.branches : BRANCHES).filter((b) => b.id !== branch.id).map((b) => {
           const p = project(b.lat, b.lng);
           return (
             <React.Fragment key={b.id}>

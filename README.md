@@ -74,6 +74,16 @@ npm run export:web   # → dist/
 
 Next.js lazım deyil — Expo web export statik saytdır. Repo-nu Vercel-ə import et; `vercel.json` build əmrini (`npx expo export --platform web`), output qovluğunu (`dist`) və SPA rewrite-ı artıq təyin edir. Framework preset: **Other**.
 
+## Supabase backend
+
+Sxem: `supabase/migrations/0001_init.sql` (stores, products, prices + tarixçə trigger-i, branches, baskets, profiles, RLS). Seed: `supabase/seed/seed.sql` (mock kataloqun eynisi).
+
+1. Supabase → **SQL Editor** → `0001_init.sql` məzmununu işə sal, sonra `seed.sql`.
+2. **Project Settings → API** → URL və `anon` key-i `.env` faylına yaz (`.env.example`-a bax).
+3. `npm start` — tətbiq `product_prices` view-undan oxuyur; env yoxdursa mock kataloqla işləyir.
+
+Vercel-də eyni iki dəyişəni **Settings → Environment Variables** bölməsinə əlavə et.
+
 ## Struktur
 
 ```
