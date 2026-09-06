@@ -84,6 +84,28 @@ Sxem: `supabase/migrations/0001_init.sql` (stores, products, prices + tarixçə 
 
 Vercel-də eyni iki dəyişəni **Settings → Environment Variables** bölməsinə əlavə et.
 
+## Sayt (landing page)
+
+`website/` — Next.js 14 landing səhifəsi (`design/cheap-basket-website.zip` dizaynı əsasında): hero, "Necə işləyir", 10 məhsul / 4 market bloku, üstünlüklər, Free/Plus, rəylər, FAQ, yükləmə, footer; AZ/EN keçidi; telefon mockup-larında tətbiqin real ekranları.
+
+```bash
+cd website && npm install && npm run dev   # http://localhost:3000
+```
+
+Vercel-də **ayrıca layihə** kimi: Add New → Project → eyni repo → **Root Directory: `website`** → Framework: Next.js → Deploy. Mağaza linkləri və sosial linklər `website/components/content.ts` faylındakı `LINKS`-dədir.
+
+## EAS Build (iOS / Android)
+
+`app.json` EAS layihəsinə bağlıdır (`extra.eas.projectId`), profillər `eas.json`-dadır.
+
+```bash
+npm install --global eas-cli
+eas login
+eas env:create --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value <anon key> --environment production --visibility sensitive
+eas build --profile preview --platform android   # APK, telefona birbaşa qurmaq üçün
+eas build --profile production --platform all    # mağaza üçün
+```
+
 ## Struktur
 
 ```
@@ -99,7 +121,8 @@ src/
   lib/assistant.ts      # AI köməkçi cavabları (mock)
   store/basket.tsx      # səbət + plan konteksti
   components/           # ui primitivləri, ProductRow, MiniMap, ResultSheet, PlusLock, TabBar
-assets/                 # app icon, adaptive icon, splash (SVG mənbələri assets/brand/)
+assets/                 # app icon, adaptive icon, splash (mənbə: assets/brand/icon-source.png)
+website/                # Next.js landing page (ayrıca Vercel layihəsi, root = website)
 design/                 # orijinal dizayn mockup-u (Next.js)
 ```
 
