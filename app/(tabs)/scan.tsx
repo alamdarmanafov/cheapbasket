@@ -8,7 +8,7 @@ import { colors, radius, shadow, space } from '@/theme';
 import { Btn, Divider, IconBtn, Pill, Price, Row, Txt } from '@/components/ui';
 import { Freshness, ProductArt, StoreAvatar } from '@/components/product';
 import { StateView } from '@/components/states';
-import { Product, STORES, StoreId, cheapest, findByBarcode, getProduct, sortedPrices } from '@/data/products';
+import { Product, STORES, StoreId, catalog, cheapest, findByBarcode, sortedPrices } from '@/data/products';
 import { useBasket } from '@/store/basket';
 
 type Phase = 'scanning' | 'searching' | 'found' | 'notfound' | 'error';
@@ -68,7 +68,7 @@ export default function Scan() {
           style={StyleSheet.absoluteFill}
           facing="back"
           barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128'] }}
-          onBarcodeScanned={phase === 'scanning' ? ({ data }) => resolve(findByBarcode(data) ?? getProduct('sutas-sud-1l')) : undefined}
+          onBarcodeScanned={phase === 'scanning' ? ({ data }) => resolve(findByBarcode(data)) : undefined}
         />
       ) : (
         <View style={[StyleSheet.absoluteFill, styles.fakeCam]}>
@@ -98,18 +98,14 @@ export default function Scan() {
             Məhsul tanındıqdan sonra qiymətləri avtomatik müqayisə edəcəyik.
           </Txt>
           <View style={{ marginTop: space.xxl, alignItems: 'center', gap: space.sm }}>
-            {mode === 'photo' ? (
-              <Pressable onPress={() => resolve(getProduct('nescafe-gold-95'))} style={styles.shutter} accessibilityLabel="Şəkil çək">
+            {mode === 'photo' && (
+              <Pressable onPress={() => resolve(catalog.products[0])} style={styles.shutter} accessibilityLabel="Şəkil çək">
                 <View style={styles.shutterInner} />
               </Pressable>
-            ) : (
-              <Btn title="Demo: barkodu oxu" variant="secondary" size="md" full={false} onPress={() => resolve(getProduct('sutas-sud-1l'))} />
             )}
-            <Pressable onPress={() => resolve(undefined)} hitSlop={8}>
-              <Txt v="caption" color="rgba(255,255,255,0.6)">
-                Demo: tapılmayan məhsul
-              </Txt>
-            </Pressable>
+            {!canUseCamera && mode === 'barcode' && (
+              <Btn title="Demo: barkodu oxu" variant="secondary" size="md" full={false} onPress={() => resolve(catalog.products[0])} />
+            )}
           </View>
         </View>
       )}

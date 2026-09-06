@@ -1,4 +1,13 @@
-import { PRODUCTS, BRANCHES, Product, Branch, StoreId, STORE_IDS } from '@/data/products';
+import { PRODUCTS, BRANCHES, Product, Branch, StoreId, STORE_IDS, USER_LOCATION } from '@/data/products';
+
+/** Straight-line distance in km; replaced by real routing once expo-location is wired. */
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
 import { supabase } from './supabase';
 
 /**
@@ -44,7 +53,8 @@ function rowToProduct(r: ProductPriceRow, history: number[] = []): Product {
 export async function fetchProducts(): Promise<Product[]> {
   if (!supabase) return PRODUCTS;
   const { data, error } = await supabase.from('product_prices').select('*').order('name');
-  if (error || !data) return PRODUCTS;
+  if (error) throw error;
+  if (!data) return [];
   return (data as ProductPriceRow[]).map((r) => rowToProduct(r));
 }
 
@@ -66,8 +76,9 @@ export async function fetchByBarcode(code: string): Promise<Product | undefined>
 
 export async function fetchBranches(): Promise<Branch[]> {
   if (!supabase) return BRANCHES;
-  const { data } = await supabase.from('branches').select('*');
-  if (!data) return BRANCHES;
+  const { data, error } = await supabase.from('branches').select('*');
+  if (error) throw error;
+  if (!data) return [];
   // Distance/walk time are computed client-side from the user's location in production.
   return data.map((b) => ({
     id: b.id,
@@ -77,7 +88,7 @@ export async function fetchBranches(): Promise<Branch[]> {
     lat: b.lat,
     lng: b.lng,
     openUntil: b.open_until ?? '',
-    distanceKm: BRANCHES.find((x) => x.id === b.id)?.distanceKm ?? 0,
-    walkMinutes: BRANCHES.find((x) => x.id === b.id)?.walkMinutes ?? 0,
+    distanceKm: Math.round(haversineKm(USER_LOCATION.lat, USER_LOCATION.lng, b.lat, b.lng) * 10) / 10,
+    walkMinutes: Math.max(1, Math.round(haversineKm(USER_LOCATION.lat, USER_LOCATION.lng, b.lat, b.lng) * 12)),
   }));
 }

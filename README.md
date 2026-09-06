@@ -80,7 +80,8 @@ Sxem: `supabase/migrations/0001_init.sql` (stores, products, prices + tarixçə 
 
 1. Supabase → **SQL Editor** → `0001_init.sql` məzmununu işə sal, sonra `seed.sql`.
 2. **Project Settings → API** → URL və `anon` key-i `.env` faylına yaz (`.env.example`-a bax).
-3. `npm start` — tətbiq `product_prices` view-undan oxuyur; env yoxdursa mock kataloqla işləyir.
+3. `npm start` — tətbiq `product_prices` view-undan oxuyur; env yoxdursa demo kataloqla işləyir.
+4. Demo məhsulları silib real məlumat daxil etmək üçün: `supabase/seed/clear_demo.sql` (marketlər qalır).
 
 Vercel-də eyni iki dəyişəni **Settings → Environment Variables** bölməsinə əlavə et.
 

@@ -8,15 +8,17 @@ import { ProductRow, StoreAvatar } from '@/components/product';
 import { ProductRowSkeleton } from '@/components/states';
 import { TopBar } from '@/components/TopBar';
 import { PlusTag } from '@/components/PlusLock';
-import { Product, searchProducts } from '@/data/products';
+import { Product, catalogCategories, searchProducts } from '@/data/products';
+import { useCatalog } from '@/store/catalog';
 import { useBasket } from '@/store/basket';
 
-const CATEGORIES = ['🥛 Süd', '🥩 Ət', '🥬 Tərəvəz', '🍊 Meyvə', '🥤 İçkilər', '🍞 Çörək'];
 
 export default function Home() {
   const router = useRouter();
   const basket = useBasket();
   const { optimization: o, lines } = basket;
+  const cat = useCatalog();
+  const categories = catalogCategories();
   const [q, setQ] = useState('');
   const [results, setResults] = useState<Product[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -158,19 +160,34 @@ export default function Home() {
           <Txt style={{ fontSize: 48, lineHeight: 56 }}>🛒</Txt>
         </Pressable>
 
-        {/* Categories */}
-        <Txt v="bodyStrong" style={{ marginTop: 19, marginBottom: 9 }}>
-          Populyar kateqoriyalar
-        </Txt>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7 }}>
-          {CATEGORIES.map((c) => (
-            <Pressable key={c} onPress={() => setQ(c.slice(3))} style={({ pressed }) => [styles.category, pressed && { backgroundColor: colors.primarySoft }]}>
-              <Txt v="captionStrong" style={{ fontSize: 12 }}>
-                {c}
+        {/* Categories (from the live catalog) */}
+        {categories.length > 0 && (
+          <>
+            <Txt v="bodyStrong" style={{ marginTop: 19, marginBottom: 9 }}>
+              Kateqoriyalar
+            </Txt>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7 }}>
+              {categories.map((c) => (
+                <Pressable key={c} onPress={() => setQ(c)} style={({ pressed }) => [styles.category, pressed && { backgroundColor: colors.primarySoft }]}>
+                  <Txt v="captionStrong" style={{ fontSize: 12 }}>
+                    {c}
+                  </Txt>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </>
+        )}
+        {cat.source === 'supabase' && !cat.loading && cat.products.length === 0 && (
+          <View style={[styles.summary, { marginTop: 14 }]}>
+            <Txt style={{ fontSize: 28, lineHeight: 34 }}>🗂️</Txt>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Txt v="bodyStrong">Kataloq hələ boşdur</Txt>
+              <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>
+                Supabase → products və prices cədvəllərinə məhsul əlavə et.
               </Txt>
-            </Pressable>
-          ))}
-        </ScrollView>
+            </View>
+          </View>
+        )}
 
         {/* AI banner */}
         <Pressable onPress={() => router.push('/assistant')} style={({ pressed }) => [styles.aiBanner, pressed && { opacity: 0.9 }]}>
@@ -189,18 +206,20 @@ export default function Home() {
           </View>
         </Pressable>
 
-        {/* Savings teaser */}
-        <Pressable onPress={() => router.push('/savings')} style={({ pressed }) => [styles.savings, pressed && { opacity: 0.9 }]}>
-          <View style={{ flex: 1 }}>
-            <Txt v="caption" color={colors.gray} style={{ fontSize: 12 }}>
-              Bu ay qənaət etdin
+        {/* Savings teaser — only when the current basket actually saves something */}
+        {o.saving > 0 && (
+          <Pressable onPress={() => router.push('/savings')} style={({ pressed }) => [styles.savings, pressed && { opacity: 0.9 }]}>
+            <View style={{ flex: 1 }}>
+              <Txt v="caption" color={colors.gray} style={{ fontSize: 12 }}>
+                Bu səbətdə qənaət edirsən
+              </Txt>
+              <Price value={o.saving} size="md" color={colors.success} />
+            </View>
+            <Txt v="captionStrong" color={colors.primary}>
+              Ətraflı →
             </Txt>
-            <Price value={17.4} size="md" color={colors.success} />
-          </View>
-          <Txt v="captionStrong" color={colors.primary}>
-            Ətraflı →
-          </Txt>
-        </Pressable>
+          </Pressable>
+        )}
       </ScrollView>
     </View>
   );

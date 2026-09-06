@@ -14,9 +14,9 @@ import { registerForPush, unregisterPush } from '@/lib/notifications';
 
 const ROWS: Array<{ label: string; icon: keyof typeof Ionicons.glyphMap; value?: string; route?: string; plus?: boolean }> = [
   { label: 'Mənim məlumatlarım', icon: 'person-outline' },
-  { label: 'Ünvanlarım', icon: 'location-outline', value: 'Nərimanov, Bakı' },
-  { label: 'Sevimli marketlər', icon: 'storefront-outline', value: 'Araz, Bravo, Neptun' },
-  { label: 'Qənaət statistikası', icon: 'trending-up-outline', value: '17.40 ₼', route: '/savings', plus: true },
+  { label: 'Ünvanlarım', icon: 'location-outline' },
+  { label: 'Sevimli marketlər', icon: 'storefront-outline' },
+  { label: 'Qənaət statistikası', icon: 'trending-up-outline', route: '/savings', plus: true },
   { label: 'Dil', icon: 'language-outline', value: 'Azərbaycan' },
   { label: 'Valyuta', icon: 'cash-outline', value: '₼ AZN' },
   { label: 'Dəstək', icon: 'chatbubble-ellipses-outline' },
@@ -26,7 +26,7 @@ const ROWS: Array<{ label: string; icon: keyof typeof Ionicons.glyphMap; value?:
 export default function Profile() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { isPlus } = useBasket();
+  const { isPlus, optimization: o } = useBasket();
   const cat = useCatalog();
   const auth = useAuth();
   const [notif, setNotif] = useState(false);
@@ -99,9 +99,9 @@ export default function Profile() {
       <Pressable onPress={() => router.push('/savings')} style={({ pressed }) => [styles.savings, pressed && { opacity: 0.9 }]}>
         <View style={{ flex: 1 }}>
           <Txt v="caption" color="rgba(255,255,255,0.85)">
-            Bu ay qənaət etdin
+            {o.saving > 0 ? 'Bu səbətdə qənaət edirsən' : 'Qənaət'}
           </Txt>
-          <Price value={17.4} size="lg" color={colors.white} />
+          <Price value={o.saving} size="lg" color={colors.white} />
         </View>
         <Txt v="captionStrong" color={colors.white}>
           Ətraflı →

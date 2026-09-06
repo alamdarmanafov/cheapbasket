@@ -31,9 +31,33 @@ export default function MapScreen() {
   const mapH = Math.min(height, 844);
 
   const openDirections = () => {
+    if (!branch) return;
     const url = `https://www.google.com/maps/dir/?api=1&origin=${USER_LOCATION.lat},${USER_LOCATION.lng}&destination=${branch.lat},${branch.lng}&travelmode=walking`;
     Linking.openURL(url).catch(() => undefined);
   };
+
+  if (!branch) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.bg }}>
+        <Row gap={space.sm} style={{ paddingTop: insets.top + space.sm, paddingHorizontal: space.lg }}>
+          <IconBtn name="chevron-back" bg={colors.white} onPress={() => (router.canGoBack() ? router.back() : router.replace('/markets'))} label="Geri" />
+          <Row gap={6} style={{ flex: 1, flexWrap: 'wrap' }}>
+            {STORE_IDS.map((id) => (
+              <Chip key={id} text={STORES[id].name} active={id === storeId} onPress={() => setStoreId(id)} />
+            ))}
+          </Row>
+        </Row>
+        <View style={{ flex: 1, justifyContent: 'center', padding: space.xl }}>
+          <Txt v="title" center>
+            Filial tapılmadı
+          </Txt>
+          <Txt v="caption" color={colors.gray} center style={{ marginTop: space.sm }}>
+            {STORES[storeId].name} üçün Supabase → branches cədvəlinə filial (ad, ünvan, lat, lng) əlavə et.
+          </Txt>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: '#EAF0EA' }}>

@@ -15,8 +15,8 @@ const Ctx = createContext<CatalogState | null>(null);
 
 /** Loads the catalog from Supabase (when configured) and publishes it to the registry + screens. */
 export function CatalogProvider({ children }: { children: React.ReactNode }) {
-  const [products, setProducts] = useState<Product[]>(PRODUCTS);
-  const [branches, setBranches] = useState<Branch[]>(BRANCHES);
+  const [products, setProducts] = useState<Product[]>(hasSupabase ? [] : PRODUCTS);
+  const [branches, setBranches] = useState<Branch[]>(hasSupabase ? [] : BRANCHES);
   const [loading, setLoading] = useState(hasSupabase);
   const [source, setSource] = useState<'mock' | 'supabase'>('mock');
 
@@ -27,17 +27,14 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
       // Never block the UI on a slow/blocked network: fall back to the bundled catalog after 8s.
       const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('catalog timeout')), 8000));
       const [p, b] = await Promise.race([Promise.all([fetchProducts(), fetchBranches()]), timeout]);
-      if (p.length) {
-        catalog.products = p;
-        setProducts(p);
-        setSource('supabase');
-      }
-      if (b.length) {
-        catalog.branches = b;
-        setBranches(b);
-      }
+      catalog.products = p;
+      setProducts(p);
+      catalog.branches = b;
+      setBranches(b);
+      setSource('supabase');
     } catch {
-      setSource('mock');
+      // Network failed: keep the demo catalog only when Supabase is not configured.
+      setSource(hasSupabase ? 'supabase' : 'mock');
     } finally {
       setLoading(false);
     }

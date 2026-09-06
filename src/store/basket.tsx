@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { useAuth } from './auth';
 import { getProduct, Product, StoreId } from '@/data/products';
 import { PlanId } from '@/data/plans';
+import { hasSupabase } from '@/lib/supabase';
 import { BasketLine, optimize, Optimization } from '@/lib/optimizer';
 
 interface BasketState {
@@ -24,7 +25,7 @@ interface BasketState {
 
 const BasketCtx = createContext<BasketState | null>(null);
 
-/** Seed basket so the prototype opens with a realistic state. */
+/** Demo basket — only when Supabase is not configured (offline prototype). */
 const SEED: Array<[string, number]> = [
   ['sutas-sud-1l', 1],
   ['yumurta-10', 1],
@@ -40,7 +41,7 @@ const SEED: Array<[string, number]> = [
 
 export function BasketProvider({ children }: { children: React.ReactNode }) {
   const [lines, setLines] = useState<BasketLine[]>(() =>
-    SEED.flatMap(([id, qty]) => {
+    (hasSupabase ? [] : SEED).flatMap(([id, qty]) => {
       const product = getProduct(id);
       return product ? [{ product, qty }] : [];
     }),

@@ -1,3 +1,5 @@
+import { hasSupabase } from '@/lib/supabase';
+
 export type StoreId = 'araz' | 'bravo' | 'neptun' | 'bazarstore';
 
 export interface Store {
@@ -310,8 +312,11 @@ export const PRODUCTS: Product[] = [
   },
 ];
 
-/** Runtime registry: starts with the bundled mock and is replaced by Supabase data when configured. */
-export const catalog = { products: PRODUCTS as Product[], branches: [] as Branch[] };
+/**
+ * Runtime registry. With Supabase configured it holds exactly what the database returns
+ * (possibly nothing yet); without Supabase the bundled demo catalog is used.
+ */
+export const catalog = { products: (hasSupabase ? [] : PRODUCTS) as Product[], branches: [] as Branch[] };
 
 export const POPULAR_SEARCHES = ['Süd', 'Yumurta', 'Qəhvə', 'Toyuq', 'Düyü', 'Çörək'];
 
@@ -406,7 +411,11 @@ export const BRANCHES: Branch[] = [
   { id: 'bazarstore-nizami', storeId: 'bazarstore', name: 'Bazarstore', address: 'Qara Qarayev pr. 88, Nizami', distanceKm: 3.1, walkMinutes: 12, lat: 40.3980, lng: 49.8880, openUntil: '23:00' },
 ];
 
-export function nearestBranch(storeId: StoreId): Branch {
-  const all = catalog.branches.length ? catalog.branches : BRANCHES;
-  return all.filter((b) => b.storeId === storeId).sort((a, b) => a.distanceKm - b.distanceKm)[0] ?? BRANCHES.find((b) => b.storeId === storeId)!;
+export function nearestBranch(storeId: StoreId): Branch | undefined {
+  return catalog.branches.filter((b) => b.storeId === storeId).sort((a, b) => a.distanceKm - b.distanceKm)[0];
+}
+
+/** Category names present in the current catalog (for chips). */
+export function catalogCategories(): string[] {
+  return [...new Set(catalog.products.map((p) => p.category))];
 }

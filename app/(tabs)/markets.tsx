@@ -103,6 +103,7 @@ export default function Markets() {
       </View>
 
       {/* Map card */}
+      {branch ? (
       <Pressable onPress={() => router.push(`/map?store=${chosen.store.id}`)} style={({ pressed }) => [styles.mapCard, pressed && { opacity: 0.95 }]}>
         <MiniMap width={width - space.lg * 2} height={185} branch={branch} />
         <Row style={{ padding: 12 }} gap={space.md}>
@@ -115,7 +116,14 @@ export default function Markets() {
           <Ionicons name="chevron-forward" size={20} color={colors.grayLight} />
         </Row>
       </Pressable>
-      <Btn title="Xəritədə göstər" icon="navigate" onPress={() => router.push(`/map?store=${chosen.store.id}`)} style={{ marginTop: 10 }} />
+      ) : (
+        <Card style={{ marginTop: 14 }}>
+          <Txt v="caption" color={colors.gray}>
+            {chosen.store.name} üçün filial əlavə edilməyib (Supabase → branches).
+          </Txt>
+        </Card>
+      )}
+      {branch && <Btn title="Xəritədə göstər" icon="navigate" onPress={() => router.push(`/map?store=${chosen.store.id}`)} style={{ marginTop: 10 }} />}
 
       {/* Shopping list at the chosen store */}
       <Txt v="bodyStrong" style={{ marginTop: 19, marginBottom: 9 }}>

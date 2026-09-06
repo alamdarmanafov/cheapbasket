@@ -38,7 +38,8 @@ export default function ProductScreen() {
   const inBasket = basket.has(product.id);
   const unavailableEverywhere = c.price == null;
   const h = product.history;
-  const delta = h[h.length - 1] - h[0];
+  const hasHistory = h.length >= 2;
+  const delta = hasHistory ? h[h.length - 1] - h[0] : 0;
   const best = basket.optimization.best;
   const atBest = best ? product.prices[best.store.id] : null;
 
@@ -115,6 +116,13 @@ export default function ProductScreen() {
             <Txt v="bodyStrong">Qiymət tarixçəsi</Txt>
             <PlusTag />
           </Row>
+          {!hasHistory ? (
+            <Card>
+              <Txt v="caption" color={colors.gray}>
+                Hələ tarixçə yoxdur — qiymət hər dəyişəndə burada qrafik yığılacaq.
+              </Txt>
+            </Card>
+          ) : (
           <PlusLock feature="Qiymət tarixçəsi" minHeight={220}>
           <Card>
             <Row style={{ justifyContent: 'space-between' }}>
@@ -129,6 +137,7 @@ export default function ProductScreen() {
             </Txt>
           </Card>
           </PlusLock>
+          )}
         </View>
 
         {/* AI alternative */}

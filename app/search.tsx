@@ -7,11 +7,10 @@ import { colors, radius, space } from '@/theme';
 import { Chip, Divider, Row, Txt } from '@/components/ui';
 import { ProductRow } from '@/components/product';
 import { ProductRowSkeleton, StateView } from '@/components/states';
-import { POPULAR_SEARCHES, Product, searchProducts } from '@/data/products';
+import { Product, catalogCategories, searchProducts } from '@/data/products';
 import { useCatalog } from '@/store/catalog';
 import { useBasket } from '@/store/basket';
 
-const RECENT = ['Sütaş süd', 'Nescafé', 'Toyuq filesi'];
 
 export default function Search() {
   const router = useRouter();
@@ -79,29 +78,26 @@ export default function Search() {
           keyExtractor={(p) => p.id}
           ListHeaderComponent={
             <View style={{ paddingHorizontal: space.lg }}>
-              <Txt v="captionStrong" color={colors.gray} style={{ marginBottom: space.sm }}>
-                SON AXTARIŞLAR
-              </Txt>
-              <Row gap={8} style={{ flexWrap: 'wrap' }}>
-                {RECENT.map((r) => (
-                  <Chip key={r} text={r} onPress={() => setQ(r)} />
-                ))}
-              </Row>
+              {catalogCategories().length > 0 && (
+                <>
+                  <Txt v="captionStrong" color={colors.gray} style={{ marginBottom: space.sm }}>
+                    KATEQORİYALAR
+                  </Txt>
+                  <Row gap={8} style={{ flexWrap: 'wrap' }}>
+                    {catalogCategories().map((r) => (
+                      <Chip key={r} text={r} onPress={() => setQ(r)} />
+                    ))}
+                  </Row>
+                </>
+              )}
               <Txt v="captionStrong" color={colors.gray} style={{ marginTop: space.xl, marginBottom: space.sm }}>
-                POPULYAR
-              </Txt>
-              <Row gap={8} style={{ flexWrap: 'wrap' }}>
-                {POPULAR_SEARCHES.map((r) => (
-                  <Chip key={r} text={r} onPress={() => setQ(r)} />
-                ))}
-              </Row>
-              <Txt v="captionStrong" color={colors.gray} style={{ marginTop: space.xl, marginBottom: space.sm }}>
-                BÜTÜN MƏHSULLAR
+                BÜTÜN MƏHSULLAR{allProducts.length ? ` · ${allProducts.length}` : ''}
               </Txt>
             </View>
           }
           renderItem={({ item }) => <ProductRow product={item} />}
           ItemSeparatorComponent={() => <Divider inset={84} />}
+          ListEmptyComponent={<StateView emoji="🗂️" title="Kataloq hələ boşdur" body="Supabase-də products və prices cədvəllərinə məhsul əlavə edəndə burada görünəcək." />}
           contentContainerStyle={{ paddingBottom: insets.bottom + 90 }}
         />
       ) : loading ? (
