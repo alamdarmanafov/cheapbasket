@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Animated, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { colors, radius, shadow, space } from '@/theme';
+import { API_URL } from '@/lib/plusStore';
+import { colors, fonts, radius, shadow, space } from '@/theme';
 import { Btn, Divider, IconBtn, Pill, Price, Row, Txt } from '@/components/ui';
 import { Freshness, ProductArt, StoreAvatar } from '@/components/product';
 import { StateView } from '@/components/states';
@@ -27,7 +28,11 @@ export default function Scan() {
   const [phase, setPhase] = useState<Phase>('scanning');
   const [product, setProduct] = useState<Product | null>(null);
   const [added, setAdded] = useState(false);
+  const [torch, setTorch] = useState(false);
+  const [manual, setManual] = useState('');
+  const [hint, setHint] = useState<string | null>(null);
   const lockRef = useRef(false);
+  const camRef = useRef<CameraView>(null);
 
   // Which store is the user standing in? Defaults to the AI's best store for their basket.
   const hereId = ((params.store as StoreId) || basket.optimization.best?.store.id || catalog.stores[0]?.id || '') as StoreId;
@@ -55,20 +60,55 @@ export default function Scan() {
     lockRef.current = false;
     setProduct(null);
     setAdded(false);
+    setHint(null);
     setPhase('scanning');
   };
 
   const canUseCamera = Platform.OS !== 'web' && permission?.granted;
+
+  /** Photo mode: capture → server vision model → best catalogue match. */
+  const takePhoto = async () => {
+    if (lockRef.current) return;
+    if (!camRef.current) return setHint('Kamera hazır deyil.');
+    if (!API_URL) return setHint('Server konfiqurasiya olunmayıb (EXPO_PUBLIC_API_URL).');
+    lockRef.current = true;
+    setPhase('searching');
+    try {
+      const pic = await camRef.current.takePictureAsync({ base64: true, quality: 0.4, skipProcessing: true });
+      const res = await fetch(`${API_URL}/api/ai/identify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: pic?.base64 ?? '' }) });
+      const j = (await res.json()) as { identified?: { query: string }; candidates?: Array<{ id: string }>; error?: string };
+      if (!res.ok) throw new Error(j.error ?? `Server xətası (${res.status})`);
+      const top = j.candidates?.[0] ? catalog.products.find((p) => p.id === j.candidates?.[0].id) : undefined;
+      if (top) {
+        setProduct(top);
+        setPhase('found');
+      } else {
+        setHint(j.identified?.query ? `Tanındı: "${j.identified.query}" — bazamızda hələ yoxdur.` : null);
+        setPhase('notfound');
+      }
+    } catch (e) {
+      setHint((e as Error).message);
+      setPhase('notfound');
+    }
+  };
+
+  const submitManual = () => {
+    const code = manual.replace(/\D/g, '');
+    if (code.length < 8) return;
+    resolve(findByBarcode(code));
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: '#0B0B0B' }}>
       {/* Viewfinder */}
       {canUseCamera ? (
         <CameraView
+          ref={camRef}
           style={StyleSheet.absoluteFill}
           facing="back"
+          enableTorch={torch}
           barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128'] }}
-          onBarcodeScanned={phase === 'scanning' ? ({ data }) => resolve(findByBarcode(data)) : undefined}
+          onBarcodeScanned={phase === 'scanning' && mode === 'barcode' ? ({ data }) => resolve(findByBarcode(data)) : undefined}
         />
       ) : (
         <View style={[StyleSheet.absoluteFill, styles.fakeCam]}>
@@ -85,7 +125,7 @@ export default function Scan() {
             {here.name}-dasan
           </Txt>
         </View>
-        <IconBtn name="flashlight-outline" bg="rgba(255,255,255,0.15)" color={colors.white} label="Fənər" />
+        <IconBtn name={torch ? 'flashlight' : 'flashlight-outline'} bg={torch ? colors.primary : 'rgba(255,255,255,0.15)'} color={colors.white} label="Fənər" onPress={() => (canUseCamera ? setTorch((t) => !t) : undefined)} />
       </Row>
 
       {phase === 'scanning' && (
@@ -98,13 +138,40 @@ export default function Scan() {
             Məhsul tanındıqdan sonra qiymətləri avtomatik müqayisə edəcəyik.
           </Txt>
           <View style={{ marginTop: space.xxl, alignItems: 'center', gap: space.sm }}>
-            {mode === 'photo' && (
-              <Pressable onPress={() => resolve(catalog.products[0])} style={styles.shutter} accessibilityLabel="Şəkil çək">
+            {mode === 'photo' && canUseCamera && (
+              <Pressable onPress={takePhoto} style={styles.shutter} accessibilityLabel="Şəkil çək">
                 <View style={styles.shutterInner} />
               </Pressable>
             )}
-            {!canUseCamera && mode === 'barcode' && (
-              <Btn title="Demo: barkodu oxu" variant="secondary" size="md" full={false} onPress={() => resolve(catalog.products[0])} />
+            {mode === 'photo' && !canUseCamera && (
+              <>
+                <Txt v="caption" color="rgba(255,255,255,0.8)" center>
+                  {Platform.OS === 'web' ? 'Şəkillə tanıma yalnız telefon tətbiqində işləyir.' : 'Kameraya icazə lazımdır.'}
+                </Txt>
+                {Platform.OS !== 'web' && !permission?.granted && <Btn title="Kameraya icazə ver" size="md" full={false} onPress={() => requestPermission()} />}
+                <Btn title="Adı ilə axtar" variant="secondary" size="md" full={false} onPress={() => router.replace('/search')} />
+              </>
+            )}
+            {mode === 'barcode' && !canUseCamera && (
+              <View style={{ width: '100%', alignItems: 'center', gap: space.sm }}>
+                <Txt v="caption" color="rgba(255,255,255,0.8)" center>
+                  {Platform.OS === 'web' ? 'Kamera ilə skan telefon tətbiqindədir. Barkodu əl ilə yaz:' : 'Kameraya icazə yoxdur. Barkodu əl ilə yaz:'}
+                </Txt>
+                <View style={styles.manualRow}>
+                  <TextInput
+                    value={manual}
+                    onChangeText={setManual}
+                    placeholder="8690767010012"
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    keyboardType="number-pad"
+                    returnKeyType="search"
+                    onSubmitEditing={submitManual}
+                    style={styles.manualInput}
+                  />
+                  <Btn title="Tap" size="md" full={false} onPress={submitManual} disabled={manual.replace(/\D/g, '').length < 8} />
+                </View>
+                {Platform.OS !== 'web' && permission && !permission.granted && <Btn title="Kameraya icazə ver" variant="secondary" size="md" full={false} onPress={() => requestPermission()} />}
+              </View>
             )}
           </View>
         </View>
@@ -117,7 +184,7 @@ export default function Scan() {
             Məhsul axtarılır…
           </Txt>
           <Txt v="caption" color="rgba(255,255,255,0.7)" center style={{ marginTop: 4 }}>
-            4 marketdə qiymətlər yoxlanılır
+            {catalog.stores.length} marketdə qiymətlər yoxlanılır
           </Txt>
         </View>
       )}
@@ -127,10 +194,10 @@ export default function Scan() {
           <StateView
             emoji="🤔"
             title="Məhsul tapılmadı"
-            body="Bu barkod bazamızda yoxdur. Adı ilə axtar və ya yenidən cəhd et."
+            body={hint ?? (mode === 'photo' ? 'Məhsul tanınmadı. Adı ilə axtar və ya yenidən şəkil çək.' : 'Bu barkod bazamızda yoxdur. Adı ilə axtar və ya yenidən cəhd et.')}
             cta="Adı ilə axtar"
             onCta={() => router.replace('/search')}
-            secondary="Yenidən skan et"
+            secondary={mode === 'photo' ? 'Yenidən çək' : 'Yenidən skan et'}
             onSecondary={reset}
           />
         </View>
@@ -304,6 +371,8 @@ function Frame({ active }: { active?: boolean }) {
 }
 
 const styles = StyleSheet.create({
+  manualRow: { flexDirection: 'row', gap: 8, alignItems: 'center', paddingHorizontal: space.lg, width: '100%', maxWidth: 360 },
+  manualInput: { flex: 1, backgroundColor: 'rgba(255,255,255,0.12)', color: colors.white, borderRadius: 12, paddingHorizontal: 14, height: 44, fontFamily: fonts.semibold, fontSize: 16, letterSpacing: 1 },
   fakeCam: { backgroundColor: '#161616', alignItems: 'center', justifyContent: 'center' },
   center: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.xl },
   hereChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 12, height: 36, borderRadius: radius.pill },

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,17 +12,19 @@ import { useCatalog } from '@/store/catalog';
 import { useRefresh } from '@/lib/useRefresh';
 import { useAuth } from '@/store/auth';
 import { registerForPush, unregisterPush } from '@/lib/notifications';
+import * as StoreReview from 'expo-store-review';
 import { notify } from '@/lib/confirm';
 
-const ROWS: Array<{ label: string; icon: keyof typeof Ionicons.glyphMap; value?: string; route?: string; plus?: boolean }> = [
+type RowDef = { label: string; icon: keyof typeof Ionicons.glyphMap; value?: string; route?: string; plus?: boolean; action?: 'location' | 'rate'; info?: boolean };
+const ROWS: RowDef[] = [
   { label: 'Mənim məlumatlarım', icon: 'person-outline', route: '/account' },
-  { label: 'Lokasiya', icon: 'location-outline' },
-  { label: 'Sevimli marketlər', icon: 'storefront-outline' },
+  { label: 'Lokasiya', icon: 'location-outline', action: 'location' },
+  { label: 'Bildirişlər', icon: 'notifications-outline', route: '/notifications' },
   { label: 'Qənaət statistikası', icon: 'trending-up-outline', route: '/savings', plus: true },
-  { label: 'Dil', icon: 'language-outline', value: 'Azərbaycan' },
-  { label: 'Valyuta', icon: 'cash-outline', value: '₼ AZN' },
-  { label: 'Dəstək', icon: 'chatbubble-ellipses-outline' },
-  { label: 'Tətbiqi qiymətləndir', icon: 'star-outline' },
+  { label: 'Dil', icon: 'language-outline', value: 'Azərbaycan', info: true },
+  { label: 'Valyuta', icon: 'cash-outline', value: '₼ AZN', info: true },
+  { label: 'Dəstək', icon: 'chatbubble-ellipses-outline', route: '/feedback' },
+  { label: 'Tətbiqi qiymətləndir', icon: 'star-outline', action: 'rate' },
 ];
 
 export default function Profile() {
@@ -50,11 +52,20 @@ export default function Profile() {
     }
     setNotifBusy(false);
   };
+  const onRow = async (r: RowDef) => {
+    if (r.route) return router.push(r.route as never);
+    if (r.action === 'location') return cat.requestLocation();
+    if (r.action === 'rate') {
+      if (Platform.OS !== 'web' && (await StoreReview.hasAction().catch(() => false))) return StoreReview.requestReview();
+      return notify('Təşəkkürlər ⭐', 'Qiymətləndirmə App Store / Google Play-də tətbiq yayımlanandan sonra açılacaq.');
+    }
+  };
+  const rowValue = (r: RowDef) => (r.action === 'location' ? cat.place ?? (cat.locationGranted === false ? 'Bağlıdır' : 'Açıqdır') : r.value);
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingTop: insets.top + space.md, padding: space.lg, paddingBottom: space.xxl }} refreshControl={refresh.control}>
       <Row style={{ justifyContent: 'space-between' }}>
         <Txt v="title">Profil</Txt>
-        <IconBtn name="settings-outline" bg={colors.white} label="Tənzimləmələr" />
+        <IconBtn name="settings-outline" bg={colors.white} label="Tənzimləmələr" onPress={() => router.push(auth.user ? '/account' : '/auth')} />
       </Row>
 
       <Pressable onPress={() => router.push(auth.user ? '/account' : '/auth')} style={({ pressed }) => [styles.card, pressed && { opacity: 0.9 }]}>
@@ -135,7 +146,8 @@ export default function Profile() {
         {ROWS.map((r, i) => (
           <Pressable
             key={r.label}
-            onPress={() => r.route && router.push(r.route as never)}
+            disabled={r.info}
+            onPress={() => onRow(r)}
             style={({ pressed }) => [styles.row, i < ROWS.length - 1 && styles.rowLine, pressed && { backgroundColor: colors.fill }]}
           >
             <Ionicons name={r.icon} size={20} color={colors.dark} />
@@ -143,12 +155,12 @@ export default function Profile() {
               {r.label}
             </Txt>
             <View style={{ flex: 1, marginLeft: 8, alignItems: 'flex-start' }}>{r.plus && !isPlus && <PlusTag />}</View>
-            {r.value && (
-              <Txt v="caption" color={colors.gray} style={{ marginRight: 6, fontSize: 12 }}>
-                {r.value}
+            {rowValue(r) && (
+              <Txt v="caption" color={colors.gray} style={{ marginRight: 6, fontSize: 12 }} numberOfLines={1}>
+                {rowValue(r)}
               </Txt>
             )}
-            <Ionicons name="chevron-forward" size={18} color={colors.grayLight} />
+            {!r.info && <Ionicons name="chevron-forward" size={18} color={colors.grayLight} />}
           </Pressable>
         ))}
       </View>

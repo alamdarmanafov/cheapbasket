@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { colors, fonts, radius, space } from '@/theme';
 import { IconBtn, Row, Txt } from './ui';
 import { LogoMark } from './Logo';
@@ -10,6 +11,7 @@ import { useCatalog } from '@/store/catalog';
 /** Brand + location + notifications, as in the design's top bar. */
 export function TopBar() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const cat = useCatalog();
   const label = cat.place ?? (cat.locationGranted === false ? 'Lokasiya bağlıdır' : cat.locationGranted ? 'Lokasiyan' : 'Lokasiya…');
   return (
@@ -26,7 +28,7 @@ export function TopBar() {
           {label}
         </Txt>
       </Pressable>
-      <IconBtn name="notifications-outline" size={36} label="Bildirişlər" />
+      <IconBtn name="notifications-outline" size={36} label="Bildirişlər" onPress={() => router.push('/notifications')} />
     </Row>
   );
 }

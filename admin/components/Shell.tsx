@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Bell, Download, Image as ImageIcon, Tags, LayoutDashboard, LogOut, MapPin, Package, Store, Users } from 'lucide-react';
+import { Bell, Download, Image as ImageIcon, MessageSquare, Tags, LayoutDashboard, LogOut, MapPin, Package, Store, Users } from 'lucide-react';
 
 const NAV = [
   ['/', 'Panel', LayoutDashboard],
@@ -13,6 +13,7 @@ const NAV = [
   ['/banners', 'Bannerlər', ImageIcon],
   ['/users', 'İstifadəçilər', Users],
   ['/notifications', 'Bildirişlər', Bell],
+  ['/feedback', 'Rəylər', MessageSquare],
 ] as const;
 
 /** Sidebar layout. Access is enforced by middleware (admin cookie), so pages render directly. */

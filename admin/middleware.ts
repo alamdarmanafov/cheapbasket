@@ -4,7 +4,7 @@ import { COOKIE, verifySession } from '@/lib/server';
 /** Every page and API except /login and /api/auth/* requires a valid admin cookie. */
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  if (pathname.startsWith('/login') || pathname.startsWith('/api/auth') || pathname.startsWith('/api/iap') || pathname.startsWith('/api/cron') || pathname === '/icon.png') return NextResponse.next();
+  if (pathname.startsWith('/login') || pathname.startsWith('/api/auth') || pathname.startsWith('/api/iap') || pathname.startsWith('/api/cron') || pathname.startsWith('/api/ai') || pathname === '/icon.png') return NextResponse.next();
   const ok = await verifySession(req.cookies.get(COOKIE)?.value);
   if (ok) return NextResponse.next();
   if (pathname.startsWith('/api/')) return NextResponse.json({ error: 'Giriş tələb olunur' }, { status: 401 });
