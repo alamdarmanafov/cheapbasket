@@ -101,10 +101,13 @@ create policy "public read prices"    on prices        for select using (true);
 create policy "public read history"   on price_history for select using (true);
 create policy "public read branches"  on branches      for select using (true);
 
+drop policy if exists "own baskets" on baskets;
 create policy "own baskets" on baskets for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "own basket items" on basket_items;
 create policy "own basket items" on basket_items for all
   using (exists (select 1 from baskets b where b.id = basket_id and b.user_id = auth.uid()))
   with check (exists (select 1 from baskets b where b.id = basket_id and b.user_id = auth.uid()));
+drop policy if exists "own profile" on profiles;
 create policy "own profile" on profiles for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- One view the app reads: product + all store prices + freshness.

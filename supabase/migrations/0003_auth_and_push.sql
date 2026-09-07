@@ -18,6 +18,7 @@ create table if not exists push_tokens (
 );
 create index if not exists push_tokens_user_idx on push_tokens (user_id);
 alter table push_tokens enable row level security;
+drop policy if exists "own push tokens" on push_tokens;
 create policy "own push tokens" on push_tokens for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- Price-drop alerts: which products a user wants to be notified about (defaults to basket items)
@@ -28,4 +29,5 @@ create table if not exists price_alerts (
   primary key (user_id, product_id)
 );
 alter table price_alerts enable row level security;
+drop policy if exists "own price alerts" on price_alerts;
 create policy "own price alerts" on price_alerts for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
