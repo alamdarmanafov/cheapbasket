@@ -6,8 +6,6 @@ export const LINKS = {
   appStore: '#download',
   googlePlay: '#download',
   site: 'https://cheapmarket.app',
-  // Web version of the app; switch to https://app.cheapmarket.app once that subdomain points at the app project.
-  webApp: 'https://cheapbasket.vercel.app',
   instagram: 'https://instagram.com/cheapbasket.az',
   tiktok: 'https://tiktok.com/@cheapbasket.az',
   linkedin: 'https://linkedin.com/company/cheapbasket',
