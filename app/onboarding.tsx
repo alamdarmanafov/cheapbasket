@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Image, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Image, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,8 +19,13 @@ export default function Onboarding() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const auth = useAuth();
-  const { width, height } = useWindowDimensions();
-  const w = Math.min(width, 430);
+  const { height } = useWindowDimensions();
+  // Measure the real container (inside the web phone frame the window is much wider than the screen).
+  const [w, setW] = useState(0);
+  const onLayout = (e: LayoutChangeEvent) => {
+    const next = Math.round(e.nativeEvent.layout.width);
+    if (next && next !== w) setW(next);
+  };
   const ref = useRef<ScrollView>(null);
   const [index, setIndex] = useState(0);
   const last = index === SLIDES.length - 1;
@@ -35,7 +40,7 @@ export default function Onboarding() {
     ref.current?.scrollTo({ x: (index + 1) * w, animated: true });
     setIndex(index + 1);
   };
-  const onEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => setIndex(Math.round(e.nativeEvent.contentOffset.x / w));
+  const onEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => w > 0 && setIndex(Math.round(e.nativeEvent.contentOffset.x / w));
 
   return (
     <View style={{ flex: 1, backgroundColor: '#FFF4F4', paddingTop: insets.top + space.md, paddingBottom: insets.bottom + space.lg }}>
@@ -58,8 +63,8 @@ export default function Onboarding() {
         )}
       </Row>
 
-      <ScrollView ref={ref} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={onEnd} style={{ flex: 1 }}>
-        {SLIDES.map((s) => (
+      <ScrollView ref={ref} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={onEnd} style={{ flex: 1 }} onLayout={onLayout}>
+        {w > 0 && SLIDES.map((s) => (
           <View key={s.key} style={{ width: w, paddingHorizontal: space.xl, alignItems: 'center' }}>
             <Txt style={styles.h1} center>
               {s.line1}

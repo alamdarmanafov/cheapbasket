@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Image, Linking, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Image, LayoutChangeEvent, Linking, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors, radius, space } from '@/theme';
 import { Txt } from './ui';
@@ -11,7 +11,13 @@ const INTERVAL_MS = 5000;
 export function BannerSlider({ banners, width }: { banners: Banner[]; width?: number }) {
   const router = useRouter();
   const { width: screenW } = useWindowDimensions();
-  const w = width ?? Math.min(screenW, 430) - space.lg * 2;
+  // Real container width (the web phone frame is narrower than the window); window-based fallback until measured.
+  const [measured, setMeasured] = useState(0);
+  const w = width ?? (measured || Math.min(screenW, 430) - space.lg * 2);
+  const onLayout = (e: LayoutChangeEvent) => {
+    const next = Math.round(e.nativeEvent.layout.width);
+    if (next && next !== measured) setMeasured(next);
+  };
   const ref = useRef<ScrollView>(null);
   const [index, setIndex] = useState(0);
   const indexRef = useRef(0);
@@ -50,7 +56,7 @@ export function BannerSlider({ banners, width }: { banners: Banner[]; width?: nu
 
   if (!banners.length) return null;
   return (
-    <View style={{ marginTop: space.md }}>
+    <View style={{ marginTop: space.md }} onLayout={onLayout}>
       <ScrollView
         ref={ref}
         horizontal
