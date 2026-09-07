@@ -44,8 +44,8 @@ export function safeEqual(a: string, b: string): boolean {
 
 /** Server-only Supabase client with the service role key (bypasses RLS). Never import from client code. */
 export function adminDb() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? '';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  const url = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? '').trim();
+  const key = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim();
   if (!url || !key) throw new Error('SUPABASE_SERVICE_ROLE_KEY təyin edilməyib');
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
@@ -54,4 +54,14 @@ export async function requireAdmin(req: Request): Promise<{ email: string } | nu
   const cookie = req.headers.get('cookie') ?? '';
   const m = cookie.match(new RegExp(`(?:^|;\\s*)${COOKIE}=([^;]+)`));
   return verifySession(m?.[1]);
+}
+
+/** Supabase errors are plain objects (not Error instances); normalise to text. */
+export function errText(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === 'object' && 'message' in e) {
+    const o = e as { message?: string; hint?: string; details?: string; code?: string };
+    return [o.message, o.details, o.hint, o.code ? `(${o.code})` : ''].filter(Boolean).join(' · ');
+  }
+  return String(e);
 }

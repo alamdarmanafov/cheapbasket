@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb, requireAdmin } from '@/lib/server';
+import { adminDb, errText, requireAdmin } from '@/lib/server';
 
 const TABLES = new Set(['stores', 'products', 'prices', 'price_history', 'branches', 'profiles', 'push_tokens', 'baskets', 'admin_users']);
 
@@ -14,8 +14,8 @@ export async function POST(req: Request) {
   if (!(await requireAdmin(req))) return NextResponse.json({ error: 'Giriş tələb olunur' }, { status: 401 });
   const body = (await req.json()) as Op;
   if (!TABLES.has(body.table)) return NextResponse.json({ error: 'Cədvəl icazəli deyil' }, { status: 400 });
-  const db = adminDb();
   try {
+    const db = adminDb();
     if (body.op === 'select') {
       let q = db.from(body.table).select(body.columns ?? '*');
       for (const [k, v] of Object.entries(body.eq ?? {})) q = q.eq(k, v as never);
@@ -48,6 +48,6 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ error: 'Naməlum əməliyyat' }, { status: 400 });
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+    return NextResponse.json({ error: errText(e) }, { status: 500 });
   }
 }
