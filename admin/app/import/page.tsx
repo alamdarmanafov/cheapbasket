@@ -197,7 +197,11 @@ export default function ImportPage() {
           // several Wolt rows can map to one product (same barcode / name) → keep a single info update per id
           if (r.updateInfo && !infoUpdates.some((u) => u.id === id)) infoUpdates.push({ id, name: r.title.trim(), brand: r.brand.trim(), size: r.size.trim() || '—', category: r.appCategory, image_url: r.image_url });
           // no photo in our catalogue yet → take Wolt's (never replaces an existing photo)
-          else if (!r.updateInfo && r.image_url && !fresh.find((p) => p.id === id)?.image_url && !photoUpdates.some((u) => u.id === id)) photoUpdates.push({ id, image_url: r.image_url });
+          // Guard: only update if the product actually exists in fresh (undefined?.image_url = undefined, !undefined = true would otherwise INSERT a partial row → null name crash)
+          else if (!r.updateInfo && r.image_url && !photoUpdates.some((u) => u.id === id)) {
+            const fp = fresh.find((p) => p.id === id);
+            if (fp && !fp.image_url) photoUpdates.push({ id, image_url: r.image_url });
+          }
         }
         if (productsOnly || num(r.priceText) == null) continue; // no price to write
         // one price row per product (a duplicate barcode in the venue keeps the first / cheaper price)

@@ -23,14 +23,15 @@ export default function Branches() {
   const [woltError, setWoltError] = useState('');
   const [woltImporting, setWoltImporting] = useState(false);
 
-  const searchWolt = async () => {
-    if (!woltQuery.trim() || !woltStoreId) return;
+  const searchWolt = async (query?: string, sid?: string) => {
+    const q = (query ?? woltQuery).trim();
+    if (!q || !(sid ?? woltStoreId)) return;
     setWoltLoading(true);
     setWoltError('');
     setWoltVenues([]);
     setWoltSelected(new Set());
     try {
-      const res = await fetch(`/api/import/wolt/venues?q=${encodeURIComponent(woltQuery)}`);
+      const res = await fetch(`/api/import/wolt/venues?q=${encodeURIComponent(q)}`);
       const j = await res.json() as { venues?: WoltVenue[]; error?: string };
       if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`);
       const venues = j.venues ?? [];
@@ -117,7 +118,16 @@ export default function Branches() {
       {msg && <div className={`alert ${msg.ok ? 'ok' : 'err'}`}>{msg.text}</div>}
       <div className="toolbar">
         <span className="muted">Google Maps-də filialı tap → "Paylaş" → linki kopyala → "Yeni filial"də yapışdır. Ad, ünvan və koordinat avtomatik doldurulur.</span>
-        <button className="btn secondary" style={{ marginLeft: 'auto' }} disabled={!stores.length} onClick={() => { setWoltOpen((o) => !o); setWoltQuery(''); setWoltVenues([]); setWoltSelected(new Set()); setWoltError(''); setWoltStoreId(stores[0]?.id ?? ''); }}><Search size={14} /> Wolt-dan çək</button>
+        <button className="btn secondary" style={{ marginLeft: 'auto' }} disabled={!stores.length} onClick={() => {
+          if (woltOpen) { setWoltOpen(false); return; }
+          const first = stores[0];
+          const name = first?.name ?? '';
+          setWoltStoreId(first?.id ?? '');
+          setWoltQuery(name);
+          setWoltVenues([]); setWoltSelected(new Set()); setWoltError('');
+          setWoltOpen(true);
+          if (name && first?.id) searchWolt(name, first.id);
+        }}><Search size={14} /> Wolt-dan çək</button>
         <button className="btn" disabled={!stores.length} onClick={() => { setLink(''); setEdit({ id: '', store_id: stores[0]?.id ?? '', name: '', address: '', lat: 40.4093, lng: 49.8671, open_until: '23:00', open_from: '08:00', always_open: false, maps_url: '', phone: '' }); }}><Plus size={14} /> Yeni filial</button>
       </div>
 
@@ -126,7 +136,14 @@ export default function Branches() {
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
             <label style={{ flex: '0 0 auto' }}>
               <span style={{ fontSize: 12, color: '#6B7280', display: 'block', marginBottom: 4 }}>Market</span>
-              <select value={woltStoreId} onChange={(e) => setWoltStoreId(e.target.value)} style={{ minWidth: 120 }}>
+              <select value={woltStoreId} onChange={(e) => {
+                const sid = e.target.value;
+                const name = stores.find((s) => s.id === sid)?.name ?? '';
+                setWoltStoreId(sid);
+                setWoltQuery(name);
+                setWoltVenues([]); setWoltSelected(new Set()); setWoltError('');
+                searchWolt(name, sid);
+              }} style={{ minWidth: 120 }}>
                 {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </label>
@@ -134,7 +151,7 @@ export default function Branches() {
               <span style={{ fontSize: 12, color: '#6B7280', display: 'block', marginBottom: 4 }}>Wolt-da axtarış (şirkət adı)</span>
               <input value={woltQuery} onChange={(e) => setWoltQuery(e.target.value)} placeholder="məs. Araz, Bravo, Kontakt" onKeyDown={(e) => e.key === 'Enter' && searchWolt()} />
             </label>
-            <button className="btn" disabled={woltLoading || !woltQuery.trim() || !woltStoreId} onClick={searchWolt}>
+            <button className="btn" disabled={woltLoading || !woltQuery.trim() || !woltStoreId} onClick={() => searchWolt()}>
               {woltLoading ? 'Axtarılır…' : <><Search size={14} /> Axtar</>}
             </button>
             <button className="btn ghost" onClick={() => setWoltOpen(false)}><X size={14} /></button>
