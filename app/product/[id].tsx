@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -14,6 +14,7 @@ import { cheapest, getProduct, maxSaving, sortedPrices } from '@/data/products';
 import { fetchPriceHistory } from '@/lib/catalog';
 import { hasSupabase } from '@/lib/supabase';
 import { useBasket } from '@/store/basket';
+import { useRefresh } from '@/lib/useRefresh';
 
 /** Product comparison + detail: one screen, price first. */
 export default function ProductScreen() {
@@ -24,10 +25,15 @@ export default function ProductScreen() {
   const product = getProduct(String(id));
   const [history, setHistory] = useState<number[]>(product?.history ?? []);
   const cheapestStoreId = product ? cheapest(product).store.id : null;
+  const productId = product?.id;
+  const loadHistory = useCallback(async () => {
+    if (!productId || !hasSupabase || !cheapestStoreId) return;
+    await fetchPriceHistory(productId, cheapestStoreId).then(setHistory).catch(() => undefined);
+  }, [productId, cheapestStoreId]);
   useEffect(() => {
-    if (!product || !hasSupabase || !cheapestStoreId) return;
-    fetchPriceHistory(product.id, cheapestStoreId).then(setHistory).catch(() => undefined);
-  }, [product, cheapestStoreId]);
+    loadHistory();
+  }, [loadHistory]);
+  const refresh = useRefresh(loadHistory);
 
   if (!product) {
     return (
@@ -57,7 +63,7 @@ export default function ProductScreen() {
         title={`${product.brand} ${product.name} ${product.size}`}
         right={<Pressable hitSlop={8} accessibilityLabel="Paylaş"><Ionicons name="share-outline" size={22} color={colors.dark} /></Pressable>}
       />
-      <ScrollView contentContainerStyle={{ paddingBottom: 140 }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 140 }} refreshControl={refresh.control}>
         {/* Hero */}
         <View style={{ alignItems: 'center', paddingHorizontal: space.lg }}>
           <ProductArt product={product} size={180} emojiScale={0.5} />

@@ -9,10 +9,12 @@ import { ProductRow } from '@/components/product';
 import { ProductRowSkeleton, StateView } from '@/components/states';
 import { Product, catalogCategories, categoryEmoji, searchProducts } from '@/data/products';
 import { useCatalog } from '@/store/catalog';
+import { useRefresh } from '@/lib/useRefresh';
 import { useBasket } from '@/store/basket';
 
 
 export default function Search() {
+  const refresh = useRefresh();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const basket = useBasket();
@@ -74,6 +76,7 @@ export default function Search() {
 
       {showBrowse ? (
         <FlatList
+          refreshControl={refresh.control}
           data={allProducts}
           keyExtractor={(p) => p.id}
           ListHeaderComponent={
@@ -108,6 +111,7 @@ export default function Search() {
         </View>
       ) : results && results.length > 0 ? (
         <FlatList
+          refreshControl={refresh.control}
           data={results}
           keyExtractor={(p) => p.id}
           renderItem={({ item }) => <ProductRow product={item} />}

@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, radius, space } from '@/theme';
+import { useRefresh } from '@/lib/useRefresh';
 import { Btn, Card, Row, Txt } from '@/components/ui';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { useAuth } from '@/store/auth';
@@ -12,6 +13,7 @@ import { confirmAsync } from '@/lib/confirm';
 
 /** "Mənim məlumatlarım": name/surname and city are editable (Apple often hides the name), plus account deletion. */
 export default function Account() {
+  const refresh = useRefresh();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const auth = useAuth();
@@ -72,7 +74,7 @@ export default function Account() {
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScreenHeader title="Mənim məlumatlarım" />
-      <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: insets.bottom + space.xxl }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: insets.bottom + space.xxl }} keyboardShouldPersistTaps="handled" refreshControl={refresh.control}>
         <Card>
           <Txt v="caption" color={colors.gray}>
             Ad, soyad

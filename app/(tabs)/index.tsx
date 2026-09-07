@@ -11,6 +11,7 @@ import { BannerSlider } from '@/components/BannerSlider';
 import { PlusTag } from '@/components/PlusLock';
 import { Product, catalogCategories, categoryEmoji, searchProducts } from '@/data/products';
 import { useCatalog } from '@/store/catalog';
+import { useRefresh } from '@/lib/useRefresh';
 import { useBasket } from '@/store/basket';
 
 
@@ -19,6 +20,7 @@ export default function Home() {
   const basket = useBasket();
   const { optimization: o, lines } = basket;
   const cat = useCatalog();
+  const refresh = useRefresh();
   const categories = catalogCategories();
   const [q, setQ] = useState('');
   const [results, setResults] = useState<Product[] | null>(null);
@@ -41,7 +43,7 @@ export default function Home() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <TopBar />
-      <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxl }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxl }} keyboardShouldPersistTaps="handled" refreshControl={refresh.control}>
         <Txt v="display" style={{ marginTop: space.xs }}>
           Bu gün{'\n'}
           <Txt v="display" color={colors.primary}>

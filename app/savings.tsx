@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { colors, radius, space } from '@/theme';
+import { useRefresh } from '@/lib/useRefresh';
 import { Btn, Card, Divider, Price, Row, Txt } from '@/components/ui';
 import { StoreAvatar } from '@/components/product';
 import { ScreenHeader } from '@/components/ScreenHeader';
@@ -15,6 +16,7 @@ import { useBasket } from '@/store/basket';
  * totals) is added once shopping trips are recorded.
  */
 export default function Savings() {
+  const refresh = useRefresh();
   const router = useRouter();
   const { lines, count, optimization: o } = useBasket();
   const best = o.best;
@@ -24,7 +26,7 @@ export default function Savings() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScreenHeader title="Qənaət" />
-      <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxxl }}>
+      <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxxl }} refreshControl={refresh.control}>
         <View style={styles.hero}>
           <Txt v="body" color="rgba(255,255,255,0.8)">
             {hasBasket ? 'Bu səbətdə qənaət edirsən' : 'Hələ qənaət hesablanmayıb'}

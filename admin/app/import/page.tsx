@@ -273,7 +273,7 @@ export default function ImportPage() {
             </table>
           </div>
           {filtered.length > 500 && <p className="note">İlk 500 sətir göstərilir, axtarış və ya kateqoriya ilə daralt (seçim bütün siyahıya tətbiq olunur).</p>}
-          {result && <p className="note">Mənbə: {result.debug.endpoint}</p>}
+          {result && <p className="note">Mənbə: {result.debug.endpoint}{result.debug.sampleKeys.length ? ` · sahələr: ${result.debug.sampleKeys.join(', ')}` : ''} · şəkilli: {rows.filter((r) => r.image_url).length}/{rows.length}</p>}
         </>
       )}
     </Shell>

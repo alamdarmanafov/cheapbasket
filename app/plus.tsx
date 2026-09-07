@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, shadow, space } from '@/theme';
+import { useRefresh } from '@/lib/useRefresh';
 import { Btn, Pill, Row, Txt } from '@/components/ui';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { PLUS_PRICING } from '@/data/plans';
@@ -26,6 +27,7 @@ const FEATURES: Array<[string, string | boolean, string | boolean]> = [
 ];
 
 export default function Plus() {
+  const refresh = useRefresh();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isPlus } = useBasket();
@@ -52,7 +54,7 @@ export default function Plus() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScreenHeader closeIcon />
-      <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: 170 }}>
+      <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: 170 }} refreshControl={refresh.control}>
         <View style={{ alignItems: 'center' }}>
           <View style={styles.star}>
             <Txt style={{ fontSize: 30, lineHeight: 36 }}>⭐</Txt>
