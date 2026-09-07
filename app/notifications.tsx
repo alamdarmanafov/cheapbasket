@@ -69,7 +69,7 @@ export default function Notifications() {
             <View style={{ flex: 1, marginRight: space.md }}>
               <Txt v="bodyStrong">Push bildirişlər</Txt>
               <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>
-                AI endirim xəbəri{isPlus ? ' (hər gün)' : ' (ayda 3 dəfə)'} və qiymət düşüşləri
+                AI endirim xəbəri və səbətindəki qiymət düşüşləri{isPlus ? ' (hər gün)' : ' — Plus funksiyası'}
               </Txt>
             </View>
             <Switch value={push} disabled={busy} onValueChange={togglePush} trackColor={{ true: colors.primary, false: colors.line }} thumbColor={colors.white} />

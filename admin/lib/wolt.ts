@@ -257,3 +257,24 @@ export function splitName(full: string): { brand: string; name: string; size: st
   if (words.length >= 2) return { brand: words[0], name: words.slice(1).join(' '), size: size || '—' };
   return { brand: '', name: rest, size: size || '—' };
 }
+
+const slug = (s: string) =>
+  s.toLowerCase().replace(/ə/g, 'e').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/ş/g, 's').replace(/ç/g, 'c').replace(/ğ/g, 'g').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+export interface MatchableProduct { id: string; barcode: string | null; brand: string; name: string; size: string }
+
+/** Existing-product lookup shared by the import page and the sync job: barcode first, then normalised name. */
+export function buildMatcher(list: MatchableProduct[]): (it: { name: string; barcode: string | null }) => string | null {
+  const byBarcode = new Map(list.filter((p) => p.barcode).map((p) => [p.barcode as string, p.id]));
+  const byName = new Map<string, string>();
+  for (const p of list) {
+    byName.set(slug(`${p.brand} ${p.name} ${p.size}`), p.id);
+    byName.set(slug(`${p.brand} ${p.name}`), p.id);
+    if (p.id.startsWith('wolt-')) byName.set(p.id.slice(5), p.id);
+  }
+  return (it) => {
+    if (it.barcode && byBarcode.has(it.barcode)) return byBarcode.get(it.barcode) ?? null;
+    const sp = splitName(it.name);
+    return byName.get(slug(it.name)) ?? byName.get(slug(`${sp.brand} ${sp.name} ${sp.size}`)) ?? byName.get(slug(`${sp.brand} ${sp.name}`)) ?? null;
+  };
+}

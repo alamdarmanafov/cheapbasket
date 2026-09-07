@@ -23,6 +23,8 @@ export default function Users() {
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<'all' | 'plus' | 'free' | 'expiring' | 'blocked'>('all');
   const [grant, setGrant] = useState<{ user: AdminUser; days: number | null; custom: string; note: string } | null>(null);
+  /** per-row "extend by N days" input (user id → text) */
+  const [extend, setExtend] = useState<Record<string, string>>({});
 
   const load = async () => {
     const data = await db.select<AdminUser>('admin_users', { order: 'created_at' }).catch((e: Error) => { setMsg({ ok: false, text: e.message }); return []; });
@@ -99,7 +101,24 @@ export default function Users() {
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                   {active ? (
                     <>
-                      <button className="btn secondary" title="30 gün uzat" onClick={() => run({ op: 'extend', user_id: u.id, days: 30 }, `${u.email}: +30 gün`)}><CalendarPlus size={14} /> +30</button>{' '}
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }} title="Neçə gün artırılsın">
+                        <input
+                          type="number"
+                          min={1}
+                          placeholder="gün"
+                          value={extend[u.id] ?? ''}
+                          onChange={(e) => setExtend({ ...extend, [u.id]: e.target.value })}
+                          onKeyDown={(e) => { const d = Number(extend[u.id]); if (e.key === 'Enter' && d > 0) { run({ op: 'extend', user_id: u.id, days: d }, `${u.email}: +${d} gün`); setExtend({ ...extend, [u.id]: '' }); } }}
+                          style={{ width: 64, padding: '6px 8px' }}
+                        />
+                        <button
+                          className="btn secondary"
+                          disabled={!(Number(extend[u.id]) > 0)}
+                          onClick={() => { const d = Number(extend[u.id]); run({ op: 'extend', user_id: u.id, days: d }, `${u.email}: +${d} gün → ${new Date(Math.max(Date.now(), new Date(u.plan_expires_at ?? 0).getTime()) + d * DAY).toLocaleDateString('az-AZ')}`); setExtend({ ...extend, [u.id]: '' }); }}
+                        >
+                          <CalendarPlus size={14} /> {Number(extend[u.id]) > 0 ? `+${Number(extend[u.id])} gün` : 'Artır'}
+                        </button>
+                      </span>{' '}
                       <button className="btn secondary" onClick={() => run({ op: 'plan', user_id: u.id, plan: 'free' }, `${u.email}: Plus bağlandı`)}>Bağla</button>
                     </>
                   ) : (

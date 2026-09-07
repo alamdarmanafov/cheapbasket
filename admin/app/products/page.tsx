@@ -85,7 +85,12 @@ export default function Products() {
         else up.push({ product_id: row.id, store_id: s.id, price: num(c.price), discount_price: num(c.discount), updated_at: now });
       }
       if (up.length) await db.upsert('prices', up, 'product_id,store_id');
-      setMsg({ ok: true, text: `${row.brand} ${row.name} yadda saxlanıldı${up.length ? ` · ${up.length} qiymət yeniləndi` : ''}` });
+      let alertNote = '';
+      if (up.length) {
+        const a = await fetch('/api/alerts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ since: new Date(Date.now() - 2 * 60000).toISOString() }) }).then((r) => r.json()).catch(() => null);
+        if (a?.users) alertNote = ` · ${a.users} istifadəçiyə qiymət düşüşü bildirişi getdi`;
+      }
+      setMsg({ ok: true, text: `${row.brand} ${row.name} yadda saxlanıldı${up.length ? ` · ${up.length} qiymət yeniləndi` : ''}${alertNote}` });
       setEdit(null);
       load();
     } catch (e) {
