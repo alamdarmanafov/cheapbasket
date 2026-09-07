@@ -1,8 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Play, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { MapPin, Play, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { Shell } from '@/components/Shell';
-import { Store, db } from '@/lib/supabase';
+import { Store, db, slugify } from '@/lib/supabase';
 
 interface Result { ok: boolean; venue?: string; found: number; matched: number; updated: number; unchanged: number; photos?: number; error?: string; at: string }
 interface Source { id: string; store_id: string; url: string; name: string | null; enabled: boolean; last_run_at: string | null; last_result: Result | null }
@@ -17,6 +17,58 @@ export default function SyncPage() {
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // Wolt venue search ("Araz" → every Araz on Wolt)
+  const [q, setQ] = useState('');
+  const [found, setFound] = useState<Array<{ slug: string; name: string; address: string | null; lat: number | null; lng: number | null; url: string; online?: boolean; pick: boolean }> | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [alsoBranches, setAlsoBranches] = useState(true);
+
+  const search = async () => {
+    if (q.trim().length < 2) return;
+    setSearching(true);
+    setFound(null);
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/import/wolt/venues?q=${encodeURIComponent(q.trim())}`);
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`);
+      const existing = new Set(sources.map((s) => s.url));
+      setFound(j.venues.map((v: { url: string }) => ({ ...v, pick: !existing.has(v.url) })));
+      setMsg({ ok: true, text: `${j.venues.length} Wolt səhifəsi tapıldı. Marketi seç, lazım olanları işarələ və "Seçilənləri əlavə et".` });
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error).message });
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const addFound = async () => {
+    if (!found || !storeId) return;
+    const picks = found.filter((v) => v.pick);
+    if (!picks.length) return;
+    setBusy('addfound');
+    let added = 0;
+    let branches = 0;
+    try {
+      for (const v of picks) {
+        await api({ op: 'add', store_id: storeId, url: v.url });
+        added++;
+        if (alsoBranches && v.lat != null && v.lng != null) {
+          const id = slugify(`${storeId} ${v.slug}`);
+          await db.upsert('branches', [{ id, store_id: storeId, name: v.name, address: v.address ?? v.name, lat: v.lat, lng: v.lng, maps_url: `https://www.google.com/maps?q=${v.lat},${v.lng}` }], 'id');
+          branches++;
+        }
+      }
+      setMsg({ ok: true, text: `${added} mənbə${alsoBranches ? ` və ${branches} filial` : ''} əlavə olundu → ${stores.find((s) => s.id === storeId)?.name}. İndi "Hamısını yenilə" ilə qiymətləri çək.` });
+      setFound(null);
+      setQ('');
+      load();
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error).message });
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const api = async (body: unknown) => {
     const res = await fetch('/api/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -65,9 +117,39 @@ export default function SyncPage() {
           Hər market üçün Wolt səhifəsini bir dəfə yadda saxla. "Hamısını yenilə" bütün mənbələri oxuyur və <b>yalnız bazada olan məhsulların</b> qiymətini (adi + endirim) yeniləyir; yeni məhsul yaratmır.
           {' '}<span className={`pill ${cron ? 'green' : 'red'}`}>{cron ? 'Avtomatik: hər bazar ertəsi 08:00 (Bakı)' : 'CRON_SECRET yoxdur — avtomatik işləmir'}</span>
         </p>
+        <div className="toolbar" style={{ background: '#FAFAFA', padding: 12, borderRadius: 12 }}>
+          <Search size={16} className="muted" />
+          <input placeholder="Wolt-da market axtar: Araz, Bravo, Bazarstore, Neptun…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && search()} />
+          <button className="btn secondary" disabled={searching || q.trim().length < 2} onClick={search}>{searching ? 'Axtarılır…' : 'Wolt-da axtar'}</button>
+        </div>
+        {found && (
+          <div style={{ marginBottom: 14 }}>
+            <div className="toolbar">
+              <span className="muted">Hansı marketə:</span>
+              <select value={storeId} onChange={(e) => setStoreId(e.target.value)} style={{ flex: 'none' }}>{stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+              <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13 }}><input type="checkbox" checked={alsoBranches} onChange={(e) => setAlsoBranches(e.target.checked)} style={{ width: 'auto' }} /> Filial kimi də əlavə et (ad, ünvan, koordinat)</label>
+              <button className="btn ghost" onClick={() => setFound(found.map((v) => ({ ...v, pick: true })))}>Hamısını seç</button>
+              <button className="btn" disabled={busy === 'addfound' || !found.some((v) => v.pick)} onClick={addFound}><Plus size={14} /> Seçilənləri əlavə et ({found.filter((v) => v.pick).length})</button>
+            </div>
+            <table>
+              <thead><tr><th></th><th>Wolt adı</th><th>Ünvan</th><th>Koordinat</th><th>Status</th></tr></thead>
+              <tbody>
+                {found.map((v) => (
+                  <tr key={v.slug}>
+                    <td><input type="checkbox" checked={v.pick} onChange={(e) => setFound(found.map((x) => (x.slug === v.slug ? { ...x, pick: e.target.checked } : x)))} /></td>
+                    <td><a href={v.url} target="_blank" rel="noreferrer">{v.name}</a></td>
+                    <td className="muted" style={{ fontSize: 12 }}>{v.address ?? '—'}</td>
+                    <td className="muted" style={{ fontSize: 12 }}>{v.lat != null && v.lng != null ? <a href={`https://www.google.com/maps?q=${v.lat},${v.lng}`} target="_blank" rel="noreferrer"><MapPin size={12} style={{ verticalAlign: -2 }} /> {v.lat.toFixed(4)}, {v.lng.toFixed(4)}</a> : '—'}</td>
+                    <td>{sources.some((s) => s.url === v.url) ? <span className="pill gray">artıq mənbədir</span> : v.online === false ? <span className="pill red">bağlıdır</span> : <span className="pill green">yeni</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
         <div className="toolbar">
           <select value={storeId} onChange={(e) => setStoreId(e.target.value)}>{stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
-          <input placeholder="https://wolt.com/az/aze/baku/venue/…" value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
+          <input placeholder="və ya Wolt linkini yapışdır: https://wolt.com/az/aze/baku/venue/…" value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
           <button className="btn secondary" disabled={busy === 'add' || !url.trim()} onClick={add}><Plus size={14} /> Mənbə əlavə et</button>
           <button className="btn" disabled={!!busy || !sources.length} onClick={() => run()}><Play size={14} /> {busy === 'all' ? 'Yenilənir…' : 'Hamısını yenilə'}</button>
         </div>

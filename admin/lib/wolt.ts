@@ -25,12 +25,33 @@ export interface WoltResult {
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 
-export function venueSlug(input: string): string {
+/** Slug from any Wolt venue URL form: /venue/<slug>, /restaurant/<slug>, ?venue=<slug>, or a bare slug. */
+export function venueSlug(input: string): string | null {
+  const s = decodeURIComponent(input.trim());
+  const m = s.match(/\/(?:venue|restaurant|store)\/([a-z0-9][a-z0-9-]*)/i) ?? s.match(/[?&](?:venue|slug)=([a-z0-9][a-z0-9-]*)/i);
+  if (m) return m[1].toLowerCase();
+  if (/^[a-z0-9][a-z0-9-]*$/i.test(s) && !/^https?:/i.test(s)) return s.toLowerCase();
+  return null;
+}
+
+/** Resolve short / share links (wolt.page.link, wolt.com/s/…, app links) to a venue slug by following redirects and reading the page. */
+export async function resolveVenueSlug(input: string): Promise<string> {
+  const direct = venueSlug(input);
+  if (direct) return direct;
   const s = input.trim();
-  const m = s.match(/\/venue\/([^/?#]+)/);
-  if (m) return m[1];
-  if (/^[a-z0-9-]+$/i.test(s)) return s;
-  throw new Error('Wolt venue linki tanınmadı. Nümunə: https://wolt.com/az/aze/baku/venue/wolt-market-landmark');
+  if (/^https?:\/\//i.test(s)) {
+    try {
+      const res = await fetch(s, { redirect: 'follow', headers: { 'User-Agent': UA, Accept: 'text/html,application/json' } });
+      const fromFinal = venueSlug(res.url || '');
+      if (fromFinal) return fromFinal;
+      const html = await res.text();
+      const m = html.match(/\/venue\/([a-z0-9][a-z0-9-]*)/i) ?? html.match(/"slug"\s*:\s*"([a-z0-9][a-z0-9-]*)"/i);
+      if (m) return m[1].toLowerCase();
+    } catch {
+      /* fall through */
+    }
+  }
+  throw new Error(`Wolt venue linki tanınmadı: "${s.slice(0, 80)}". Wolt-da marketin səhifəsini aç, brauzerin ünvan sətrindəki linki kopyala (…/venue/<ad>), və ya "Wolt-da axtar" ilə tap.`);
 }
 
 async function getJson(url: string): Promise<unknown> {
@@ -211,7 +232,7 @@ async function restaurantApi(slug: string): Promise<WoltResult | null> {
 }
 
 export async function fetchWoltVenue(input: string): Promise<WoltResult> {
-  const slug = venueSlug(input);
+  const slug = await resolveVenueSlug(input);
   const errors: string[] = [];
   for (const fn of [consumerApi, restaurantApi]) {
     try {
@@ -277,4 +298,68 @@ export function buildMatcher(list: MatchableProduct[]): (it: { name: string; bar
     const sp = splitName(it.name);
     return byName.get(slug(it.name)) ?? byName.get(slug(`${sp.brand} ${sp.name} ${sp.size}`)) ?? byName.get(slug(`${sp.brand} ${sp.name}`)) ?? null;
   };
+}
+
+export interface WoltVenue { slug: string; name: string; address: string | null; lat: number | null; lng: number | null; url: string; online?: boolean }
+
+/** Walk any Wolt JSON and pick venue-like objects (slug + name + coordinates). */
+function collectVenues(payload: unknown): WoltVenue[] {
+  const out = new Map<string, WoltVenue>();
+  const coords = (o: Obj): { lat: number; lng: number } | null => {
+    const loc = obj(o.location) ?? obj(o.coordinates);
+    const arrC = arr(loc?.coordinates ?? o.location ?? o.coordinates);
+    if (arrC.length === 2 && typeof arrC[0] === 'number' && typeof arrC[1] === 'number') return { lng: arrC[0], lat: arrC[1] };
+    if (loc && typeof loc.lat === 'number' && (typeof loc.lon === 'number' || typeof loc.lng === 'number')) return { lat: loc.lat, lng: (loc.lon ?? loc.lng) as number };
+    return null;
+  };
+  const walk = (v: unknown, depth: number) => {
+    if (depth > 8) return;
+    if (Array.isArray(v)) { v.forEach((x) => walk(x, depth + 1)); return; }
+    const o = obj(v);
+    if (!o) return;
+    const slug = str(o.slug);
+    const name = str(o.name);
+    if (slug && name && (o.address != null || o.location != null || o.coordinates != null) && !/^[0-9a-f]{24}$/.test(slug)) {
+      const c = coords(o);
+      const addr = str(o.address) ?? str(obj(o.address)?.formatted) ?? str(o.short_description);
+      if (!out.has(slug)) out.set(slug, { slug, name, address: addr, lat: c?.lat ?? null, lng: c?.lng ?? null, url: `https://wolt.com/az/aze/baku/venue/${slug}`, online: typeof o.online === 'boolean' ? o.online : undefined });
+    }
+    Object.values(o).forEach((x) => walk(x, depth + 1));
+  };
+  walk(payload, 0);
+  return [...out.values()];
+}
+
+/** Search Wolt for venues by name around Baku (e.g. "Araz", "Bravo"). Tries the known search endpoints. */
+export async function searchWoltVenues(q: string, lat = 40.4093, lon = 49.8671): Promise<{ venues: WoltVenue[]; endpoint: string }> {
+  const attempts: Array<{ url: string; init?: RequestInit }> = [
+    { url: `https://restaurant-api.wolt.com/v1/pages/search?q=${encodeURIComponent(q)}&lat=${lat}&lon=${lon}&target=venues` },
+    { url: 'https://restaurant-api.wolt.com/v1/pages/search', init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q, lat, lon, target: 'venues' }) } },
+    { url: `https://consumer-api.wolt.com/v1/pages/search?q=${encodeURIComponent(q)}&lat=${lat}&lon=${lon}` },
+    { url: `https://restaurant-api.wolt.com/v1/search?q=${encodeURIComponent(q)}&lat=${lat}&lon=${lon}` },
+  ];
+  const errors: string[] = [];
+  for (const a of attempts) {
+    try {
+      const res = await fetch(a.url, { ...a.init, headers: { 'User-Agent': UA, Accept: 'application/json', 'Accept-Language': 'az,en', ...(a.init?.headers ?? {}) }, cache: 'no-store' });
+      if (!res.ok) { errors.push(`${res.status} ${a.url}`); continue; }
+      const venues = collectVenues(await res.json()).filter((v) => v.name.toLowerCase().includes(q.toLowerCase().split(' ')[0]) || v.slug.includes(q.toLowerCase().split(' ')[0]));
+      if (venues.length) return { venues, endpoint: a.url };
+      errors.push(`boş: ${a.url}`);
+    } catch (e) {
+      errors.push((e as Error).message);
+    }
+  }
+  throw new Error(`Wolt axtarışı nəticə vermədi. ${errors.join(' | ')}`);
+}
+
+/** Venue details (address + coordinates) for a slug, used when search results lack them. */
+export async function fetchWoltVenueInfo(slug: string): Promise<WoltVenue | null> {
+  try {
+    const j = await getJson(`https://restaurant-api.wolt.com/v3/venues/slug/${encodeURIComponent(slug)}`);
+    const v = collectVenues(j).find((x) => x.slug === slug) ?? collectVenues(j)[0];
+    return v ?? null;
+  } catch {
+    return null;
+  }
 }
