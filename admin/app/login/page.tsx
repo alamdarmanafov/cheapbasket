@@ -1,7 +1,6 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
 
 export default function Login() {
   const router = useRouter();
@@ -10,17 +9,14 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => data.session && router.replace('/'));
-  }, [router]);
-
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+    const j = await res.json();
     setBusy(false);
-    if (error) setError(error.message);
+    if (!res.ok) setError(j.error ?? 'Xəta');
     else router.replace('/');
   };
 
@@ -31,14 +27,14 @@ export default function Login() {
           <img src="/icon.png" alt="" width={56} height={56} style={{ borderRadius: 14 }} />
         </div>
         <h1>Cheap Basket Admin</h1>
-        <p className="muted" style={{ textAlign: 'center', margin: 0 }}>Yalnız admin hesabları</p>
+        <p className="muted" style={{ textAlign: 'center', margin: 0 }}>İdarəetmə paneli</p>
         <form onSubmit={submit}>
-          <input type="email" placeholder="E-poçt" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
+          <input type="email" placeholder="Admin e-poçtu" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="username" />
           <input type="password" placeholder="Şifrə" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
           {error && <div className="alert err">{error}</div>}
           <button className="btn" disabled={busy}>{busy ? 'Yoxlanılır…' : 'Daxil ol'}</button>
         </form>
-        <p className="note">Hesab tətbiqdəki e-poçt qeydiyyatı ilə yaradılır; sonra Supabase-də `admins` cədvəlinə əlavə olunur.</p>
+        <p className="note">Giriş məlumatları Vercel-də <code>ADMIN_EMAIL</code> / <code>ADMIN_PASSWORD</code> dəyişənləridir.</p>
       </div>
     </div>
   );

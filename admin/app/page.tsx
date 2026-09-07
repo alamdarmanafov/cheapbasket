@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Shell } from '@/components/Shell';
-import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/supabase';
 
 interface Counts { stores: number; products: number; prices: number; branches: number; users: number; plus: number; tokens: number }
 
@@ -10,19 +10,14 @@ export default function Dashboard() {
   const [c, setC] = useState<Counts | null>(null);
   useEffect(() => {
     (async () => {
-      const count = async (t: string, filter?: (q: any) => any) => {
-        let q = supabase.from(t).select('*', { count: 'exact', head: true });
-        if (filter) q = filter(q);
-        const { count: n } = await q;
-        return n ?? 0;
-      };
+      const count = (t: string, eq?: Record<string, unknown>) => db.count(t, eq).catch(() => 0);
       setC({
         stores: await count('stores'),
         products: await count('products'),
         prices: await count('prices'),
         branches: await count('branches'),
         users: await count('profiles'),
-        plus: await count('profiles', (q) => q.eq('plan', 'plus')),
+        plus: await count('profiles', { plan: 'plus' }),
         tokens: await count('push_tokens'),
       });
     })();

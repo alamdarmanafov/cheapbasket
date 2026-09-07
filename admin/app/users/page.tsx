@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { Shell } from '@/components/Shell';
-import { AdminUser, supabase } from '@/lib/supabase';
+import { AdminUser, db } from '@/lib/supabase';
 
 export default function Users() {
   const [rows, setRows] = useState<AdminUser[]>([]);
@@ -9,15 +9,14 @@ export default function Users() {
   const [q, setQ] = useState('');
 
   const load = async () => {
-    const { data, error } = await supabase.rpc('admin_users_list');
-    if (error) setMsg({ ok: false, text: error.message });
-    setRows((data ?? []) as AdminUser[]);
+    const data = await db.select<AdminUser>('admin_users', { order: 'created_at' }).catch((e: Error) => { setMsg({ ok: false, text: e.message }); return []; });
+    setRows(data);
   };
   useEffect(() => { load(); }, []);
 
   const setPlan = async (u: AdminUser, plan: 'free' | 'plus') => {
-    const { error } = await supabase.from('profiles').upsert({ user_id: u.id, plan });
-    setMsg({ ok: !error, text: error ? error.message : `${u.email}: ${plan.toUpperCase()}` });
+    const error = await db.upsert('profiles', [{ user_id: u.id, plan }]).then(() => null, (e: Error) => e.message);
+    setMsg({ ok: !error, text: error ?? `${u.email}: ${plan.toUpperCase()}` });
     load();
   };
   const filtered = rows.filter((u) => `${u.email ?? ''} ${u.display_name ?? ''}`.toLowerCase().includes(q.toLowerCase()));

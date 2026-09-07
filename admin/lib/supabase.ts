@@ -1,12 +1,20 @@
 'use client';
-import { createClient } from '@supabase/supabase-js';
 
-export const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '', {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
-});
+/** Client-side data access: every call goes through /api/db (admin cookie + service role on the server). */
+async function call<T>(body: unknown): Promise<T> {
+  const res = await fetch('/api/db', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await res.json();
+  if (!res.ok) throw new Error(j.error ?? 'Xəta');
+  return j as T;
+}
 
-export const STORE_IDS = ['araz', 'bravo', 'neptun', 'bazarstore'] as const;
-export type StoreId = (typeof STORE_IDS)[number];
+export const db = {
+  select: <T = any>(table: string, o: { columns?: string; order?: string; eq?: Record<string, unknown>; limit?: number } = {}) =>
+    call<{ data: T[] }>({ op: 'select', table, ...o }).then((r) => r.data),
+  count: (table: string, eq?: Record<string, unknown>) => call<{ count: number }>({ op: 'count', table, eq }).then((r) => r.count),
+  upsert: (table: string, rows: Record<string, unknown>[], onConflict?: string) => call<{ ok: true }>({ op: 'upsert', table, rows, onConflict }),
+  delete: (table: string, eq: Record<string, unknown>) => call<{ ok: true }>({ op: 'delete', table, eq }),
+};
 
 export interface Store { id: string; name: string; color: string; initial: string }
 export interface Product {

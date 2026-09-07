@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Plus, Search, Trash2, X } from 'lucide-react';
 import { Shell } from '@/components/Shell';
-import { CATEGORIES, PriceRow, Product, Store, slugify, supabase } from '@/lib/supabase';
+import { CATEGORIES, PriceRow, Product, Store, db, slugify } from '@/lib/supabase';
 
 const EMPTY: Product = { id: '', barcode: '', name: '', brand: '', size: '', category: CATEGORIES[0], emoji: '🛒', tint: '#F3F4F6', image_url: null, rating: null };
 
@@ -17,15 +17,15 @@ export default function Products() {
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
-    const [{ data: s }, { data: p }, { data: pr }] = await Promise.all([
-      supabase.from('stores').select('*').order('name'),
-      supabase.from('products').select('*').order('name'),
-      supabase.from('prices').select('product_id, store_id, price, updated_at'),
-    ]);
-    setStores(s ?? []);
-    setProducts(p ?? []);
+    const [s, p, pr] = await Promise.all([
+      db.select<Store>('stores', { order: 'name' }),
+      db.select<Product>('products', { order: 'name' }),
+      db.select<PriceRow>('prices', { columns: 'product_id, store_id, price, updated_at' }),
+    ]).catch((e: Error) => { setMsg({ ok: false, text: e.message }); return [[], [], []] as [Store[], Product[], PriceRow[]]; });
+    setStores(s);
+    setProducts(p);
     const map: Record<string, Record<string, string>> = {};
-    (pr as PriceRow[] | null)?.forEach((r) => {
+    pr.forEach((r) => {
       map[r.product_id] = map[r.product_id] ?? {};
       map[r.product_id][r.store_id] = r.price == null ? '' : String(r.price);
     });
@@ -54,12 +54,10 @@ export default function Products() {
     const toDelete = dirty.filter((d) => d.price == null);
     let err: string | null = null;
     if (toUpsert.length) {
-      const { error } = await supabase.from('prices').upsert(toUpsert.map((d) => ({ ...d, updated_at: new Date().toISOString() })), { onConflict: 'product_id,store_id' });
-      if (error) err = error.message;
+      await db.upsert('prices', toUpsert.map((d) => ({ ...d, updated_at: new Date().toISOString() })), 'product_id,store_id').catch((e: Error) => { err = e.message; });
     }
     for (const d of toDelete) {
-      const { error } = await supabase.from('prices').delete().eq('product_id', d.product_id).eq('store_id', d.store_id);
-      if (error) err = error.message;
+      await db.delete('prices', { product_id: d.product_id, store_id: d.store_id }).catch((e: Error) => { err = e.message; });
     }
     setBusy(false);
     setMsg({ ok: !err, text: err ?? `${dirty.length} qiymət yeniləndi` });
@@ -68,14 +66,14 @@ export default function Products() {
 
   const saveProduct = async (p: Product) => {
     const row = { ...p, id: p.id || slugify(`${p.brand} ${p.name} ${p.size}`), barcode: p.barcode?.trim() || null, rating: p.rating || null, image_url: p.image_url?.trim() || null };
-    const { error } = await supabase.from('products').upsert(row);
-    setMsg({ ok: !error, text: error ? error.message : `${row.brand} ${row.name} yadda saxlanıldı` });
+    const error = await db.upsert('products', [row]).then(() => null, (e: Error) => e.message);
+    setMsg({ ok: !error, text: error ?? `${row.brand} ${row.name} yadda saxlanıldı` });
     if (!error) { setEdit(null); load(); }
   };
   const removeProduct = async (p: Product) => {
     if (!confirm(`${p.brand} ${p.name} silinsin?`)) return;
-    const { error } = await supabase.from('products').delete().eq('id', p.id);
-    setMsg({ ok: !error, text: error ? error.message : 'Silindi' });
+    const error = await db.delete('products', { id: p.id }).then(() => null, (e: Error) => e.message);
+    setMsg({ ok: !error, text: error ?? 'Silindi' });
     load();
   };
 
