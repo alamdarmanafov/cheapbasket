@@ -29,6 +29,8 @@ export default function ImportPage() {
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('');
   const [onlyDiscount, setOnlyDiscount] = useState(false);
+  /** Prices-only: match Wolt items to products already in the catalogue (barcode, then name) and write just the prices. */
+  const [pricesOnly, setPricesOnly] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [existing, setExisting] = useState<Product[]>([]);
@@ -37,6 +39,22 @@ export default function ImportPage() {
     db.select<Store>('stores', { order: 'name' }).then((s) => { setStores(s); if (s[0]) setStoreId(s[0].id); }).catch((e: Error) => setMsg({ ok: false, text: e.message }));
     db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category' }).then(setExisting).catch(() => {});
   }, []);
+
+  /** Existing product lookup: barcode → id, and normalised full name → id (for venues without barcodes). */
+  const matcher = (list: Product[]) => {
+    const byBarcode = new Map(list.filter((p) => p.barcode).map((p) => [p.barcode as string, p.id]));
+    const byName = new Map<string, string>();
+    for (const p of list) {
+      byName.set(slugify(`${p.brand} ${p.name} ${p.size}`), p.id);
+      byName.set(slugify(`${p.brand} ${p.name}`), p.id);
+      if (p.id.startsWith('wolt-')) byName.set(p.id.slice(5), p.id);
+    }
+    return (it: WoltItem): string | null => {
+      if (it.barcode && byBarcode.has(it.barcode)) return byBarcode.get(it.barcode) ?? null;
+      const sp = splitName(it.name);
+      return byName.get(slugify(it.name)) ?? byName.get(slugify(`${sp.brand} ${sp.name} ${sp.size}`)) ?? byName.get(slugify(`${sp.brand} ${sp.name}`)) ?? null;
+    };
+  };
 
   const load = async () => {
     setLoading(true);
@@ -47,7 +65,7 @@ export default function ImportPage() {
       const res = await fetch('/api/import/wolt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
       const j = (await res.json()) as WoltResult & { error?: string };
       if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`);
-      const byBarcode = new Map(existing.filter((p) => p.barcode).map((p) => [p.barcode as string, p.id]));
+      const match = matcher(existing);
       setResult(j);
       setRows(
         j.items.map((it) => {
@@ -57,7 +75,7 @@ export default function ImportPage() {
             key: it.ext_id,
             selected: it.price != null,
             appCategory: mapCategory(it.category, it.name, CATEGORIES),
-            existingId: it.barcode ? byBarcode.get(it.barcode) ?? null : null,
+            existingId: match(it),
             brand: sp.brand,
             title: sp.name,
             size: sp.size,
@@ -66,7 +84,8 @@ export default function ImportPage() {
           };
         }),
       );
-      setMsg({ ok: true, text: `${j.items.length} məhsul tapıldı${j.venue ? ` · ${j.venue}` : ''}. ${j.items.filter((i) => i.regular_price != null).length} endirimli.` });
+      const matched = j.items.filter((it) => match(it)).length;
+      setMsg({ ok: true, text: `${j.items.length} məhsul tapıldı${j.venue ? ` · ${j.venue}` : ''}. ${j.items.filter((i) => i.regular_price != null).length} endirimli, ${matched} məhsul bazadakılarla uyğun gəldi.` });
     } catch (e) {
       setMsg({ ok: false, text: (e as Error).message });
     } finally {
@@ -76,8 +95,8 @@ export default function ImportPage() {
 
   const filtered = useMemo(() => {
     const n = q.trim().toLowerCase();
-    return rows.filter((r) => (!n || r.name.toLowerCase().includes(n) || (r.barcode ?? '').includes(n)) && (!cat || r.category === cat) && (!onlyDiscount || r.regular_price != null));
-  }, [rows, q, cat, onlyDiscount]);
+    return rows.filter((r) => (!n || r.name.toLowerCase().includes(n) || (r.barcode ?? '').includes(n)) && (!cat || r.category === cat) && (!onlyDiscount || r.regular_price != null) && (!pricesOnly || r.existingId));
+  }, [rows, q, cat, onlyDiscount, pricesOnly]);
 
   const num = (v: string) => (v.trim() === '' ? null : Number(v.replace(',', '.')));
   const valid = (r: Row) => {
@@ -85,8 +104,9 @@ export default function ImportPage() {
     const d = num(r.discountText);
     return p != null && !Number.isNaN(p) && p > 0 && (d == null || (!Number.isNaN(d) && d > 0 && d < p)) && r.title.trim() !== '';
   };
-  const selected = rows.filter((r) => r.selected && valid(r));
-  const setAll = (v: boolean) => setRows(rows.map((r) => (filtered.includes(r) ? { ...r, selected: v && valid(r) } : r)));
+  const eligible = (r: Row) => valid(r) && (!pricesOnly || !!r.existingId);
+  const selected = rows.filter((r) => r.selected && eligible(r));
+  const setAll = (v: boolean) => setRows(rows.map((r) => (filtered.includes(r) ? { ...r, selected: v && eligible(r) } : r)));
   const patch = (key: string, p: Partial<Row>) => setRows(rows.map((r) => (r.key === key ? { ...r, ...p } : r)));
 
   const importSelected = async () => {
@@ -112,8 +132,8 @@ export default function ImportPage() {
       setMsg({ ok: true, text: `${prices.length} qiymət yazıldı (${products.length} yeni məhsul, ${prices.length - products.length} mövcud məhsul yeniləndi) → ${stores.find((s) => s.id === storeId)?.name}` });
       const ex = await db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category' });
       setExisting(ex);
-      const byBarcode = new Map(ex.filter((p) => p.barcode).map((p) => [p.barcode as string, p.id]));
-      setRows(rows.map((r) => ({ ...r, existingId: r.barcode ? byBarcode.get(r.barcode) ?? r.existingId : r.existingId })));
+      const match = matcher(ex);
+      setRows(rows.map((r) => ({ ...r, existingId: match(r) ?? r.existingId })));
     } catch (e) {
       setMsg({ ok: false, text: (e as Error).message });
     } finally {
@@ -130,12 +150,16 @@ export default function ImportPage() {
           {stores.length === 0 && <option value="">Market yoxdur</option>}
           {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
+        <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, whiteSpace: 'nowrap' }} title="Yeni məhsul yaratmır; yalnız bazada olan məhsulların bu marketdəki qiymətini yazır">
+          <input type="checkbox" checked={pricesOnly} onChange={(e) => { setPricesOnly(e.target.checked); if (e.target.checked) setRows(rows.map((r) => ({ ...r, selected: r.selected && !!r.existingId }))); }} style={{ width: 'auto' }} /> Yalnız qiymətlər
+        </label>
         <button className="btn secondary" disabled={loading || !url} onClick={load}><Download size={14} /> {loading ? 'Yüklənir…' : 'Məhsulları çək'}</button>
         <button className="btn" disabled={!selected.length || busy || !storeId} onClick={importSelected}>{busy ? 'Yazılır…' : `Seçilənləri import et (${selected.length})`}</button>
       </div>
       <p className="note">
         Wolt venue linkini yapışdır, məhsullar adi və endirimli qiymətlə çəkilir. Soldakı siyahıdan hansı marketə yazılacağını seç (məs. Wolt Market özü ayrıca market kimi "Marketlər" səhifəsində əlavə oluna bilər, Araz/Bravo filialının Wolt səhifəsi isə həmin markete yazılır).
-        Yazmazdan əvvəl brend, ad, ölçü, kateqoriya və qiymətləri cədvəldə düzəldə bilərsən. Barkodu bazada olan məhsul təkrar yaradılmır (ad dəyişmir), yalnız qiyməti yenilənir. Wolt qiymətləri mağaza rəfindəki qiymətdən fərqlənə bilər.
+        Yazmazdan əvvəl brend, ad, ölçü, kateqoriya və qiymətləri cədvəldə düzəldə bilərsən. Bazada olan məhsul (barkod və ya eyni ad üzrə) təkrar yaradılmır, yalnız qiyməti yenilənir.
+        <b> "Yalnız qiymətlər"</b> rejimi digər marketlərin Wolt səhifəsi üçündür: yeni məhsul yaratmır, yalnız artıq bazada olan məhsulların seçdiyin marketdəki qiymətini yazır. Wolt qiymətləri mağaza rəfindəki qiymətdən fərqlənə bilər.
       </p>
 
       {rows.length > 0 && (
@@ -144,7 +168,7 @@ export default function ImportPage() {
             <Search size={16} className="muted" />
             <input placeholder="Ad və ya barkod…" value={q} onChange={(e) => setQ(e.target.value)} />
             <select value={cat} onChange={(e) => setCat(e.target.value)}>
-              <option value="">Bütün kateqoriyalar ({rows.length})</option>
+              <option value="">Bütün kateqoriyalar ({pricesOnly ? rows.filter((r) => r.existingId).length : rows.length})</option>
               {result?.categories.map((c) => <option key={c} value={c}>{c} ({rows.filter((r) => r.category === c).length})</option>)}
             </select>
             <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13 }}><input type="checkbox" checked={onlyDiscount} onChange={(e) => setOnlyDiscount(e.target.checked)} /> Yalnız endirimlilər</label>
@@ -158,8 +182,8 @@ export default function ImportPage() {
               </thead>
               <tbody>
                 {filtered.slice(0, 500).map((r) => (
-                  <tr key={r.key} style={{ opacity: valid(r) ? 1 : 0.6, background: r.selected ? '#FFF7F7' : undefined }}>
-                    <td><input type="checkbox" checked={r.selected} disabled={!valid(r)} onChange={(e) => patch(r.key, { selected: e.target.checked })} /></td>
+                  <tr key={r.key} style={{ opacity: eligible(r) ? 1 : 0.6, background: r.selected && eligible(r) ? '#FFF7F7' : undefined }}>
+                    <td><input type="checkbox" checked={r.selected && eligible(r)} disabled={!eligible(r)} onChange={(e) => patch(r.key, { selected: e.target.checked })} /></td>
                     <td style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 260 }}>
                       {r.image_url ? <img src={r.image_url} alt="" width={32} height={32} style={{ borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} /> : <span style={{ width: 32, flexShrink: 0 }} />}
                       <span style={{ fontSize: 12 }} title={r.category ?? ''}>{r.name}{r.category ? <span className="muted"> · {r.category}</span> : null}</span>
@@ -171,7 +195,7 @@ export default function ImportPage() {
                     <td className="muted" style={{ fontFamily: 'monospace', fontSize: 12 }}>{r.barcode ?? '—'}</td>
                     <td><input inputMode="decimal" value={r.priceText} placeholder="—" style={{ width: 64, textAlign: 'right', textDecoration: r.discountText ? 'line-through' : undefined, color: r.discountText ? '#9CA3AF' : undefined }} onChange={(e) => patch(r.key, { priceText: e.target.value })} /></td>
                     <td><input inputMode="decimal" value={r.discountText} placeholder="endirim" style={{ width: 64, textAlign: 'right', color: '#16A34A', fontWeight: 600 }} onChange={(e) => patch(r.key, { discountText: e.target.value })} /></td>
-                    <td>{r.existingId ? <span className="pill gray" title={`Mövcud məhsul: ${r.existingId}`}>bazada var</span> : <span className="pill green">yeni</span>}</td>
+                    <td>{r.existingId ? <span className="pill gray" title={`Mövcud məhsul: ${r.existingId}`}>bazada var</span> : pricesOnly ? <span className="pill red">uyğun gəlmədi</span> : <span className="pill green">yeni</span>}</td>
                   </tr>
                 ))}
               </tbody>
