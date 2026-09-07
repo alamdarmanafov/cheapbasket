@@ -1,9 +1,11 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { MapPin, Plus, Search, Trash2, X } from 'lucide-react';
+import { MapPin, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { Shell } from '@/components/Shell';
 import { Branch, Store, db, slugify } from '@/lib/supabase';
 import type { WoltVenue } from '@/lib/wolt';
+
+type BulkStatus = { storeId: string; name: string; status: 'pending' | 'loading' | 'done' | 'error'; count?: number; error?: string };
 
 export default function Branches() {
   const [stores, setStores] = useState<Store[]>([]);
@@ -13,8 +15,12 @@ export default function Branches() {
   const [link, setLink] = useState('');
   const [resolving, setResolving] = useState(false);
 
-  // Wolt branch import
+  // Wolt import panel
   const [woltOpen, setWoltOpen] = useState(false);
+  // Bulk auto-import (all stores)
+  const [bulk, setBulk] = useState<BulkStatus[]>([]);
+  const [bulkRunning, setBulkRunning] = useState(false);
+  // Manual single-store search
   const [woltQuery, setWoltQuery] = useState('');
   const [woltStoreId, setWoltStoreId] = useState('');
   const [woltLoading, setWoltLoading] = useState(false);
@@ -22,6 +28,53 @@ export default function Branches() {
   const [woltSelected, setWoltSelected] = useState<Set<string>>(new Set());
   const [woltError, setWoltError] = useState('');
   const [woltImporting, setWoltImporting] = useState(false);
+
+  const fetchVenues = async (q: string): Promise<WoltVenue[]> => {
+    const res = await fetch(`/api/import/wolt/venues?q=${encodeURIComponent(q)}`);
+    const j = await res.json() as { venues?: WoltVenue[]; error?: string };
+    if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`);
+    return j.venues ?? [];
+  };
+
+  const upsertBranches = (storeId: string, venues: WoltVenue[]) => {
+    const branchRows: Branch[] = venues.filter((v) => v.lat != null && v.lng != null).map((v) => ({
+      id: slugify(`${storeId} ${v.name} ${(v.address ?? '').slice(0, 20)}`),
+      store_id: storeId,
+      name: v.name,
+      address: v.address ?? '',
+      lat: v.lat!,
+      lng: v.lng!,
+      open_until: null,
+      open_from: null,
+      always_open: false,
+      maps_url: v.url ?? null,
+      phone: null,
+    }));
+    return db.upsert('branches', branchRows as unknown as Record<string, unknown>[]).then(() => branchRows.length);
+  };
+
+  /** Auto-import all stores sequentially, showing live progress. */
+  const importAll = async () => {
+    if (!stores.length || bulkRunning) return;
+    setBulkRunning(true);
+    setBulk(stores.map((s) => ({ storeId: s.id, name: s.name, status: 'pending' })));
+    let total = 0;
+    for (let i = 0; i < stores.length; i++) {
+      const s = stores[i];
+      setBulk((prev) => prev.map((p, idx) => idx === i ? { ...p, status: 'loading' } : p));
+      try {
+        const venues = await fetchVenues(s.name);
+        const count = await upsertBranches(s.id, venues);
+        total += count;
+        setBulk((prev) => prev.map((p, idx) => idx === i ? { ...p, status: 'done', count } : p));
+      } catch (e) {
+        setBulk((prev) => prev.map((p, idx) => idx === i ? { ...p, status: 'error', error: (e as Error).message } : p));
+      }
+    }
+    setBulkRunning(false);
+    setMsg({ ok: true, text: `Wolt avtomatik import tamamlandı — ${total} filial əlavə edildi` });
+    load();
+  };
 
   const searchWolt = async (query?: string, sid?: string) => {
     const q = (query ?? woltQuery).trim();
@@ -31,10 +84,7 @@ export default function Branches() {
     setWoltVenues([]);
     setWoltSelected(new Set());
     try {
-      const res = await fetch(`/api/import/wolt/venues?q=${encodeURIComponent(q)}`);
-      const j = await res.json() as { venues?: WoltVenue[]; error?: string };
-      if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`);
-      const venues = j.venues ?? [];
+      const venues = await fetchVenues(q);
       setWoltVenues(venues);
       if (!venues.length) setWoltError('Wolt-da filial tapılmadı');
       else setWoltSelected(new Set(venues.filter((v) => v.lat != null).map((v) => v.slug)));
@@ -49,23 +99,12 @@ export default function Branches() {
     const toImport = woltVenues.filter((v) => woltSelected.has(v.slug) && v.lat != null && v.lng != null);
     if (!toImport.length) return;
     setWoltImporting(true);
-    const branchRows: Branch[] = toImport.map((v) => ({
-      id: slugify(`${woltStoreId} ${v.name} ${(v.address ?? '').slice(0, 20)}`),
-      store_id: woltStoreId,
-      name: v.name,
-      address: v.address ?? '',
-      lat: v.lat!,
-      lng: v.lng!,
-      open_until: null,
-      open_from: null,
-      always_open: false,
-      maps_url: v.url ?? null,
-      phone: null,
-    }));
-    const error = await db.upsert('branches', branchRows as unknown as Record<string, unknown>[]).then(() => null, (e: Error) => e.message);
+    const count = await upsertBranches(woltStoreId, toImport).catch(() => 0);
     setWoltImporting(false);
-    setMsg({ ok: !error, text: error ?? `${branchRows.length} filial əlavə edildi` });
-    if (!error) { setWoltOpen(false); setWoltVenues([]); load(); }
+    setMsg({ ok: true, text: `${count} filial əlavə edildi` });
+    setWoltOpen(false);
+    setWoltVenues([]);
+    load();
   };
 
   /** Paste a Google Maps link / address → fill name, address and coordinates. */
@@ -76,14 +115,7 @@ export default function Branches() {
       const res = await fetch('/api/geo/resolve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q: link }) });
       const j = (await res.json()) as { lat: number; lng: number; name?: string; address?: string; error?: string };
       if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`);
-      setEdit({
-        ...edit,
-        lat: j.lat,
-        lng: j.lng,
-        name: edit.name || j.name || '',
-        address: edit.address || j.address || '',
-        maps_url: /^https?:\/\//i.test(link.trim()) ? link.trim() : edit.maps_url ?? null,
-      });
+      setEdit({ ...edit, lat: j.lat, lng: j.lng, name: edit.name || j.name || '', address: edit.address || j.address || '', maps_url: /^https?:\/\//i.test(link.trim()) ? link.trim() : edit.maps_url ?? null });
       setMsg({ ok: true, text: `Koordinat tapıldı: ${j.lat.toFixed(5)}, ${j.lng.toFixed(5)}` });
     } catch (e) {
       setMsg({ ok: false, text: (e as Error).message });
@@ -111,96 +143,109 @@ export default function Branches() {
     setMsg({ ok: !error, text: error ?? 'Silindi' });
     load();
   };
-  const store = (id: string) => stores.find((s) => s.id === id);
+  const storeOf = (id: string) => stores.find((s) => s.id === id);
 
   return (
     <Shell title="Filiallar">
       {msg && <div className={`alert ${msg.ok ? 'ok' : 'err'}`}>{msg.text}</div>}
       <div className="toolbar">
         <span className="muted">Google Maps-də filialı tap → "Paylaş" → linki kopyala → "Yeni filial"də yapışdır. Ad, ünvan və koordinat avtomatik doldurulur.</span>
-        <button className="btn secondary" style={{ marginLeft: 'auto' }} disabled={!stores.length} onClick={() => {
-          if (woltOpen) { setWoltOpen(false); return; }
-          const first = stores[0];
-          const name = first?.name ?? '';
-          setWoltStoreId(first?.id ?? '');
-          setWoltQuery(name);
-          setWoltVenues([]); setWoltSelected(new Set()); setWoltError('');
-          setWoltOpen(true);
-          if (name && first?.id) searchWolt(name, first.id);
-        }}><Search size={14} /> Wolt-dan çək</button>
-        <button className="btn" disabled={!stores.length} onClick={() => { setLink(''); setEdit({ id: '', store_id: stores[0]?.id ?? '', name: '', address: '', lat: 40.4093, lng: 49.8671, open_until: '23:00', open_from: '08:00', always_open: false, maps_url: '', phone: '' }); }}><Plus size={14} /> Yeni filial</button>
+        <button className="btn secondary" style={{ marginLeft: 'auto' }} disabled={!stores.length} onClick={() => { setWoltOpen((o) => !o); setBulk([]); setWoltVenues([]); setWoltSelected(new Set()); setWoltError(''); setWoltStoreId(stores[0]?.id ?? ''); setWoltQuery(stores[0]?.name ?? ''); }}>
+          <Search size={14} /> Wolt-dan çək
+        </button>
+        <button className="btn" disabled={!stores.length} onClick={() => { setLink(''); setEdit({ id: '', store_id: stores[0]?.id ?? '', name: '', address: '', lat: 40.4093, lng: 49.8671, open_until: '23:00', open_from: '08:00', always_open: false, maps_url: '', phone: '' }); }}>
+          <Plus size={14} /> Yeni filial
+        </button>
       </div>
 
       {woltOpen && (
         <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 12, padding: 16, marginBottom: 16 }}>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-            <label style={{ flex: '0 0 auto' }}>
-              <span style={{ fontSize: 12, color: '#6B7280', display: 'block', marginBottom: 4 }}>Market</span>
+          {/* Auto import all stores */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <button className="btn" disabled={bulkRunning} onClick={importAll} style={{ gap: 6 }}>
+              <RefreshCw size={14} style={bulkRunning ? { animation: 'spin 1s linear infinite' } : {}} />
+              {bulkRunning ? 'Çəkilir…' : 'Hamısını avtomatik çək'}
+            </button>
+            <span className="muted" style={{ fontSize: 12 }}>Hər marketin filiallarını Wolt-dan avtomatik tapır və əlavə edir</span>
+            <button className="btn ghost" style={{ marginLeft: 'auto' }} onClick={() => { setWoltOpen(false); setBulk([]); }}><X size={14} /></button>
+          </div>
+
+          {bulk.length > 0 && (
+            <div style={{ display: 'grid', gap: 4, marginBottom: 14 }}>
+              {bulk.map((b) => (
+                <div key={b.storeId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px', background: '#fff', borderRadius: 8, fontSize: 13 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', flexShrink: 0, background: b.status === 'done' ? '#22C55E' : b.status === 'error' ? '#EF4444' : b.status === 'loading' ? '#3B82F6' : '#D1D5DB', display: 'inline-block' }} />
+                  <span style={{ flex: 1, fontWeight: 500 }}>{b.name}</span>
+                  {b.status === 'loading' && <span className="muted">axtarılır…</span>}
+                  {b.status === 'done' && <span style={{ color: '#16A34A' }}>{b.count} filial</span>}
+                  {b.status === 'error' && <span style={{ color: '#DC2626', fontSize: 12 }} title={b.error}>xəta</span>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ borderTop: '1px solid #BAE6FD', paddingTop: 14 }}>
+            <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 8 }}>Əl ilə axtarış (bir market üçün):</div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
               <select value={woltStoreId} onChange={(e) => {
                 const sid = e.target.value;
                 const name = stores.find((s) => s.id === sid)?.name ?? '';
-                setWoltStoreId(sid);
-                setWoltQuery(name);
+                setWoltStoreId(sid); setWoltQuery(name);
                 setWoltVenues([]); setWoltSelected(new Set()); setWoltError('');
                 searchWolt(name, sid);
               }} style={{ minWidth: 120 }}>
                 {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
-            </label>
-            <label style={{ flex: 1, minWidth: 160 }}>
-              <span style={{ fontSize: 12, color: '#6B7280', display: 'block', marginBottom: 4 }}>Wolt-da axtarış (şirkət adı)</span>
-              <input value={woltQuery} onChange={(e) => setWoltQuery(e.target.value)} placeholder="məs. Araz, Bravo, Kontakt" onKeyDown={(e) => e.key === 'Enter' && searchWolt()} />
-            </label>
-            <button className="btn" disabled={woltLoading || !woltQuery.trim() || !woltStoreId} onClick={() => searchWolt()}>
-              {woltLoading ? 'Axtarılır…' : <><Search size={14} /> Axtar</>}
-            </button>
-            <button className="btn ghost" onClick={() => setWoltOpen(false)}><X size={14} /></button>
-          </div>
+              <input value={woltQuery} onChange={(e) => setWoltQuery(e.target.value)} placeholder="Axtarış mətni" onKeyDown={(e) => e.key === 'Enter' && searchWolt()} style={{ flex: 1, minWidth: 140 }} />
+              <button className="btn secondary" disabled={woltLoading || !woltQuery.trim() || !woltStoreId} onClick={() => searchWolt()}>
+                {woltLoading ? 'Axtarılır…' : <><Search size={14} /> Axtar</>}
+              </button>
+            </div>
 
-          {woltError && <div className="alert err" style={{ marginTop: 10 }}>{woltError}</div>}
+            {woltError && <div className="alert err" style={{ marginTop: 10 }}>{woltError}</div>}
 
-          {woltVenues.length > 0 && (
-            <div style={{ marginTop: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 600 }}>{woltVenues.length} filial tapıldı — seç:</span>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn ghost" style={{ fontSize: 12 }} onClick={() => setWoltSelected(new Set(woltVenues.filter((v) => v.lat != null).map((v) => v.slug)))}>Hamısı</button>
-                  <button className="btn ghost" style={{ fontSize: 12 }} onClick={() => setWoltSelected(new Set())}>Heç biri</button>
+            {woltVenues.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>{woltVenues.length} filial tapıldı</span>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn ghost" style={{ fontSize: 12 }} onClick={() => setWoltSelected(new Set(woltVenues.filter((v) => v.lat != null).map((v) => v.slug)))}>Hamısı</button>
+                    <button className="btn ghost" style={{ fontSize: 12 }} onClick={() => setWoltSelected(new Set())}>Heç biri</button>
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gap: 6, maxHeight: 280, overflowY: 'auto' }}>
+                  {woltVenues.map((v) => (
+                    <label key={v.slug} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 10px', background: woltSelected.has(v.slug) ? '#E0F2FE' : '#fff', borderRadius: 8, cursor: v.lat != null ? 'pointer' : 'not-allowed', border: '1px solid #E2E8F0', opacity: v.lat == null ? 0.5 : 1 }}>
+                      <input type="checkbox" checked={woltSelected.has(v.slug)} disabled={v.lat == null} style={{ marginTop: 2, width: 'auto', flexShrink: 0 }}
+                        onChange={(e) => setWoltSelected((prev) => { const s = new Set(prev); e.target.checked ? s.add(v.slug) : s.delete(v.slug); return s; })} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 13 }}>{v.name}</div>
+                        {v.address && <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{v.address}</div>}
+                        {v.lat != null
+                          ? <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2, fontFamily: 'monospace' }}>{v.lat.toFixed(5)}, {v.lng!.toFixed(5)}</div>
+                          : <div style={{ fontSize: 11, color: '#EF4444', marginTop: 2 }}>Koordinat yoxdur</div>}
+                      </div>
+                      <a href={v.url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: '#0EA5E9', flexShrink: 0, alignSelf: 'center' }} onClick={(e) => e.stopPropagation()}>Wolt →</a>
+                    </label>
+                  ))}
+                </div>
+                <div style={{ marginTop: 10, display: 'flex', justifyContent: 'flex-end' }}>
+                  <button className="btn" disabled={woltImporting || woltSelected.size === 0} onClick={importWolt}>
+                    {woltImporting ? 'Əlavə edilir…' : `${woltSelected.size} filial əlavə et`}
+                  </button>
                 </div>
               </div>
-              <div style={{ display: 'grid', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
-                {woltVenues.map((v) => (
-                  <label key={v.slug} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 10px', background: woltSelected.has(v.slug) ? '#E0F2FE' : '#fff', borderRadius: 8, cursor: v.lat != null ? 'pointer' : 'not-allowed', border: '1px solid #E2E8F0', opacity: v.lat == null ? 0.5 : 1 }}>
-                    <input type="checkbox" checked={woltSelected.has(v.slug)} disabled={v.lat == null} style={{ marginTop: 2, width: 'auto', flexShrink: 0 }}
-                      onChange={(e) => setWoltSelected((prev) => { const s = new Set(prev); e.target.checked ? s.add(v.slug) : s.delete(v.slug); return s; })} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 13 }}>{v.name}</div>
-                      {v.address && <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{v.address}</div>}
-                      {v.lat != null ? (
-                        <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2, fontFamily: 'monospace' }}>{v.lat.toFixed(5)}, {v.lng!.toFixed(5)}</div>
-                      ) : (
-                        <div style={{ fontSize: 11, color: '#EF4444', marginTop: 2 }}>Koordinat yoxdur — əlavə edilə bilməz</div>
-                      )}
-                    </div>
-                    <a href={v.url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: '#0EA5E9', flexShrink: 0, alignSelf: 'center' }} onClick={(e) => e.stopPropagation()}>Wolt →</a>
-                  </label>
-                ))}
-              </div>
-              <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
-                <button className="btn" disabled={woltImporting || woltSelected.size === 0} onClick={importWolt}>
-                  {woltImporting ? 'Əlavə edilir…' : `${woltSelected.size} filial əlavə et`}
-                </button>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
+
       <table>
         <thead><tr><th>Market</th><th>Filial</th><th>Ünvan</th><th>Koordinat</th><th>Açıq</th><th></th></tr></thead>
         <tbody>
           {rows.map((b) => (
             <tr key={b.id}>
-              <td><span className="avatar" style={{ background: store(b.store_id)?.color ?? '#999' }}>{store(b.store_id)?.initial}</span>{store(b.store_id)?.name ?? b.store_id}</td>
+              <td><span className="avatar" style={{ background: storeOf(b.store_id)?.color ?? '#999' }}>{storeOf(b.store_id)?.initial}</span>{storeOf(b.store_id)?.name ?? b.store_id}</td>
               <td><b>{b.name}</b></td>
               <td className="muted">{b.address}</td>
               <td className="muted" style={{ fontFamily: 'monospace', fontSize: 12 }}><a href={b.maps_url || `https://www.google.com/maps?q=${b.lat},${b.lng}`} target="_blank" rel="noreferrer"><MapPin size={12} style={{ verticalAlign: -2 }} /> {Number(b.lat).toFixed(5)}, {Number(b.lng).toFixed(5)}</a></td>
