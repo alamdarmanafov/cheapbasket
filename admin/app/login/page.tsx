@@ -26,7 +26,7 @@ export default function Login() {
         <div style={{ textAlign: 'center' }}>
           <img src="/icon.png" alt="" width={56} height={56} style={{ borderRadius: 14 }} />
         </div>
-        <h1>Cheap Market Admin</h1>
+        <h1>Cheap Market AI Admin</h1>
         <p className="muted" style={{ textAlign: 'center', margin: 0 }}>İdarəetmə paneli</p>
         <form onSubmit={submit}>
           <input type="email" placeholder="Admin e-poçtu" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="username" />

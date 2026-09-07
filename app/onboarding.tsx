@@ -10,7 +10,7 @@ import { useAuth } from '@/store/auth';
 
 const SLIDES = [
   { key: '1', line1: 'Səbətini', line2: 'yarat', body: 'Almaq istədiyin məhsulları səbətə at. Axtar, barkodu skan et və ya şəklini çək.', note: 'Sərin səbətin\nhəmişə yanında!', img: require('../assets/onboarding/1.png'), ratio: 327 / 470 },
-  { key: '2', line1: 'Qiymətləri', line2: 'müqayisə et', body: 'Eyni səbət müxtəlif marketlərdə neçədir? Cheap Market sənin üçün hesablayır.', note: 'Sən seç,\nbiz müqayisə edək!', img: require('../assets/onboarding/2.png'), ratio: 328 / 505 },
+  { key: '2', line1: 'Qiymətləri', line2: 'müqayisə et', body: 'Eyni səbət müxtəlif marketlərdə neçədir? Cheap Market AI sənin üçün hesablayır.', note: 'Sən seç,\nbiz müqayisə edək!', img: require('../assets/onboarding/2.png'), ratio: 328 / 505 },
   { key: '3', line1: 'Ən sərfəli', line2: 'marketi tap', body: 'Sənə ən yaxın filialı xəritədə görürsən, marşruta bax və rahat alış-veriş et. Qiymət düşəndə xəbər veririk.', note: 'Daha ağıllı al,\ndaha çox qənaət et!', img: require('../assets/onboarding/3.png'), ratio: 330 / 435 },
 ];
 
