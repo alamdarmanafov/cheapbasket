@@ -1,0 +1,79 @@
+{
+  "expo": {
+    "name": "Cheap Basket",
+    "slug": "cheap-basket",
+    "version": "1.0.0",
+    "scheme": "cheapbasket",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F7F7F7",
+    "primaryColor": "#E53935",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#E53935"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "az.cheapbasket.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Barkodu skan etmək və məhsulun şəklini çəkmək üçün kameraya icazə lazımdır."
+      },
+      "usesAppleSignIn": true
+    },
+    "android": {
+      "package": "az.cheapbasket.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#E53935",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "CAMERA"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "resizeMode": "contain",
+          "backgroundColor": "#E53935"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Barkodu skan etmək və məhsulun şəklini çəkmək üçün kameraya icazə lazımdır."
+        }
+      ],
+      "expo-apple-authentication",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#E53935",
+          "defaultChannel": "price-drops"
+        }
+      ],
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": false
+    },
+    "extra": {
+      "eas": {
+        "projectId": "04a934d4-0df9-4bc3-b4c2-f1f0f0fb67ed"
+      }
+    }
+  }
+}

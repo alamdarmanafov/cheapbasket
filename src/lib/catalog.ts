@@ -1,0 +1,92 @@
+import { Product, Branch, Store, StoreId, LatLng, withDistances } from '@/data/products';
+import { supabase } from './supabase';
+
+interface ProductPriceRow {
+  id: string;
+  barcode: string | null;
+  name: string;
+  brand: string;
+  size: string;
+  category: string;
+  emoji: string | null;
+  tint: string | null;
+  image_url: string | null;
+  rating: number | null;
+  prices: Record<string, number | null> | null;
+  updated_at: string | null;
+}
+
+const need = () => {
+  if (!supabase) throw new Error('Supabase konfiqurasiya olunmayıb');
+  return supabase;
+};
+
+function rowToProduct(r: ProductPriceRow, history: number[] = []): Product {
+  const prices: Record<StoreId, number | null> = {};
+  for (const [k, v] of Object.entries(r.prices ?? {})) prices[k] = v == null ? null : Number(v);
+  const updatedMinutesAgo = r.updated_at ? Math.max(0, Math.round((Date.now() - new Date(r.updated_at).getTime()) / 60000)) : 0;
+  return {
+    id: r.id,
+    barcode: r.barcode ?? '',
+    name: r.name,
+    brand: r.brand,
+    size: r.size,
+    category: r.category,
+    emoji: r.emoji ?? '🛒',
+    tint: r.tint ?? '#F3F4F6',
+    imageUrl: r.image_url,
+    prices,
+    history,
+    updatedMinutesAgo,
+    rating: r.rating ?? undefined,
+  };
+}
+
+export async function fetchStores(): Promise<Store[]> {
+  const { data, error } = await need().from('stores').select('id, name, color, initial').order('name');
+  if (error) throw error;
+  return (data ?? []).map((s) => ({ id: s.id, name: s.name, color: s.color ?? '#6B7280', initial: s.initial ?? s.name.slice(0, 1) }));
+}
+
+export async function fetchProducts(): Promise<Product[]> {
+  const { data, error } = await need().from('product_prices').select('*').order('name');
+  if (error) throw error;
+  return ((data ?? []) as ProductPriceRow[]).map((r) => rowToProduct(r));
+}
+
+export async function fetchProduct(id: string): Promise<Product | undefined> {
+  const db = need();
+  const [{ data: row }, { data: hist }] = await Promise.all([
+    db.from('product_prices').select('*').eq('id', id).maybeSingle(),
+    db.from('price_history').select('price, recorded_at').eq('product_id', id).order('recorded_at', { ascending: true }).limit(30),
+  ]);
+  if (!row) return undefined;
+  return rowToProduct(row as ProductPriceRow, (hist ?? []).map((h) => Number(h.price)));
+}
+
+export async function fetchPriceHistory(productId: string, storeId: string): Promise<number[]> {
+  const { data } = await need().from('price_history').select('price').eq('product_id', productId).eq('store_id', storeId).order('recorded_at', { ascending: true }).limit(30);
+  return (data ?? []).map((h) => Number(h.price));
+}
+
+export async function fetchByBarcode(code: string): Promise<Product | undefined> {
+  const { data } = await need().from('product_prices').select('*').eq('barcode', code).maybeSingle();
+  return data ? rowToProduct(data as ProductPriceRow) : undefined;
+}
+
+export async function fetchBranches(from: LatLng): Promise<Branch[]> {
+  const { data, error } = await need().from('branches').select('*');
+  if (error) throw error;
+  const raw: Branch[] = (data ?? []).map((b) => ({
+    id: b.id,
+    storeId: b.store_id,
+    name: b.name,
+    address: b.address,
+    lat: Number(b.lat),
+    lng: Number(b.lng),
+    openUntil: b.open_until ?? '',
+    distanceKm: 0,
+    walkMinutes: 0,
+  }));
+  return withDistances(raw, from);
+}
