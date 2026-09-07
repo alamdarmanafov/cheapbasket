@@ -47,7 +47,7 @@ export default function Referral() {
 
   const share = async () => {
     if (!code) return;
-    const message = `Cheap Basket ilə səbətinin ən ucuz olduğu marketi tap 🧺 Dəvət kodum: ${code} — qeydiyyatdan sonra "Dəvət kodu" bölməsinə yaz, ikimiz də ${cfg.referral} xal qazanaq. ${SITE_URL}`;
+    const message = `Cheap Market ilə səbətinin ən ucuz olduğu marketi tap 🧺 Dəvət kodum: ${code} — qeydiyyatdan sonra "Dəvət kodu" bölməsinə yaz, ikimiz də ${cfg.referral} xal qazanaq. ${SITE_URL}`;
     try {
       if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
         await navigator.clipboard.writeText(message);

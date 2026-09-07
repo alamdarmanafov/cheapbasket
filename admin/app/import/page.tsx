@@ -33,6 +33,8 @@ export default function ImportPage() {
   const [onlyDiscount, setOnlyDiscount] = useState(false);
   /** Prices-only: match Wolt items to products already in the catalogue (barcode, then name) and write just the prices. */
   const [pricesOnly, setPricesOnly] = useState(false);
+  /** Products-only: create/update products without writing any price (catalogue sites that are not a store). */
+  const [productsOnly, setProductsOnly] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [existing, setExisting] = useState<Product[]>([]);
@@ -62,7 +64,7 @@ export default function ImportPage() {
           return {
             ...it,
             key: it.ext_id,
-            selected: it.price != null,
+            selected: it.price != null || productsOnly,
             appCategory: it.category && catNames.includes(it.category) ? it.category : mapCategory(it.category, it.name, catNames),
             existingId: match(it),
             updateInfo: false,
@@ -90,6 +92,7 @@ export default function ImportPage() {
 
   const num = (v: string) => (v.trim() === '' ? null : Number(v.replace(',', '.')));
   const valid = (r: Row) => {
+    if (productsOnly) return r.title.trim() !== '';
     const p = num(r.priceText);
     const d = num(r.discountText);
     return p != null && !Number.isNaN(p) && p > 0 && (d == null || (!Number.isNaN(d) && d > 0 && d < p)) && r.title.trim() !== '';
@@ -125,13 +128,13 @@ export default function ImportPage() {
   };
 
   const importSelected = async () => {
-    if (!storeId) { setMsg({ ok: false, text: 'Əvvəlcə market seç.' }); return; }
-    const storeName = stores.find((s) => s.id === storeId)?.name ?? storeId;
+    if (!storeId && !productsOnly) { setMsg({ ok: false, text: 'Əvvəlcə market seç (və ya "Yalnız məhsullar" rejimini seç).' }); return; }
+    const storeName = productsOnly ? 'qiymətsiz' : stores.find((s) => s.id === storeId)?.name ?? storeId;
     const newCount = selected.filter((r) => !r.existingId).length;
     const infoCount = selected.filter((r) => r.existingId && r.updateInfo).length;
     const priceOnly = selected.length - newCount - infoCount;
     const plan = [
-      newCount ? `${newCount} yeni məhsul yaradılacaq (ad, kateqoriya, şəkil + ${storeName} qiyməti)` : null,
+      newCount ? (productsOnly ? `${newCount} yeni məhsul yaradılacaq (ad, kateqoriya, şəkil; qiymət yazılmır)` : `${newCount} yeni məhsul yaradılacaq (ad, kateqoriya, şəkil + ${storeName} qiyməti)`) : null,
       priceOnly ? `${priceOnly} mövcud məhsulun YALNIZ ${storeName} qiyməti yazılacaq` : null,
       infoCount ? `${infoCount} mövcud məhsulun məlumatı (ad, ölçü, kateqoriya, şəkil) da Wolt-dakı ilə əvəz olunacaq` : null,
     ].filter(Boolean).join('\n• ');
@@ -165,6 +168,7 @@ export default function ImportPage() {
           // no photo in our catalogue yet → take Wolt's (never replaces an existing photo)
           else if (!r.updateInfo && r.image_url && !fresh.find((p) => p.id === id)?.image_url && !photoUpdates.some((u) => u.id === id)) photoUpdates.push({ id, image_url: r.image_url });
         }
+        if (productsOnly || num(r.priceText) == null) continue; // no price to write
         // one price row per product (a duplicate barcode in the venue keeps the first / cheaper price)
         const prev = priceById.get(id);
         const candidate = { product_id: id, store_id: storeId, price: num(r.priceText), discount_price: num(r.discountText), updated_at: now };
@@ -202,15 +206,19 @@ export default function ImportPage() {
           {stores.length === 0 && <option value="">Market yoxdur</option>}
           {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
+        <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, whiteSpace: 'nowrap' }} title="Sayt market deyilsə: məhsulları (ad, şəkil, barkod, kateqoriya) yarat, qiymət yazma; qiymətləri sonra Wolt mənbələri və ya əl ilə doldur">
+          <input type="checkbox" checked={productsOnly} onChange={(e) => { setProductsOnly(e.target.checked); if (e.target.checked) setPricesOnly(false); }} style={{ width: 'auto' }} /> Yalnız məhsullar
+        </label>
         <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, whiteSpace: 'nowrap' }} title="Yeni məhsul yaratmır; yalnız bazada olan məhsulların bu marketdəki qiymətini yazır">
-          <input type="checkbox" checked={pricesOnly} onChange={(e) => { setPricesOnly(e.target.checked); if (e.target.checked) setRows(rows.map((r) => ({ ...r, selected: r.selected && !!r.existingId }))); }} style={{ width: 'auto' }} /> Yalnız qiymətlər
+          <input type="checkbox" checked={pricesOnly} onChange={(e) => { setPricesOnly(e.target.checked); if (e.target.checked) { setProductsOnly(false); setRows(rows.map((r) => ({ ...r, selected: r.selected && !!r.existingId }))); } }} style={{ width: 'auto' }} /> Yalnız qiymətlər
         </label>
         <button className="btn secondary" disabled={loading || !url} onClick={load}><Download size={14} /> {loading ? 'Yüklənir…' : 'Məhsulları çək'}</button>
-        <button className="btn" disabled={!selected.length || busy || !storeId} onClick={importSelected}>{busy ? 'Yazılır…' : `Seçilənləri import et (${selected.length})`}</button>
+        <button className="btn" disabled={!selected.length || busy || (!storeId && !productsOnly)} onClick={importSelected}>{busy ? 'Yazılır…' : `Seçilənləri import et (${selected.length})`}</button>
       </div>
       <p className="note">
         Wolt linki və ya istənilən market saytının səhifəsini yapışdır. Wolt API ilə, digər saytlar səhifədəki strukturlu məlumatla (JSON-LD/OpenGraph) oxunur; o yoxdursa səhifə mətni AI-a verilir (səhifə başına ≈ 0.01 $, OPENAI_API_KEY lazımdır). Yalnız JavaScript ilə yüklənən səhifələr oxunmur. Soldakı siyahıdan hansı marketə yazılacağını seç (məs. Wolt Market özü ayrıca market kimi "Marketlər" səhifəsində əlavə oluna bilər, Araz/Bravo filialının Wolt səhifəsi isə həmin markete yazılır).
         Yazmazdan əvvəl brend, ad, ölçü, kateqoriya və qiymətləri cədvəldə düzəldə bilərsən. Bazada olan məhsul (barkod və ya eyni ad üzrə) təkrar yaradılmır, yalnız qiyməti yenilənir.
+        <b> "Yalnız məhsullar"</b> rejimi market olmayan kataloq saytları üçündür: məhsul yaranır, qiymət yazılmır, qiymətləri sonra hər marketin öz mənbəyindən ("Avtomatik yeniləmə") və ya əl ilə doldurursan.
         <b> "Yalnız qiymətlər"</b> rejimi digər marketlərin Wolt səhifəsi üçündür: yeni məhsul yaratmır, yalnız artıq bazada olan məhsulların seçdiyin marketdəki qiymətini yazır. Wolt qiymətləri mağaza rəfindəki qiymətdən fərqlənə bilər.
       </p>
 
@@ -220,7 +228,7 @@ export default function ImportPage() {
             <span><b>{selected.filter((r) => !r.existingId).length}</b> yeni məhsul + qiymət</span>
             <span><b>{selected.filter((r) => r.existingId && !r.updateInfo).length}</b> mövcud məhsul · yalnız qiymət</span>
             <span><b>{selected.filter((r) => r.existingId && r.updateInfo).length}</b> mövcud məhsul · məlumat + qiymət</span>
-            <span className="muted">→ {stores.find((s) => s.id === storeId)?.name ?? 'market seçilməyib'}</span>
+            <span className="muted">→ {productsOnly ? 'yalnız məhsullar, qiymət yazılmır' : stores.find((s) => s.id === storeId)?.name ?? 'market seçilməyib'}</span>
           </div>
           <div className="toolbar" style={{ marginTop: 14 }}>
             <Search size={16} className="muted" />

@@ -19,7 +19,7 @@ export default function Notifications() {
     const t = setTimeout(() => fetch(`/api/push?segment=${segment}&city=${encodeURIComponent(city)}`).then((r) => r.json()).then((j) => setSegCount(j.error ? null : j)).catch(() => setSegCount(null)), 300);
     return () => clearTimeout(t);
   }, [segment, city]);
-  const [title, setTitle] = useState('Cheap Basket');
+  const [title, setTitle] = useState('Cheap Market');
   const [body, setBody] = useState('');
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);

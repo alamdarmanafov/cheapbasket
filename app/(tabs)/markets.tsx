@@ -11,7 +11,7 @@ import { StateView } from '@/components/states';
 import { RealMap } from '@/components/RealMap';
 import { suggestSubstitute } from '@/lib/substitute';
 import { PlusTag } from '@/components/PlusLock';
-import { isOpenNow } from '@/data/products';
+import { isOpenNow, storeLabel } from '@/data/products';
 import { nearestBranch } from '@/data/products';
 import { useBasket } from '@/store/basket';
 
@@ -59,7 +59,7 @@ export default function Markets() {
         <Row gap={space.sm} style={{ marginTop: 12 }}>
           <StoreAvatar store={chosen.store} size={32} />
           <Txt v="title" style={{ fontSize: 20, lineHeight: 26 }}>
-            {chosen.store.name} Market
+            {storeLabel(chosen.store)}
           </Txt>
         </Row>
         <Price value={chosen.total} size="xl" style={{ marginTop: 4 }} />

@@ -13,12 +13,12 @@ export function LogoMark({ size = 39 }: { size?: number }) {
 
 export function Logo() {
   return (
-    <a className="logo" href="#top" aria-label="Cheap Basket">
+    <a className="logo" href="#top" aria-label="Cheap Market">
       <LogoMark />
       <span>
         Cheap
         <br />
-        <b>Basket</b>
+        <b>Market</b>
       </span>
     </a>
   );

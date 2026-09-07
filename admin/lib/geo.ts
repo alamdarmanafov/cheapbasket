@@ -1,7 +1,7 @@
 /** Resolve a Google Maps link (long or short) or a free-text address into coordinates. No API key needed. */
 export interface Resolved { lat: number; lng: number; name?: string; address?: string; source: 'link' | 'geocode' }
 
-const UA = 'CheapBasketAdmin/1.0 (+https://cheapbasket.vercel.app)';
+const UA = 'CheapMarketAdmin/1.0 (+https://cheapmarket.app)';
 
 function fromUrl(url: string): { lat: number; lng: number; name?: string } | null {
   const dec = decodeURIComponent(url);

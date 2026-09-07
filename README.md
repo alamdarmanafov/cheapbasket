@@ -1,4 +1,4 @@
-# Cheap Basket — AI Shopping Comparison App
+# Cheap Market — AI Shopping Comparison App
 
 > **Səbətini yarat. Ən sərfəli marketi tap. Get və al.** 🛒
 > Scan · Compare · Save

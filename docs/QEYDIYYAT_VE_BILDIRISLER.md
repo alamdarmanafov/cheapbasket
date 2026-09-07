@@ -35,12 +35,12 @@ Test: tətbiqdə Profil → **Daxil ol** → Qeydiyyatdan keç → e-poçta gəl
 **Apple Developer (developer.apple.com → Certificates, Identifiers & Profiles)**
 
 1. **Identifiers → App IDs** → `az.cheapbasket.app` (EAS build zamanı avtomatik yaranır; yoxdursa əl ilə yarat) → Capabilities-də **Sign In with Apple** ✅ → Save.
-2. **Identifiers → Services IDs → +** → Description: `Cheap Basket Web`, Identifier: `az.cheapbasket.web` → Continue → Register.
+2. **Identifiers → Services IDs → +** → Description: `Cheap Market Web`, Identifier: `az.cheapbasket.web` → Continue → Register.
    Sonra onu aç → **Sign In with Apple** ✅ → Configure:
    - Primary App ID: `az.cheapbasket.app`
    - Domains: `khnctzbktybgcwkrfmhi.supabase.co`
    - Return URLs: `https://khnctzbktybgcwkrfmhi.supabase.co/auth/v1/callback`
-3. **Keys → +** → Name: `Cheap Basket Sign in with Apple` → **Sign In with Apple** ✅ → Configure → Primary App ID seç → Register → **Download** (`AuthKey_XXXXXXXXXX.p8`, bir dəfə yüklənir, saxla). Key ID-ni qeyd et.
+3. **Keys → +** → Name: `Cheap Market Sign in with Apple` → **Sign In with Apple** ✅ → Configure → Primary App ID seç → Register → **Download** (`AuthKey_XXXXXXXXXX.p8`, bir dəfə yüklənir, saxla). Key ID-ni qeyd et.
 4. Sağ üstdə **Team ID**-ni qeyd et (10 simvol).
 
 **Supabase → Authentication → Providers → Apple**
@@ -57,10 +57,10 @@ Test: iOS build-də (Expo Go-da işləmir) **Apple ilə davam et** → Face ID �
 
 **Google Cloud Console (console.cloud.google.com)**
 
-1. Yeni layihə: `Cheap Basket`.
-2. **APIs & Services → OAuth consent screen**: External → App name `Cheap Basket`, support e-mail, logo (`assets/icon.png`), Authorized domain: `supabase.co` → Save. Scopes: `email`, `profile`, `openid`. Publish (Testing rejimində yalnız əlavə etdiyin e-poçtlar girə bilər).
+1. Yeni layihə: `Cheap Market`.
+2. **APIs & Services → OAuth consent screen**: External → App name `Cheap Market`, support e-mail, logo (`assets/icon.png`), Authorized domain: `supabase.co` → Save. Scopes: `email`, `profile`, `openid`. Publish (Testing rejimində yalnız əlavə etdiyin e-poçtlar girə bilər).
 3. **Credentials → Create Credentials → OAuth client ID**:
-   - Type: **Web application**, Name: `Cheap Basket Supabase`
+   - Type: **Web application**, Name: `Cheap Market Supabase`
    - Authorized redirect URIs: `https://khnctzbktybgcwkrfmhi.supabase.co/auth/v1/callback`
    - Yaranan **Client ID** və **Client Secret**-i qeyd et.
 
@@ -82,7 +82,7 @@ Tətbiq **Expo Push Service** istifadə edir: cihaz tokeni `push_tokens` cədvə
 
 **Android (FCM v1)**
 
-1. **Firebase Console (console.firebase.google.com)** → Add project `Cheap Basket` → Android app əlavə et → package `az.cheapbasket.app` → `google-services.json` yüklə → repo kökünə qoy (gitignore-dadır; `app.config.js` avtomatik götürür).
+1. **Firebase Console (console.firebase.google.com)** → Add project `Cheap Market` → Android app əlavə et → package `az.cheapbasket.app` → `google-services.json` yüklə → repo kökünə qoy (gitignore-dadır; `app.config.js` avtomatik götürür).
    EAS build-də istifadə üçün: `eas env:create --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --environment production` və `app.config.js`-də `process.env.GOOGLE_SERVICES_JSON` yolu (lazım olsa mən əlavə edərəm).
 2. **Project Settings → Service accounts → Generate new private key** (JSON).
 3. **expo.dev → layihə → Credentials → Android → FCM V1 service account key** → həmin JSON-u yüklə.
@@ -97,5 +97,5 @@ Tətbiq **Expo Push Service** istifadə edir: cihaz tokeni `push_tokens` cədvə
 
 ## 5. App Store Connect (qeyd)
 
-- **My Apps → + → New App**: Platform iOS, Name `Cheap Basket`, Primary language Azerbaijani (yoxdursa English), Bundle ID `az.cheapbasket.app` (developer portalda yarandıqdan sonra siyahıda çıxır), **SKU** `CHEAPBASKET001`, User Access: Full.
+- **My Apps → + → New App**: Platform iOS, Name `Cheap Market`, Primary language Azerbaijani (yoxdursa English), Bundle ID `az.cheapbasket.app` (developer portalda yarandıqdan sonra siyahıda çıxır), **SKU** `CHEAPBASKET001`, User Access: Full.
 - Sign in with Apple istifadə edən tətbiqlərdə Apple **hesab silmə** funksiyası tələb edir (Profil → "Hesabı sil") — mağazaya göndərməzdən əvvəl əlavə edərik.

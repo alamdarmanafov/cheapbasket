@@ -21,7 +21,7 @@ export function isDue(plus: boolean, settings: DigestSettings, now = new Date())
 }
 
 const SYSTEM =
-  'Sən "Cheap Basket" alış-veriş tətbiqinin bildiriş redaktorusan. Azərbaycan dilində, səmimi, qısa push bildirişi yaz. Yalnız JSON qaytar: {"title": "...", "body": "..."}. title ≤ 40 simvol, body ≤ 160 simvol, ən vacib 2-3 endirimi konkret qiymətlə qeyd et, sonda çağırış (məs. "Tətbiqdə bax"). Emoji az.';
+  'Sən "Cheap Market" alış-veriş tətbiqinin bildiriş redaktorusan. Azərbaycan dilində, səmimi, qısa push bildirişi yaz. Yalnız JSON qaytar: {"title": "...", "body": "..."}. title ≤ 40 simvol, body ≤ 160 simvol, ən vacib 2-3 endirimi konkret qiymətlə qeyd et, sonda çağırış (məs. "Tətbiqdə bax"). Emoji az.';
 
 const parseJson = (text: string, fallback: { title: string; body: string }) => {
   const m = text.match(/\{[\s\S]*\}/);
