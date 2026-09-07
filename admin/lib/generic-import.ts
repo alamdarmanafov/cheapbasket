@@ -144,25 +144,66 @@ async function parsePage(html: string, base: URL, allowAI: boolean): Promise<{ i
 }
 
 /**
- * Next page of a paginated listing: <link rel="next">, an <a rel="next">, a link whose page number is
- * current+1 (?page=N, &p=N, /page/N), or — when the page carries a page parameter already — the same URL with it incremented.
+ * Next page of a paginated listing. Strategies tried in order:
+ *  1. <link rel="next"> or <a rel="next"> in the HTML.
+ *  2. An <a href> whose URL contains page=N+1 / p=N+1 / /page/N+1.
+ *  3. The current URL already has a page/p/pg param → increment it.
+ *  4. The current URL pathname ends in /page/N → increment it.
+ *  5. Offset-based pagination: ?offset=N or ?start=N or ?from=N or ?skip=N in the HTML or current URL.
+ *  6. Probe fallback: page 1 with items but no link found → guess ?page=2.
  */
-function nextPageUrl(html: string, current: URL, pageNo: number): URL | null {
+function nextPageUrl(html: string, current: URL, pageNo: number, prevCount = 0): URL | null {
   const abs = (h: string) => { try { const u = new URL(h.replace(/&amp;/g, '&'), current); return u.hostname === current.hostname ? u : null; } catch { return null; } };
+
+  // 1. rel=next
   const rel = html.match(/<(?:link|a)[^>]+rel=["']next["'][^>]+href=["']([^"']+)["']/i)?.[1] ?? html.match(/<(?:link|a)[^>]+href=["']([^"']+)["'][^>]+rel=["']next["']/i)?.[1];
   if (rel) { const u = abs(rel); if (u && u.toString() !== current.toString()) return u; }
+
+  // 2. href with page number pattern
   const want = pageNo + 1;
   for (const m of html.matchAll(/href=["']([^"']+)["']/gi)) {
     const h = m[1].replace(/&amp;/g, '&');
-    if (new RegExp(`(?:[?&](?:page|p|pg|pagina)=${want}(?:&|$)|/page/${want}(?:/|$|\\?))`).test(h)) { const u = abs(h); if (u) return u; }
+    if (new RegExp(`(?:[?&](?:page|p|pg|pagina|sayfa|stranka|seite)=${want}(?:&|$)|/page/${want}(?:/|$|\\?))`).test(h)) { const u = abs(h); if (u) return u; }
   }
-  for (const key of ['page', 'p', 'pg']) {
+
+  // 3. current URL already has a page param → increment
+  for (const key of ['page', 'p', 'pg', 'sayfa', 'stranka']) {
     if (current.searchParams.has(key) && /^\d+$/.test(current.searchParams.get(key) ?? '')) {
       const u = new URL(current.toString()); u.searchParams.set(key, String(want)); return u;
     }
   }
-  const m = current.pathname.match(/^(.*\/page\/)(\d+)(\/?)$/);
-  if (m) { const u = new URL(current.toString()); u.pathname = `${m[1]}${want}${m[3]}`; return u; }
+
+  // 4. pathname /page/N
+  const pm = current.pathname.match(/^(.*\/page\/)(\d+)(\/?)$/);
+  if (pm) { const u = new URL(current.toString()); u.pathname = `${pm[1]}${want}${pm[3]}`; return u; }
+
+  // 5. Offset-based: look for ?offset=N, ?start=N, ?from=N, ?skip=N either in current URL or in hrefs
+  const offsetKeys = ['offset', 'start', 'from', 'skip'];
+  for (const key of offsetKeys) {
+    const cur = current.searchParams.get(key);
+    if (cur && /^\d+$/.test(cur)) {
+      const u = new URL(current.toString());
+      u.searchParams.set(key, String(Number(cur) + prevCount));
+      return u;
+    }
+  }
+  // Look for an offset href in the HTML where offset = prevCount (i.e. the next page link)
+  if (prevCount > 0) {
+    for (const m of html.matchAll(/href=["']([^"']+)["']/gi)) {
+      const h = m[1].replace(/&amp;/g, '&');
+      for (const key of offsetKeys) {
+        if (new RegExp(`[?&]${key}=${prevCount}(?:&|$)`).test(h)) { const u = abs(h); if (u) return u; }
+      }
+    }
+  }
+
+  // 6. Probe fallback: if this was page 1 and we got items, guess there might be a page 2
+  if (pageNo === 1 && prevCount > 0) {
+    const u = new URL(current.toString());
+    u.searchParams.set('page', '2');
+    return u;
+  }
+
   return null;
 }
 
@@ -200,7 +241,7 @@ export async function fetchGenericPage(input: string): Promise<WoltResult> {
     }
     if (pages > 1 && added === 0) break; // a page with nothing new = end of the listing
     if (!items.length) break;
-    url = nextPageUrl(html, url, pageNo);
+    url = nextPageUrl(html, url, pageNo, items.length);
     pageNo += 1;
   }
   if (!seen.size) throw new Error(`${first.hostname}: məhsul tapılmadı`);
