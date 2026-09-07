@@ -21,7 +21,7 @@ export interface Product {
   id: string; barcode: string | null; name: string; brand: string; size: string; category: string;
   emoji: string | null; tint: string | null; image_url: string | null; rating: number | null;
 }
-export interface PriceRow { product_id: string; store_id: string; price: number | null; updated_at: string }
+export interface PriceRow { product_id: string; store_id: string; price: number | null; discount_price: number | null; updated_at: string }
 export interface Branch { id: string; store_id: string; name: string; address: string; lat: number; lng: number; open_until: string | null }
 export interface AdminUser { id: string; email: string | null; created_at: string; last_sign_in_at: string | null; provider: string; display_name: string | null; plan: 'free' | 'plus'; plan_expires_at: string | null; plan_note: string | null; blocked: boolean; city: string | null; devices?: number }
 

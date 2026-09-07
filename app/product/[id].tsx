@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import { colors, radius, shadow, space } from '@/theme';
 import { Btn, Card, Divider, Pill, Price, Row, Txt } from '@/components/ui';
-import { Freshness, PriceLine, ProductArt, StoreAvatar } from '@/components/product';
+import { Freshness, OldPrice, PriceLine, ProductArt, StoreAvatar } from '@/components/product';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { StateView } from '@/components/states';
 import { PlusLock, PlusTag } from '@/components/PlusLock';
@@ -83,6 +83,12 @@ export default function ProductScreen() {
               <Txt v="caption" color={colors.gray}>
                 Ən ucuz qiymət
               </Txt>
+              {c.regular != null && (
+                <Row gap={6} style={{ marginBottom: 2 }}>
+                  <OldPrice value={c.regular} />
+                  <Pill tone="primary" text={`−${Math.round(((c.regular - (c.price ?? 0)) / c.regular) * 100)}%`} />
+                </Row>
+              )}
               <Price value={c.price ?? 0} size="xl" color={colors.primary} />
               <Row gap={6} style={{ marginTop: 4 }}>
                 <StoreAvatar store={c.store} size={22} />

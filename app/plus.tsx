@@ -9,7 +9,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { PLUS_PRICING } from '@/data/plans';
 import { useBasket } from '@/store/basket';
 import { useAuth } from '@/store/auth';
-import { notify } from '@/lib/confirm';
+import { usePlusStore } from '@/lib/iap';
 
 /** Feature × plan matrix: [label, free, plus] — text means a limited free tier. */
 const FEATURES: Array<[string, string | boolean, string | boolean]> = [
@@ -34,12 +34,19 @@ export default function Plus() {
   const expires = auth.profile?.planExpiresAt ? new Date(auth.profile.planExpiresAt) : null;
   const daysLeft = expires ? Math.max(0, Math.ceil((expires.getTime() - Date.now()) / 86400000)) : null;
 
+  const store = usePlusStore();
+  const priceLabel = (p: 'monthly' | 'yearly') => {
+    const fromStore = store.prices[p];
+    if (fromStore) return p === 'yearly' ? `${fromStore} / il` : `${fromStore} / ay`;
+    return PLUS_PRICING[p].label;
+  };
+
   const subscribe = () => {
     if (!auth.user) {
       router.push('/auth');
       return;
     }
-    notify('Tezliklə', 'App Store / Google Play ödənişi hazırlanır. Promo kodun və ya sualın varsa dəstəklə əlaqə saxla.');
+    store.buy(period);
   };
 
   return (
@@ -104,7 +111,7 @@ export default function Plus() {
                         {p === 'yearly' && <Pill tone="success" text="−58%" />}
                       </Row>
                       <Txt v="caption" color={colors.gray}>
-                        {p === 'yearly' ? `${PLUS_PRICING.yearly.label} · ${PLUS_PRICING.yearly.note}` : PLUS_PRICING.monthly.label}
+                        {p === 'yearly' ? `${priceLabel('yearly')} · ${PLUS_PRICING.yearly.note}` : priceLabel('monthly')}
                       </Txt>
                     </View>
                     <Ionicons name={active ? 'radio-button-on' : 'radio-button-off'} size={22} color={active ? colors.primary : colors.grayLight} />
@@ -112,9 +119,19 @@ export default function Plus() {
                 </Pressable>
               );
             })}
+            {store.error && (
+              <Txt v="caption" color={colors.primary} center style={{ marginTop: space.sm }}>
+                {store.error}
+              </Txt>
+            )}
             <Txt v="caption" color={colors.grayLight} center style={{ marginTop: space.md, fontSize: 11 }}>
-              İstənilən vaxt ləğv edə bilərsən. Ödəniş App Store / Google Play hesabından çıxılır.
+              İstənilən vaxt ləğv edə bilərsən. Ödəniş App Store / Google Play hesabından çıxılır və avtomatik yenilənir.
             </Txt>
+            <Pressable onPress={store.restore} disabled={store.busy} accessibilityRole="button" style={{ alignSelf: 'center', marginTop: space.sm, padding: 6 }}>
+              <Txt v="captionStrong" color={colors.gray}>
+                Alışları bərpa et
+              </Txt>
+            </Pressable>
           </View>
         )}
       </ScrollView>
@@ -123,7 +140,7 @@ export default function Plus() {
         {isPlus ? (
           <Btn title={expires ? `Plus · ${expires.toLocaleDateString('az-AZ')} tarixinə qədər` : 'Plus aktivdir'} variant="secondary" onPress={() => router.back()} />
         ) : (
-          <Btn title={period === 'yearly' ? `Plus-a keç · ${PLUS_PRICING.yearly.label}` : `Plus-a keç · ${PLUS_PRICING.monthly.label}`} icon="star" onPress={subscribe} />
+          <Btn title={store.busy ? 'Gözlə…' : `Plus-a keç · ${priceLabel(period)}`} icon="star" onPress={subscribe} disabled={store.busy} />
         )}
       </View>
     </View>

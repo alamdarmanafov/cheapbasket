@@ -27,6 +27,8 @@ export interface Product {
   imageUrl?: string | null;
   /** Price per store id in ₼; null/missing = product unavailable in that store. */
   prices: Record<StoreId, number | null>;
+  /** Regular (pre-discount) price per store id, only where the store currently runs a discount. */
+  regularPrices: Record<StoreId, number>;
   /** Recorded prices (oldest → newest) in the cheapest store; empty until history exists. */
   history: number[];
   /** Minutes since the price was last verified. */
@@ -101,12 +103,14 @@ export function catalogCategories(): string[] {
 export interface StorePrice {
   store: Store;
   price: number | null;
+  /** Crossed-out regular price when the store has a discount on this product. */
+  regular?: number;
 }
 
 /** Prices sorted cheapest → most expensive; unavailable last. */
 export function sortedPrices(p: Product): StorePrice[] {
   return catalog.stores
-    .map((store) => ({ store, price: p.prices[store.id] ?? null }))
+    .map((store) => ({ store, price: p.prices[store.id] ?? null, regular: p.regularPrices?.[store.id] }))
     .sort((a, b) => {
       if (a.price == null) return 1;
       if (b.price == null) return -1;
