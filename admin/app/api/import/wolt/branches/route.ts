@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { adminDb, errText, requireAdmin } from '@/lib/server';
-import { searchWoltVenues, fetchWoltVenueInfo } from '@/lib/wolt';
+import { searchWoltVenues } from '@/lib/wolt';
 
 export const maxDuration = 120;
 
@@ -24,18 +24,16 @@ export async function POST(req: Request) {
       const rows: Record<string, unknown>[] = [];
       for (const v of venues) {
         if (!v.lat || !v.lng) continue;
-        const info = await fetchWoltVenueInfo(v.slug).catch(() => null);
-        const branch = info ?? v;
         rows.push({
           id: `${store.id}-${v.slug}`,
           store_id: store.id,
-          name: branch.name,
-          address: branch.address ?? '',
-          lat: branch.lat,
-          lng: branch.lng,
-          maps_url: branch.url,
-          open_from: branch.open_from ?? null,
-          open_until: branch.open_until ?? null,
+          name: v.name,
+          address: v.address ?? '',
+          lat: v.lat,
+          lng: v.lng,
+          maps_url: v.url,
+          open_from: v.open_from ?? null,
+          open_until: v.open_until ?? null,
         });
       }
 

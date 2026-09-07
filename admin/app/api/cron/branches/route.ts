@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { adminDb, errText } from '@/lib/server';
-import { searchWoltVenues, fetchWoltVenueInfo } from '@/lib/wolt';
+import { searchWoltVenues } from '@/lib/wolt';
 import { slugify } from '@/lib/supabase';
 
 export const maxDuration = 300;
@@ -20,13 +20,11 @@ export async function GET(req: Request) {
       const rows: Record<string, unknown>[] = [];
       for (const v of venues) {
         if (!v.lat || !v.lng) continue;
-        const info = await fetchWoltVenueInfo(v.slug).catch(() => null);
-        const b = info ?? v;
         rows.push({
           id: slugify(`${store.id} ${v.name} ${(v.address ?? '').slice(0, 20)}`),
-          store_id: store.id, name: b.name, address: b.address ?? '',
-          lat: b.lat, lng: b.lng, maps_url: b.url,
-          open_from: b.open_from ?? null, open_until: b.open_until ?? null,
+          store_id: store.id, name: v.name, address: v.address ?? '',
+          lat: v.lat, lng: v.lng, maps_url: v.url,
+          open_from: v.open_from ?? null, open_until: v.open_until ?? null,
         });
       }
       if (rows.length) { const { error } = await db.from('branches').upsert(rows, { onConflict: 'id' }); if (error) throw error; }
