@@ -363,12 +363,10 @@ export async function searchWoltVenues(q: string, lat = 40.4093, lon = 49.8671):
     v.slug.replace(/-/g, '').includes(qFirst.replace(/[^a-z0-9]/g, ''));
 
   const attempts: Array<{ url: string; init?: RequestInit }> = [
-    // Azerbaijani consumer API (most reliable for az locale)
-    { url: `https://consumer-api.wolt.com/consumer-api/consumer-assortment/v1/pages/search?q=${encodeURIComponent(q)}&lat=${lat}&lon=${lon}&language=az` },
-    { url: `https://consumer-api.wolt.com/v1/pages/search?q=${encodeURIComponent(q)}&lat=${lat}&lon=${lon}` },
     { url: `https://restaurant-api.wolt.com/v1/pages/search?q=${encodeURIComponent(q)}&lat=${lat}&lon=${lon}&target=venues` },
-    { url: 'https://restaurant-api.wolt.com/v1/pages/search', init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q, lat, lon, target: 'venues' }) } },
     { url: `https://restaurant-api.wolt.com/v1/search?q=${encodeURIComponent(q)}&lat=${lat}&lon=${lon}` },
+    { url: `https://restaurant-api.wolt.com/v3/venues?lat=${lat}&lon=${lon}&limit=20` },
+    { url: `https://consumer-api.wolt.com/v1/pages/search?q=${encodeURIComponent(q)}&lat=${lat}&lon=${lon}` },
   ];
   const errors: string[] = [];
   for (const a of attempts) {

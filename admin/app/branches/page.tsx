@@ -124,7 +124,8 @@ export default function Branches() {
         opacity: 1,
         fillOpacity: 0.9,
       });
-      const hours = b.always_open ? '24 saat' : (b.open_from || b.open_until) ? `${b.open_from ?? '…'}–${b.open_until ?? '…'}` : '—';
+      const is24 = b.open_from === '00:00' && b.open_until === '23:59';
+      const hours = is24 ? '24 saat' : (b.open_from || b.open_until) ? `${b.open_from ?? '…'}–${b.open_until ?? '…'}` : '—';
       const popup = L.popup({ minWidth: 200 }).setContent(`
         <div style="font-family:system-ui,sans-serif;font-size:13px;line-height:1.5">
           <div style="font-weight:700;margin-bottom:2px">${escHtml(b.name)}</div>
@@ -178,7 +179,7 @@ export default function Branches() {
     };
     window.__branchMapClick = (lat: number, lng: number) => {
       setLink(''); setGmapsLink(''); setWoltSuggestVenues([]);
-      setEdit({ id: '', store_id: stores[0]?.id ?? '', name: '', address: '', lat, lng, open_until: '23:00', open_from: '08:00', always_open: false, maps_url: '', phone: '' });
+      setEdit({ id: '', store_id: stores[0]?.id ?? '', name: '', address: '', lat, lng, open_until: '23:00', open_from: '08:00', maps_url: '', phone: '' });
     };
   });
 
@@ -307,7 +308,7 @@ export default function Branches() {
   useEffect(() => { load(); }, []);
 
   const save = async (b: Branch) => {
-    const row = { ...b, id: b.id || slugify(`${b.store_id} ${b.name} ${b.address.slice(0, 20)}`), lat: Number(b.lat), lng: Number(b.lng), open_until: b.open_until || null, open_from: b.open_from?.trim() || null, always_open: !!b.always_open, maps_url: b.maps_url?.trim() || null, phone: b.phone?.trim() || null };
+    const row = { ...b, id: b.id || slugify(`${b.store_id} ${b.name} ${b.address.slice(0, 20)}`), lat: Number(b.lat), lng: Number(b.lng), open_until: b.open_until || null, open_from: b.open_from?.trim() || null, maps_url: b.maps_url?.trim() || null, phone: b.phone?.trim() || null };
     const error = await db.upsert('branches', [row]).then(() => null, (e: Error) => e.message);
     setMsg({ ok: !error, text: error ?? `${row.name} yadda saxlanıldı` });
     if (!error) { setEdit(null); load(); }
@@ -328,9 +329,8 @@ export default function Branches() {
     try {
       const updated: Record<string, unknown>[] = targets.map((r) => ({
         ...r,
-        open_from: bulkHoursAlways ? null : (bulkHoursFrom || null),
-        open_until: bulkHoursAlways ? null : (bulkHoursUntil || null),
-        always_open: bulkHoursAlways,
+        open_from: bulkHoursAlways ? '00:00' : (bulkHoursFrom || null),
+        open_until: bulkHoursAlways ? '23:59' : (bulkHoursUntil || null),
       }));
       await db.upsert('branches', updated, 'id');
       setMsg({ ok: true, text: `${updated.length} filiala iş saatları tətbiq edildi` });
@@ -393,7 +393,7 @@ export default function Branches() {
           <button className="btn secondary" disabled={!stores.length} onClick={() => { setWoltOpen((o) => !o); setBulk([]); setWoltVenues([]); setWoltSelected(new Set()); setWoltError(''); setWoltStoreId(stores[0]?.id ?? ''); setWoltQuery(stores[0]?.name ?? ''); }}>
             <Search size={14} /> Wolt-dan çək
           </button>
-          <button className="btn" disabled={!stores.length} onClick={() => { setLink(''); setGmapsLink(''); setWoltSuggestVenues([]); setEdit({ id: '', store_id: stores[0]?.id ?? '', name: '', address: '', lat: 40.4093, lng: 49.8671, open_until: '23:00', open_from: '08:00', always_open: false, maps_url: '', phone: '' }); }}>
+          <button className="btn" disabled={!stores.length} onClick={() => { setLink(''); setGmapsLink(''); setWoltSuggestVenues([]); setEdit({ id: '', store_id: stores[0]?.id ?? '', name: '', address: '', lat: 40.4093, lng: 49.8671, open_until: '23:00', open_from: '08:00', maps_url: '', phone: '' }); }}>
             <Plus size={14} /> Yeni filial
           </button>
         </div>
@@ -531,7 +531,7 @@ export default function Branches() {
                 <td><b>{b.name}</b></td>
                 <td className="muted">{b.address}</td>
                 <td className="muted" style={{ fontFamily: 'monospace', fontSize: 12 }}><a href={b.maps_url || `https://www.google.com/maps?q=${b.lat},${b.lng}`} target="_blank" rel="noreferrer"><MapPin size={12} style={{ verticalAlign: -2 }} /> {Number(b.lat).toFixed(5)}, {Number(b.lng).toFixed(5)}</a></td>
-                <td className="muted">{b.always_open ? '24 saat' : b.open_from || b.open_until ? `${b.open_from ?? '…'}–${b.open_until ?? '…'}` : '—'}</td>
+                <td className="muted">{b.open_from === '00:00' && b.open_until === '23:59' ? '24 saat' : b.open_from || b.open_until ? `${b.open_from ?? '…'}–${b.open_until ?? '…'}` : '—'}</td>
                 <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
                   <button className="btn ghost" onClick={() => { setLink(''); setGmapsLink(''); setWoltSuggestVenues([]); setEdit(b); }}>Düzəlt</button>
                   <button className="btn ghost" onClick={() => remove(b)}><Trash2 size={14} /></button>
@@ -631,9 +631,9 @@ export default function Branches() {
               <label className="full">Ünvan<input value={edit.address} onChange={(e) => setEdit({ ...edit, address: e.target.value })} placeholder="Ə. Ələkbərov küç. 12, Nərimanov" /></label>
               <label>Lat<input type="number" step="any" value={edit.lat} onChange={(e) => setEdit({ ...edit, lat: Number(e.target.value) })} /></label>
               <label>Lng<input type="number" step="any" value={edit.lng} onChange={(e) => setEdit({ ...edit, lng: Number(e.target.value) })} /></label>
-              <label>Açılış (saat)<input value={edit.open_from ?? ''} onChange={(e) => setEdit({ ...edit, open_from: e.target.value })} placeholder="08:00" disabled={!!edit.always_open} /></label>
-              <label>Bağlanış (saat)<input value={edit.open_until ?? ''} onChange={(e) => setEdit({ ...edit, open_until: e.target.value })} placeholder="23:00" disabled={!!edit.always_open} /></label>
-              <label style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={!!edit.always_open} onChange={(e) => setEdit({ ...edit, always_open: e.target.checked })} style={{ width: 'auto' }} /> 24 saat açıqdır</label>
+              <label>Açılış (saat)<input value={edit.open_from ?? ''} onChange={(e) => setEdit({ ...edit, open_from: e.target.value })} placeholder="08:00" disabled={edit.open_from === '00:00' && edit.open_until === '23:59'} /></label>
+              <label>Bağlanış (saat)<input value={edit.open_until ?? ''} onChange={(e) => setEdit({ ...edit, open_until: e.target.value })} placeholder="23:00" disabled={edit.open_from === '00:00' && edit.open_until === '23:59'} /></label>
+              <label style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={edit.open_from === '00:00' && edit.open_until === '23:59'} onChange={(e) => setEdit({ ...edit, open_from: e.target.checked ? '00:00' : '08:00', open_until: e.target.checked ? '23:59' : '23:00' })} style={{ width: 'auto' }} /> 24 saat açıqdır</label>
               <label>Telefon<input value={edit.phone ?? ''} onChange={(e) => setEdit({ ...edit, phone: e.target.value })} placeholder="+994 12 000 00 00" /></label>
               <label className="full">Google Maps linki (tətbiqdə "Google Maps-də aç")<input value={edit.maps_url ?? ''} onChange={(e) => setEdit({ ...edit, maps_url: e.target.value })} placeholder="https://maps.app.goo.gl/…" /></label>
             </div>
