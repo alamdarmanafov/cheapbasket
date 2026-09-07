@@ -3,7 +3,7 @@ import { adminDb, errText, requireAdmin } from '@/lib/server';
 import { runSync } from '@/lib/sync';
 import { getAlertSettings } from '@/lib/alerts';
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /** Admin: list saved Wolt sources; add/remove/toggle; run now. */
 export async function GET(req: Request) {

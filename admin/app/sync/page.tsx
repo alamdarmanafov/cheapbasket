@@ -73,18 +73,27 @@ export default function SyncPage() {
 
   const api = async (body: unknown) => {
     const res = await fetch('/api/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const j = await res.json();
-    if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`);
+    const text = await res.text();
+    let j: Record<string, unknown> = {};
+    try { j = JSON.parse(text); } catch { throw new Error(`Server xətası (${res.status})${text ? ': ' + text.slice(0, 120) : ''}`); }
+    if (!res.ok) throw new Error(typeof j.error === 'string' ? j.error : `HTTP ${res.status}`);
     return j;
   };
   const load = async () => {
-    const [s, r] = await Promise.all([db.select<Store>('stores', { order: 'name' }), fetch('/api/sync').then((x) => x.json())]);
-    setStores(s);
-    if (!storeId && s[0]) setStoreId(s[0].id);
-    if (r.error) setMsg({ ok: false, text: r.error });
-    setSources(r.sources ?? []);
-    setAlerts(r.alerts ?? null);
-    setCron(!!r.cron);
+    try {
+      const [s, res] = await Promise.all([db.select<Store>('stores', { order: 'name' }), fetch('/api/sync')]);
+      setStores(s);
+      if (!storeId && s[0]) setStoreId(s[0].id);
+      const text = await res.text();
+      let r: Record<string, unknown> = {};
+      try { r = JSON.parse(text); } catch { setMsg({ ok: false, text: `Server xətası (${res.status}): ${text.slice(0, 120)}` }); return; }
+      if (r.error) setMsg({ ok: false, text: r.error as string });
+      setSources((r.sources as Source[]) ?? []);
+      setAlerts((r.alerts as Alerts) ?? null);
+      setCron(!!r.cron);
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error).message });
+    }
   };
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
