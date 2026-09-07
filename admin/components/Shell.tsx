@@ -1,7 +1,8 @@
 'use client';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Bell, Download, DollarSign, Image as ImageIcon, MessageSquare, RefreshCw, Tags, Ticket, LayoutDashboard, LogOut, MapPin, Package, Store, Users } from 'lucide-react';
+import { Bell, Clock, Download, DollarSign, Image as ImageIcon, MessageSquare, RefreshCw, Tags, Ticket, LayoutDashboard, LogOut, MapPin, Package, Store, Users } from 'lucide-react';
 
 const NAV = [
   ['/', 'Panel', LayoutDashboard],
@@ -11,6 +12,7 @@ const NAV = [
   ['/categories', 'Kateqoriyalar', Tags],
   ['/import', 'Saytdan import', Download],
   ['/sync', 'Avtomatik yeniləmə', RefreshCw],
+  ['/pending', 'Növbə', Clock],
   ['/branches', 'Filiallar', MapPin],
   ['/banners', 'Bannerlər', ImageIcon],
   ['/users', 'İstifadəçilər', Users],
@@ -23,6 +25,15 @@ const NAV = [
 export function Shell({ children, title }: { children: React.ReactNode; title: string }) {
   const router = useRouter();
   const path = usePathname();
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    fetch('/api/pending')
+      .then((r) => r.json())
+      .then((j: { data?: unknown[] }) => setPendingCount(j.data?.length ?? 0))
+      .catch(() => {});
+  }, [path]);
+
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
     router.replace('/login');
@@ -41,6 +52,11 @@ export function Shell({ children, title }: { children: React.ReactNode; title: s
           {NAV.map(([href, label, Icon]) => (
             <Link key={href} href={href} className={path === href ? 'active' : ''}>
               <Icon size={18} /> {label}
+              {href === '/pending' && pendingCount > 0 && (
+                <span style={{ marginLeft: 'auto', background: '#DC2626', color: '#fff', borderRadius: 9999, padding: '1px 7px', fontSize: 11, fontWeight: 700, lineHeight: '18px' }}>
+                  {pendingCount}
+                </span>
+              )}
             </Link>
           ))}
         </nav>

@@ -209,7 +209,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid cols-4" style={{ marginTop: 16 }}>
-        {[['Marketlər', c?.stores, '/stores'], ['Məhsullar', c?.products, '/products'], ['Qiymət sətirləri', c?.prices, '/products'], ['Filiallar', c?.branches, '/branches']].map(([label, v, href]) => (
+        {[['Marketlər', c?.stores, '/stores'], ['Məhsullar', c?.products, '/products'], ['Qiymət sətirləri', c?.prices, '/prices'], ['Filiallar', c?.branches, '/branches']].map(([label, v, href]) => (
           <Link key={label as string} href={href as string} className="card stat"><b>{n(v as number | undefined)}</b><small>{label}</small></Link>
         ))}
       </div>

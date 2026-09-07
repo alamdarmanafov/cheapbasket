@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { adminDb, errText, requireAdmin } from '@/lib/server';
 import { runSync } from '@/lib/sync';
 import { getAlertSettings } from '@/lib/alerts';
+import { fetchAnySource } from '@/lib/wolt';
 
 export const maxDuration = 300;
 
@@ -13,7 +14,7 @@ export async function GET(req: Request) {
   return NextResponse.json({ sources: sources ?? [], alerts, cron: !!process.env.CRON_SECRET });
 }
 
-type Body = { op: 'add'; store_id: string; url: string } | { op: 'delete'; id: string } | { op: 'toggle'; id: string; enabled: boolean } | { op: 'run'; id?: string } | { op: 'alerts'; value: unknown };
+type Body = { op: 'add'; store_id: string; url: string } | { op: 'delete'; id: string } | { op: 'toggle'; id: string; enabled: boolean } | { op: 'run'; id?: string } | { op: 'alerts'; value: unknown } | { op: 'test'; id: string };
 
 export async function POST(req: Request) {
   if (!(await requireAdmin(req))) return NextResponse.json({ error: 'Giriş tələb olunur' }, { status: 401 });
@@ -41,6 +42,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
     if (body.op === 'run') return NextResponse.json(await runSync({ onlyId: body.id }));
+    if (body.op === 'test') {
+      const { data: src, error: srcErr } = await db.from('import_sources').select('id, store_id, url').eq('id', body.id).single();
+      if (srcErr || !src) return NextResponse.json({ ok: false, error: 'Mənbə tapılmadı' });
+      try {
+        const venue = await fetchAnySource(src.url);
+        return NextResponse.json({ ok: true, found: venue.items.length, venue: venue.venue });
+      } catch (e) {
+        return NextResponse.json({ ok: false, error: errText(e) });
+      }
+    }
     return NextResponse.json({ error: 'Naməlum əməliyyat' }, { status: 400 });
   } catch (e) {
     return NextResponse.json({ error: errText(e) }, { status: 500 });

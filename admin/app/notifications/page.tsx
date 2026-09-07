@@ -50,6 +50,13 @@ export default function Notifications() {
   const [customTemplates, setCustomTemplates] = useState<NotifTemplate[]>([]);
   const [showTemplates, setShowTemplates] = useState(false);
 
+  // Test push panel
+  const [testEmail, setTestEmail] = useState('');
+  const [testTitle, setTestTitle] = useState('Test bildirişi 🔔');
+  const [testBody, setTestBody] = useState('');
+  const [testBusy, setTestBusy] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
+
   useEffect(() => {
     setCustomTemplates(loadCustomTemplates());
   }, []);
@@ -110,6 +117,26 @@ export default function Notifications() {
     const updated = customTemplates.filter((t) => t.id !== id);
     setCustomTemplates(updated);
     saveCustomTemplates(updated);
+  };
+
+  const sendTest = async () => {
+    setTestBusy(true);
+    setTestResult(null);
+    try {
+      const res = await fetch('/api/notifications/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: testEmail.trim() || undefined, title: testTitle, body: testBody }),
+      });
+      const j = await res.json() as { sent?: number; errors?: number; error?: string; message?: string };
+      if (!res.ok) setTestResult({ ok: false, text: j.error ?? 'Xəta' });
+      else if (j.message) setTestResult({ ok: false, text: j.message });
+      else setTestResult({ ok: true, text: `${j.sent} cihaza göndərildi${j.errors ? `, ${j.errors} xəta` : ''}` });
+    } catch (e) {
+      setTestResult({ ok: false, text: (e as Error).message });
+    } finally {
+      setTestBusy(false);
+    }
   };
 
   const allTemplates = [...BUILTIN_TEMPLATES, ...customTemplates];
@@ -199,6 +226,26 @@ export default function Notifications() {
               {(title.trim() || body.trim()) && (
                 <button className="btn secondary" onClick={saveAsTemplate}><Star size={14} /> Şablon kimi saxla</button>
               )}
+            </div>
+          </div>
+
+          {/* Test Push Panel */}
+          <div className="card">
+            <h2 style={{ marginTop: 0 }}>Test bildirişi göndər</h2>
+            {testResult && <div className={`alert ${testResult.ok ? 'ok' : 'err'}`} style={{ marginBottom: 10 }}>{testResult.text}</div>}
+            <label>İstifadəçi e-poçtu (boş = hamıya)
+              <input value={testEmail} onChange={(e) => setTestEmail(e.target.value)} placeholder="email@example.com və ya boş burax" />
+            </label>
+            <label style={{ marginTop: 10 }}>Başlıq
+              <input value={testTitle} onChange={(e) => setTestTitle(e.target.value)} />
+            </label>
+            <label style={{ marginTop: 10 }}>Mətn
+              <textarea rows={3} value={testBody} onChange={(e) => setTestBody(e.target.value)} placeholder="Test bildiriş mətni…" />
+            </label>
+            <div className="actions" style={{ justifyContent: 'flex-start', marginTop: 10 }}>
+              <button className="btn" disabled={!testBody.trim() || testBusy} onClick={sendTest}>
+                <Send size={14} /> {testBusy ? 'Göndərilir…' : 'Göndər'}
+              </button>
             </div>
           </div>
 
