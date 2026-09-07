@@ -39,6 +39,69 @@ function htmlToText(html: string): string {
     .trim();
 }
 
+/**
+ * Products embedded in __NEXT_DATA__ / __NUXT_DATA__ / window.__INITIAL_STATE__ JSON blobs.
+ * These appear on Next.js / Nuxt / other SSR frameworks and contain the full product list
+ * without needing AI. We walk the JSON recursively looking for arrays that look like product lists.
+ */
+function fromEmbeddedJson(html: string, base: URL): WoltItem[] {
+  // Extract all large JSON-like script payloads
+  const blobs: string[] = [];
+  for (const m of html.matchAll(/<script[^>]*id=["'](?:__NEXT_DATA__|__NUXT_DATA__|__INITIAL_STATE__|__REDUX_STATE__|__APP_STATE__|initial-state)["'][^>]*>([\s\S]*?)<\/script>/gi)) blobs.push(m[1]);
+  // Also: window.__X__ = {...} / window.__X__ = [...] assignments
+  for (const m of html.matchAll(/window\.__[A-Z_]+__\s*=\s*(\{[\s\S]{200,}?\}|\[[\s\S]{200,}?\])\s*;/g)) blobs.push(m[1]);
+
+  const out: WoltItem[] = [];
+  const seen = new Set<string>();
+
+  const tryItem = (o: Obj) => {
+    const name = str(o.name ?? o.title ?? o.product_name ?? o.productName);
+    const price = parsePrice(o.price ?? o.sell_price ?? o.selling_price ?? o.current_price ?? o.salePrice ?? o.price_value ?? o.price_az ?? o.priceCurrent);
+    if (!name || price == null || seen.has(name.toLowerCase())) return;
+    seen.add(name.toLowerCase());
+    const old = parsePrice(o.old_price ?? o.compare_price ?? o.comparePrice ?? o.regular_price ?? o.originalPrice ?? o.price_old ?? o.crossed_price);
+    const img = str(o.image ?? o.image_url ?? o.imageUrl ?? o.thumbnail ?? o.photo ?? o.cover ?? o.main_image ?? o.picture);
+    const absImg = img ? (() => { try { return new URL(img, base).toString(); } catch { return null; } })() : null;
+    const barcode = str(o.barcode ?? o.ean ?? o.ean13 ?? o.gtin ?? o.gtin13 ?? o.upc);
+    const id = str(o.id ?? o.uuid ?? o.sku ?? o.slug ?? o.product_id ?? o.productId ?? o.guid) ?? name;
+    out.push({
+      ext_id: `${base.hostname}-${id}`,
+      name,
+      description: str(o.description ?? o.short_description),
+      price,
+      regular_price: old != null && old > price ? old : null,
+      barcode: barcode && /^\d{8,14}$/.test(barcode) ? barcode : null,
+      image_url: absImg,
+      category: str(o.category ?? o.category_name ?? o.categoryName ?? obj(o.category)?.name ?? arr(o.categories)[0] && str(obj(arr(o.categories)[0])?.name)),
+    });
+  };
+
+  const walk = (v: unknown, depth: number) => {
+    if (depth > 12) return;
+    if (Array.isArray(v)) {
+      // If this array looks like a product list (≥3 items with name+price), process it
+      const sample = v.slice(0, 3).map((x) => obj(x)).filter(Boolean) as Obj[];
+      const looksLikeProducts = sample.length >= 2 && sample.every((o) => {
+        const hasName = !!(o.name ?? o.title ?? o.product_name ?? o.productName);
+        const hasPrice = parsePrice(o.price ?? o.sell_price ?? o.selling_price ?? o.current_price ?? o.priceCurrent) != null;
+        return hasName && hasPrice;
+      });
+      if (looksLikeProducts) { v.forEach((x) => { const o = obj(x); if (o) tryItem(o); }); return; }
+      v.forEach((x) => walk(x, depth + 1));
+      return;
+    }
+    const o = obj(v);
+    if (!o) return;
+    for (const val of Object.values(o)) walk(val, depth + 1);
+  };
+
+  for (const blob of blobs) {
+    try { walk(JSON.parse(blob), 0); } catch { /* broken JSON */ }
+    if (out.length > 0) break; // first blob that yields products is enough
+  }
+  return out;
+}
+
 /** Products from schema.org JSON-LD blocks. */
 function fromJsonLd(html: string, base: URL): WoltItem[] {
   const out: WoltItem[] = [];
@@ -126,21 +189,29 @@ async function fetchHtml(url: URL): Promise<string> {
   return res.text();
 }
 
-/** Products of one page: JSON-LD → OpenGraph → AI over the text. */
+/** Products of one page: embedded-JSON → JSON-LD → OpenGraph → AI over the text. */
 async function parsePage(html: string, base: URL, allowAI: boolean): Promise<{ items: WoltItem[]; source: string }> {
+  // 1. Embedded SSR JSON blobs (__NEXT_DATA__, window.__INITIAL_STATE__, etc.)
+  const embedded = fromEmbeddedJson(html, base);
+  if (embedded.length >= 3) return { items: embedded, source: 'embedded-json' };
+
+  // 2. schema.org JSON-LD
   let items = fromJsonLd(html, base);
   let source = 'json-ld';
   if (items.length < 3) {
     const og = fromOpenGraph(html, base);
     if (og.length) { items = [...items, ...og]; source = items.length > og.length ? 'json-ld+og' : 'og'; }
   }
-  if (items.length < 3 && allowAI) {
+  if (items.length >= 3) return { items, source };
+
+  // 3. AI over the visible text (first page only)
+  if (allowAI) {
     const text = htmlToText(html);
     if (text.length < 200) throw new Error('Səhifə boş gəldi: məhsullar JavaScript ilə yüklənir, serverdən oxumaq mümkün deyil. Saytın kateqoriya səhifəsini və ya JSON API linkini sına.');
     const ai = await fromAI(text, base);
     if (ai.length) { items = ai; source = 'ai'; }
   }
-  return { items, source };
+  return { items: items.length ? items : embedded.length ? embedded : [], source };
 }
 
 /**
