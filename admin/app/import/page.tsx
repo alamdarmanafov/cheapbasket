@@ -135,26 +135,38 @@ export default function ImportPage() {
     setBusy(true);
     setMsg(null);
     try {
+      // Fresh snapshot of the catalogue so a product created meanwhile (or by an earlier batch) is only price-updated.
+      const fresh = await db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category' });
+      const match = matcher(fresh);
       const products: Record<string, unknown>[] = [];
-      const prices: Record<string, unknown>[] = [];
+      const priceById = new Map<string, Record<string, unknown>>();
       const now = new Date().toISOString();
       const usedIds = new Set<string>();
+      const idByBarcode = new Map<string, string>(); // barcode → product id inside this batch
+      let updated = 0;
       for (const r of selected) {
-        let id = r.existingId ?? r.barcode ?? `wolt-${slugify(r.name)}`;
-        if (!r.existingId && usedIds.has(id)) id = `${id}-${r.ext_id.slice(-4)}`;
+        const known = r.existingId ?? match(r) ?? (r.barcode ? idByBarcode.get(r.barcode) : undefined) ?? null;
+        let id = known ?? r.barcode ?? `wolt-${slugify(r.name)}`;
+        if (!known && usedIds.has(id)) id = `${id}-${r.ext_id.slice(-4)}`;
         usedIds.add(id);
-        if (!r.existingId) {
+        if (r.barcode) idByBarcode.set(r.barcode, id);
+        if (!known) {
           products.push({ id, barcode: r.barcode, name: r.title.trim(), brand: r.brand.trim(), size: r.size.trim() || '—', category: r.appCategory, emoji: '🛒', tint: '#F3F4F6', image_url: r.image_url });
-        }
-        prices.push({ product_id: id, store_id: storeId, price: num(r.priceText), discount_price: num(r.discountText), updated_at: now });
+        } else updated++;
+        // one price row per product (a duplicate barcode in the venue keeps the first / cheaper price)
+        const prev = priceById.get(id);
+        const candidate = { product_id: id, store_id: storeId, price: num(r.priceText), discount_price: num(r.discountText), updated_at: now };
+        const eff = (x: Record<string, unknown>) => (x.discount_price as number | null) ?? (x.price as number);
+        if (!prev || eff(candidate) < eff(prev)) priceById.set(id, candidate);
       }
+      const prices = [...priceById.values()];
       for (let i = 0; i < products.length; i += 200) await db.upsert('products', products.slice(i, i + 200), 'id');
       for (let i = 0; i < prices.length; i += 200) await db.upsert('prices', prices.slice(i, i + 200), 'product_id,store_id');
-      setMsg({ ok: true, text: `${prices.length} qiymət yazıldı (${products.length} yeni məhsul, ${prices.length - products.length} mövcud məhsul yeniləndi) → ${stores.find((s) => s.id === storeId)?.name}` });
+      setMsg({ ok: true, text: `${prices.length} qiymət yazıldı (${products.length} yeni məhsul, ${updated} mövcud məhsul yalnız qiymətlə yeniləndi) → ${stores.find((s) => s.id === storeId)?.name}` });
       const ex = await db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category' });
       setExisting(ex);
-      const match = matcher(ex);
-      setRows(rows.map((r) => ({ ...r, existingId: match(r) ?? r.existingId })));
+      const rematch = matcher(ex);
+      setRows(rows.map((r) => ({ ...r, existingId: rematch(r) ?? r.existingId })));
     } catch (e) {
       setMsg({ ok: false, text: (e as Error).message });
     } finally {
