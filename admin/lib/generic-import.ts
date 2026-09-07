@@ -72,7 +72,7 @@ function fromEmbeddedJson(html: string, base: URL): WoltItem[] {
       regular_price: old != null && old > price ? old : null,
       barcode: barcode && /^\d{8,14}$/.test(barcode) ? barcode : null,
       image_url: absImg,
-      category: str(o.category ?? o.category_name ?? o.categoryName ?? obj(o.category)?.name ?? arr(o.categories)[0] && str(obj(arr(o.categories)[0])?.name)),
+      category: str(o.category ?? o.category_name ?? o.categoryName ?? obj(o.category)?.name) ?? str(obj(arr(o.categories)[0])?.name),
     });
   };
 
