@@ -84,10 +84,11 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     refresh();
     requestLocation();
-    if (!supabase) return;
+    const db = supabase;
+    if (!db) return;
 
     // 1) Realtime: any admin change to the catalog tables triggers a (debounced) reload.
-    const channel = supabase
+    const channel = db
       .channel('catalog')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'stores' }, scheduleRefresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, scheduleRefresh)
@@ -104,7 +105,7 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
     const interval = setInterval(() => refresh(), 5 * 60 * 1000);
 
     return () => {
-      supabase.removeChannel(channel);
+      db.removeChannel(channel);
       sub.remove();
       clearInterval(interval);
       if (refreshTimer.current) clearTimeout(refreshTimer.current);
