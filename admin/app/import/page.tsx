@@ -37,6 +37,9 @@ export default function ImportPage() {
   const [pricesOnly, setPricesOnly] = useState(false);
   /** Products-only: create/update products without writing any price (catalogue sites that are not a store). */
   const [productsOnly, setProductsOnly] = useState(false);
+  /** Optional discount validity window applied to all rows that have a discount price. */
+  const [discountFrom, setDiscountFrom] = useState('');
+  const [discountUntil, setDiscountUntil] = useState('');
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [existing, setExisting] = useState<Product[]>([]);
@@ -173,7 +176,14 @@ export default function ImportPage() {
         if (productsOnly || num(r.priceText) == null) continue; // no price to write
         // one price row per product (a duplicate barcode in the venue keeps the first / cheaper price)
         const prev = priceById.get(id);
-        const candidate = { product_id: id, store_id: storeId, price: num(r.priceText), discount_price: num(r.discountText), updated_at: now };
+        const hasDiscount = num(r.discountText) != null;
+        const candidate = {
+          product_id: id, store_id: storeId,
+          price: num(r.priceText), discount_price: num(r.discountText),
+          discount_starts: hasDiscount && discountFrom  ? discountFrom  : null,
+          discount_ends:   hasDiscount && discountUntil ? discountUntil : null,
+          updated_at: now,
+        };
         const eff = (x: Record<string, unknown>) => (x.discount_price as number | null) ?? (x.price as number);
         if (!prev || eff(candidate) < eff(prev)) priceById.set(id, candidate);
       }
@@ -214,6 +224,12 @@ export default function ImportPage() {
         <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, whiteSpace: 'nowrap' }} title="Yeni məhsul yaratmır; yalnız bazada olan məhsulların bu marketdəki qiymətini yazır">
           <input type="checkbox" checked={pricesOnly} onChange={(e) => { setPricesOnly(e.target.checked); if (e.target.checked) { setProductsOnly(false); setRows(rows.map((r) => ({ ...r, selected: r.selected && !!r.existingId }))); } }} style={{ width: 'auto' }} /> Yalnız qiymətlər
         </label>
+        <span style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, whiteSpace: 'nowrap' }} title="Endirimli qiymətlər üçün keçərlilik aralığı. Boş qoysan tarix olmadan yazılır.">
+          Endirim:
+          <input type="date" value={discountFrom} onChange={(e) => setDiscountFrom(e.target.value)} style={{ width: 130 }} title="Başlayır" />
+          –
+          <input type="date" value={discountUntil} onChange={(e) => setDiscountUntil(e.target.value)} style={{ width: 130 }} title="Bitir" />
+        </span>
         <button className="btn secondary" disabled={loading || !url} onClick={load}><Download size={14} /> {loading ? 'Yüklənir…' : 'Məhsulları çək'}</button>
         <button className="btn" disabled={!selected.length || busy || (!storeId && !productsOnly)} onClick={importSelected}>{busy ? 'Yazılır…' : `Seçilənləri import et (${selected.length})`}</button>
       </div>
