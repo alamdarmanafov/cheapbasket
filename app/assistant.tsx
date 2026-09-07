@@ -32,7 +32,7 @@ export default function Assistant() {
       role: 'ai',
       text: ctxProduct
         ? `${ctxProduct.brand} ${ctxProduct.name} üçün nə edim? Daha ucuz alternativ tapa bilərəm.`
-        : 'Salam! Mən Cheap Basket AI köməkçisiyəm. Büdcəni yaz, sənə ən sərfəli səbəti hazırlayım.',
+        : 'Salam! Mən Cheap Market AI köməkçisiyəm. Büdcəni yaz, sənə ən sərfəli səbəti hazırlayım.',
       chips: ctxProduct ? ['Bu məhsulun daha ucuz alternativini tap'] : STARTER_PROMPTS,
     },
   ]);

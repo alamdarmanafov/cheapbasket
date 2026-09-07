@@ -1,4 +1,4 @@
--- Cheap Basket — core schema
+-- Cheap Market — core schema
 create extension if not exists "pgcrypto";
 
 create table if not exists stores (

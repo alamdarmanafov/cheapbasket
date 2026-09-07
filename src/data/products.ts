@@ -214,3 +214,8 @@ export function withDistances(branches: Branch[], from: LatLng): Branch[] {
     return { ...b, distanceKm: Math.round(km * 10) / 10, walkMinutes: Math.max(1, Math.round(km * 12)) };
   });
 }
+
+/** Display name for a store: "Araz Market", but "Bazarstore" / "Market A" stay as they are. */
+export function storeLabel(store: { name: string }): string {
+  return /market/i.test(store.name) ? store.name : `${store.name} Market`;
+}

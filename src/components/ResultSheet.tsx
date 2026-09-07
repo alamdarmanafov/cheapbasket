@@ -6,6 +6,7 @@ import { colors, radius, space } from '@/theme';
 import { Btn, Pill, Price, Row, Txt } from './ui';
 import { StoreAvatar } from './product';
 import { useBasket } from '@/store/basket';
+import { storeLabel } from '@/data/products';
 
 /**
  * AI result bottom sheet (from the design): one best store for the whole basket.
@@ -68,12 +69,12 @@ export function ResultSheet({ visible, onClose, onShowMap }: { visible: boolean;
             <Row gap={space.sm} style={{ marginTop: 6 }}>
               <StoreAvatar store={best.store} size={28} />
               <Txt v="display" style={{ fontSize: 28, lineHeight: 34 }}>
-                {best.store.name} Market
+                {storeLabel(best.store)}
               </Txt>
             </Row>
             <Price value={best.total} size="xl" style={{ marginTop: 4 }} />
             <Txt v="caption" color={colors.gray} center style={{ marginTop: space.sm }}>
-              {count} məhsullu səbətin üçün {best.store.name} Market daha sərfəlidir.
+              {count} məhsullu səbətin üçün {storeLabel(best.store)} daha sərfəlidir.
             </Txt>
             {best.missing.length > 0 && (
               <Txt v="caption" color={colors.warning} center style={{ marginTop: 4 }}>

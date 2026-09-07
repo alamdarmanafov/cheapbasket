@@ -108,7 +108,7 @@ export default function Profile() {
         <Txt style={{ fontSize: 26, lineHeight: 32 }}>⭐</Txt>
         <View style={{ flex: 1, marginLeft: 12 }}>
           <Txt v="bodyStrong" color={colors.white}>
-            {isPlus ? 'Cheap Basket Plus aktivdir' : 'Cheap Basket Plus'}
+            {isPlus ? 'Cheap Market Plus aktivdir' : 'Cheap Market Plus'}
           </Txt>
           <Txt v="caption" color="rgba(255,255,255,0.75)" style={{ fontSize: 11 }}>
             {isPlus
@@ -177,7 +177,7 @@ export default function Profile() {
           Səbətini yarat. Ən sərfəli marketi tap. Get və al.
         </Txt>
         <Txt v="caption" color={colors.grayLight} style={{ fontSize: 11 }}>
-          Cheap Basket v1.0 · {cat.loading ? 'yüklənir…' : cat.error ? `xəta: ${cat.error}` : `${cat.stores.length} market · ${cat.products.length} məhsul`}
+          Cheap Market v1.0 · {cat.loading ? 'yüklənir…' : cat.error ? `xəta: ${cat.error}` : `${cat.stores.length} market · ${cat.products.length} məhsul`}
         </Txt>
       </View>
     </ScrollView>

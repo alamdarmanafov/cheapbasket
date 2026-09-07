@@ -222,7 +222,7 @@ export default function Page() {
             <a href={LINKS.linkedin} target="_blank" rel="noreferrer">LinkedIn</a>
           </div>
         </div>
-        <div className="container copyright">© 2026 Cheap Basket. {t.footer.rights}</div>
+        <div className="container copyright">© 2026 Cheap Market. {t.footer.rights}</div>
       </footer>
     </main>
   );
