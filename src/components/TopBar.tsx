@@ -18,8 +18,8 @@ export function TopBar() {
     <Row style={[styles.bar, { paddingTop: insets.top + space.sm }]} gap={space.sm}>
       <LogoMark size={36} />
       <View>
-        <Txt style={{ fontFamily: fonts.extrabold, fontSize: 12, lineHeight: 13 }}>Cheap</Txt>
-        <Txt style={{ fontFamily: fonts.extrabold, fontSize: 12, lineHeight: 13, color: colors.primary }}>Market</Txt>
+        <Txt style={{ fontFamily: fonts.extrabold, fontSize: 12, lineHeight: 13 }}>Cheap Market</Txt>
+        <Txt style={{ fontFamily: fonts.extrabold, fontSize: 12, lineHeight: 13, color: colors.primary }}>AI</Txt>
       </View>
       <View style={{ flex: 1 }} />
       <Pressable onPress={() => cat.requestLocation({ interactive: true })} style={styles.location} accessibilityRole="button">

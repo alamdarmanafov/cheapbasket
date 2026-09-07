@@ -48,8 +48,8 @@ export default function Onboarding() {
         <Row gap={10}>
           <LogoMark size={40} />
           <View>
-            <Txt style={{ fontFamily: fonts.bold, fontSize: 16, lineHeight: 18 }}>Cheap</Txt>
-            <Txt style={{ fontFamily: fonts.bold, fontSize: 16, lineHeight: 18 }}>Market</Txt>
+            <Txt style={{ fontFamily: fonts.bold, fontSize: 16, lineHeight: 18 }}>Cheap Market</Txt>
+            <Txt style={{ fontFamily: fonts.bold, fontSize: 16, lineHeight: 18, color: colors.primary }}>AI</Txt>
           </View>
         </Row>
         {!last ? (
