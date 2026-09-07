@@ -17,6 +17,8 @@ interface Row extends WoltItem {
   discountText: string;
   /** existing product id when the barcode is already in the catalogue */
   existingId: string | null;
+  /** for existing products: also overwrite name/brand/size/category/image from Wolt (default: price only) */
+  updateInfo: boolean;
 }
 
 export default function ImportPage() {
@@ -77,6 +79,7 @@ export default function ImportPage() {
             selected: it.price != null,
             appCategory: it.category && catNames.includes(it.category) ? it.category : mapCategory(it.category, it.name, catNames),
             existingId: match(it),
+            updateInfo: false,
             brand: sp.brand,
             title: sp.name,
             size: sp.size,
@@ -132,6 +135,16 @@ export default function ImportPage() {
 
   const importSelected = async () => {
     if (!storeId) { setMsg({ ok: false, text: 'Əvvəlcə market seç.' }); return; }
+    const storeName = stores.find((s) => s.id === storeId)?.name ?? storeId;
+    const newCount = selected.filter((r) => !r.existingId).length;
+    const infoCount = selected.filter((r) => r.existingId && r.updateInfo).length;
+    const priceOnly = selected.length - newCount - infoCount;
+    const plan = [
+      newCount ? `${newCount} yeni məhsul yaradılacaq (ad, kateqoriya, şəkil + ${storeName} qiyməti)` : null,
+      priceOnly ? `${priceOnly} mövcud məhsulun YALNIZ ${storeName} qiyməti yazılacaq` : null,
+      infoCount ? `${infoCount} mövcud məhsulun məlumatı (ad, ölçü, kateqoriya, şəkil) da Wolt-dakı ilə əvəz olunacaq` : null,
+    ].filter(Boolean).join('\n• ');
+    if (!confirm(`Nə yazılacaq:\n• ${plan}\n\nDavam edilsin?`)) return;
     setBusy(true);
     setMsg(null);
     try {
@@ -139,6 +152,7 @@ export default function ImportPage() {
       const fresh = await db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category' });
       const match = matcher(fresh);
       const products: Record<string, unknown>[] = [];
+      const infoUpdates: Record<string, unknown>[] = []; // existing products whose details are refreshed (barcode untouched)
       const priceById = new Map<string, Record<string, unknown>>();
       const now = new Date().toISOString();
       const usedIds = new Set<string>();
@@ -152,7 +166,10 @@ export default function ImportPage() {
         if (r.barcode) idByBarcode.set(r.barcode, id);
         if (!known) {
           products.push({ id, barcode: r.barcode, name: r.title.trim(), brand: r.brand.trim(), size: r.size.trim() || '—', category: r.appCategory, emoji: '🛒', tint: '#F3F4F6', image_url: r.image_url });
-        } else updated++;
+        } else {
+          updated++;
+          if (r.updateInfo) infoUpdates.push({ id, name: r.title.trim(), brand: r.brand.trim(), size: r.size.trim() || '—', category: r.appCategory, image_url: r.image_url });
+        }
         // one price row per product (a duplicate barcode in the venue keeps the first / cheaper price)
         const prev = priceById.get(id);
         const candidate = { product_id: id, store_id: storeId, price: num(r.priceText), discount_price: num(r.discountText), updated_at: now };
@@ -161,8 +178,9 @@ export default function ImportPage() {
       }
       const prices = [...priceById.values()];
       for (let i = 0; i < products.length; i += 200) await db.upsert('products', products.slice(i, i + 200), 'id');
+      for (let i = 0; i < infoUpdates.length; i += 200) await db.upsert('products', infoUpdates.slice(i, i + 200), 'id');
       for (let i = 0; i < prices.length; i += 200) await db.upsert('prices', prices.slice(i, i + 200), 'product_id,store_id');
-      setMsg({ ok: true, text: `${prices.length} qiymət yazıldı (${products.length} yeni məhsul, ${updated} mövcud məhsul yalnız qiymətlə yeniləndi) → ${stores.find((s) => s.id === storeId)?.name}` });
+      setMsg({ ok: true, text: `${prices.length} qiymət yazıldı → ${storeName}: ${products.length} yeni məhsul, ${updated - infoUpdates.length} mövcud məhsul yalnız qiymətlə, ${infoUpdates.length} mövcud məhsul məlumatı ilə birlikdə yeniləndi.` });
       const ex = await db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category' });
       setExisting(ex);
       const rematch = matcher(ex);
@@ -197,6 +215,12 @@ export default function ImportPage() {
 
       {rows.length > 0 && (
         <>
+          <div className="alert ok" style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+            <span><b>{selected.filter((r) => !r.existingId).length}</b> yeni məhsul + qiymət</span>
+            <span><b>{selected.filter((r) => r.existingId && !r.updateInfo).length}</b> mövcud məhsul · yalnız qiymət</span>
+            <span><b>{selected.filter((r) => r.existingId && r.updateInfo).length}</b> mövcud məhsul · məlumat + qiymət</span>
+            <span className="muted">→ {stores.find((s) => s.id === storeId)?.name ?? 'market seçilməyib'}</span>
+          </div>
           <div className="toolbar" style={{ marginTop: 14 }}>
             <Search size={16} className="muted" />
             <input placeholder="Ad və ya barkod…" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -208,6 +232,9 @@ export default function ImportPage() {
             <button className="btn secondary" disabled={busy || !result?.categories.length} onClick={adoptCategories} title="Wolt-un kateqoriya adlarını bizim kateqoriya siyahısına əlavə et"><Tags size={14} /> Kateqoriyaları götür ({result?.categories.length ?? 0})</button>
             <button className="btn ghost" onClick={() => setAll(true)}>Hamısını seç</button>
             <button className="btn ghost" onClick={() => setAll(false)}>Seçimi sil</button>
+            <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13 }} title="Bazada olan məhsulların adı, ölçüsü, kateqoriyası və şəkli də Wolt-dakı ilə əvəz olunsun">
+              <input type="checkbox" checked={rows.some((r) => r.existingId) && rows.filter((r) => r.existingId).every((r) => r.updateInfo)} onChange={(e) => setRows(rows.map((r) => (r.existingId ? { ...r, updateInfo: e.target.checked } : r)))} style={{ width: 'auto' }} /> Mövcudların məlumatını da yenilə
+            </label>
           </div>
           <div style={{ overflowX: 'auto' }}>
             <table>
@@ -222,14 +249,24 @@ export default function ImportPage() {
                       {r.image_url ? <img src={r.image_url} alt="" width={32} height={32} style={{ borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} /> : <span style={{ width: 32, flexShrink: 0 }} />}
                       <span style={{ fontSize: 12 }} title={r.category ?? ''}>{r.name}{r.category ? <span className="muted"> · {r.category}</span> : null}</span>
                     </td>
-                    <td><input value={r.brand} placeholder="Brend" style={{ width: 90 }} onChange={(e) => patch(r.key, { brand: e.target.value })} disabled={!!r.existingId} /></td>
-                    <td><input value={r.title} placeholder="Ad" style={{ width: 160 }} onChange={(e) => patch(r.key, { title: e.target.value })} disabled={!!r.existingId} /></td>
-                    <td><input value={r.size} placeholder="1 L" style={{ width: 64 }} onChange={(e) => patch(r.key, { size: e.target.value })} disabled={!!r.existingId} /></td>
-                    <td><select value={r.appCategory} onChange={(e) => patch(r.key, { appCategory: e.target.value })} disabled={!!r.existingId}>{[...new Set([...catNames, r.appCategory])].map((c) => <option key={c}>{c}</option>)}</select></td>
+                    <td><input value={r.brand} placeholder="Brend" style={{ width: 90 }} onChange={(e) => patch(r.key, { brand: e.target.value })} disabled={!!r.existingId && !r.updateInfo} /></td>
+                    <td><input value={r.title} placeholder="Ad" style={{ width: 160 }} onChange={(e) => patch(r.key, { title: e.target.value })} disabled={!!r.existingId && !r.updateInfo} /></td>
+                    <td><input value={r.size} placeholder="1 L" style={{ width: 64 }} onChange={(e) => patch(r.key, { size: e.target.value })} disabled={!!r.existingId && !r.updateInfo} /></td>
+                    <td><select value={r.appCategory} onChange={(e) => patch(r.key, { appCategory: e.target.value })} disabled={!!r.existingId && !r.updateInfo}>{[...new Set([...catNames, r.appCategory])].map((c) => <option key={c}>{c}</option>)}</select></td>
                     <td className="muted" style={{ fontFamily: 'monospace', fontSize: 12 }}>{r.barcode ?? '—'}</td>
                     <td><input inputMode="decimal" value={r.priceText} placeholder="—" style={{ width: 64, textAlign: 'right', textDecoration: r.discountText ? 'line-through' : undefined, color: r.discountText ? '#9CA3AF' : undefined }} onChange={(e) => patch(r.key, { priceText: e.target.value })} /></td>
                     <td><input inputMode="decimal" value={r.discountText} placeholder="endirim" style={{ width: 64, textAlign: 'right', color: '#16A34A', fontWeight: 600 }} onChange={(e) => patch(r.key, { discountText: e.target.value })} /></td>
-                    <td>{r.existingId ? <span className="pill gray" title={`Mövcud məhsul: ${r.existingId}`}>bazada var</span> : pricesOnly ? <span className="pill red">uyğun gəlmədi</span> : <span className="pill green">yeni</span>}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      {r.existingId ? (
+                        <>
+                          <span className="pill gray" title={`Mövcud məhsul: ${r.existingId}`}>bazada var · {r.updateInfo ? 'məlumat + qiymət' : 'yalnız qiymət'}</span>
+                          <label style={{ display: 'block', fontSize: 11, color: '#6B7280', marginTop: 4, cursor: 'pointer' }}>
+                            <input type="checkbox" checked={r.updateInfo} onChange={(e) => patch(r.key, { updateInfo: e.target.checked })} style={{ width: 'auto', marginRight: 4 }} />
+                            məlumatı da yenilə
+                          </label>
+                        </>
+                      ) : pricesOnly ? <span className="pill red">uyğun gəlmədi</span> : <span className="pill green">yeni məhsul + qiymət</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>
