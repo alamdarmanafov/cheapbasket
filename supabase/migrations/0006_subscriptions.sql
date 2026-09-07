@@ -9,8 +9,9 @@ create or replace function public.effective_plan(p profiles) returns text langua
   select case when p.plan = 'plus' and (p.plan_expires_at is null or p.plan_expires_at > now()) then 'plus' else 'free' end;
 $$;
 
--- column set changed → drop and recreate (CREATE OR REPLACE cannot reorder columns)
-drop view if exists admin_users;
+-- column set changed → drop dependents and recreate (CREATE OR REPLACE cannot reorder columns)
+drop function if exists public.admin_users_list();
+drop view if exists admin_users cascade;
 create view admin_users with (security_invoker = false) as
 select u.id, u.email, u.created_at, u.last_sign_in_at,
        coalesce(u.raw_app_meta_data->>'provider', 'email') as provider,
@@ -19,6 +20,10 @@ select u.id, u.email, u.created_at, u.last_sign_in_at,
 from auth.users u left join profiles p on p.user_id = u.id;
 revoke all on admin_users from anon, authenticated;
 grant select on admin_users to authenticated;
+
+create or replace function public.admin_users_list() returns setof admin_users language sql stable security definer set search_path = public as $$
+  select * from admin_users where is_admin();
+$$;
 
 -- Users can delete their own account from the app (App Store requirement for Sign in with Apple).
 create or replace function public.delete_own_account() returns void language plpgsql security definer set search_path = public as $$
