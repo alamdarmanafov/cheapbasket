@@ -46,6 +46,9 @@ export interface Branch {
   lat: number;
   lng: number;
   openUntil: string;
+  /** Google Maps place link from the admin panel (optional). */
+  mapsUrl?: string | null;
+  phone?: string | null;
 }
 
 export interface LatLng {
