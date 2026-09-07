@@ -1,9 +1,9 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Platform } from 'react-native';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { Product, Branch, Store, LatLng, DEFAULT_LOCATION, catalog, withDistances } from '@/data/products';
 import { fetchBranches, fetchProducts, fetchStores } from '@/lib/catalog';
-import { hasSupabase } from '@/lib/supabase';
+import { hasSupabase, supabase } from '@/lib/supabase';
 
 interface CatalogState {
   stores: Store[];
@@ -75,10 +75,41 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleRefresh = useCallback(() => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    refreshTimer.current = setTimeout(() => refresh(), 600);
+  }, [refresh]);
+
   useEffect(() => {
     refresh();
     requestLocation();
-  }, [refresh, requestLocation]);
+    if (!supabase) return;
+
+    // 1) Realtime: any admin change to the catalog tables triggers a (debounced) reload.
+    const channel = supabase
+      .channel('catalog')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'stores' }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'prices' }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'branches' }, scheduleRefresh)
+      .subscribe();
+
+    // 2) Coming back to the app refreshes too (covers devices without a live socket).
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') scheduleRefresh();
+    });
+
+    // 3) Safety net: periodic refresh every 5 minutes.
+    const interval = setInterval(() => refresh(), 5 * 60 * 1000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      sub.remove();
+      clearInterval(interval);
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    };
+  }, [refresh, requestLocation, scheduleRefresh]);
 
   const value = useMemo(
     () => ({ stores, products, branches, location, place, locationGranted, loading, error, refresh, requestLocation }),
