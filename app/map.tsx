@@ -5,8 +5,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, shadow, space } from '@/theme';
 import { Btn, Chip, IconBtn, Price, Row, Txt } from '@/components/ui';
 import { StoreAvatar } from '@/components/product';
-import { MiniMap } from '@/components/MiniMap';
+import { RealMap } from '@/components/RealMap';
 import { StoreId, catalog, getStore, nearestBranch, storeIds } from '@/data/products';
+import { Ionicons } from '@expo/vector-icons';
 import { useBasket } from '@/store/basket';
 
 /** Full-screen map: the user, the nearest branch of the chosen store, and directions. */
@@ -36,6 +37,12 @@ export default function MapScreen() {
     const url = `https://www.google.com/maps/dir/?api=1&origin=${catalog.location.lat},${catalog.location.lng}&destination=${branch.lat},${branch.lng}&travelmode=walking`;
     Linking.openURL(url).catch(() => undefined);
   };
+  const openPlace = () => {
+    if (!branch) return;
+    const url = branch.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(branch.name)}&query_place_id=&center=${branch.lat},${branch.lng}`;
+    Linking.openURL(url).catch(() => undefined);
+  };
+  const storeBranches = catalog.branches.filter((b) => b.storeId === storeId);
 
   if (!branch) {
     return (
@@ -63,7 +70,7 @@ export default function MapScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: '#EAF0EA' }}>
       <View style={{ alignSelf: 'center' }}>
-        <MiniMap width={mapW} height={mapH} branch={branch} />
+        <RealMap width={mapW} height={mapH} branch={branch} others={storeBranches} />
       </View>
 
       <Row gap={space.sm} style={{ position: 'absolute', top: insets.top + space.sm, left: space.lg, right: space.lg }}>
@@ -83,9 +90,16 @@ export default function MapScreen() {
               <Txt v="bodyStrong">{branch.name}</Txt>
               {storeId === bestStore && lines.length > 0 && <Txt style={{ fontSize: 14, lineHeight: 18 }}>🏆</Txt>}
             </Row>
-            <Txt v="caption" color={colors.gray} numberOfLines={1}>
+            <Txt v="caption" color={colors.gray} numberOfLines={2}>
               {branch.address}
             </Txt>
+            {(branch.openUntil || branch.phone) && (
+              <Txt v="caption" color={colors.gray} style={{ fontSize: 11, marginTop: 2 }}>
+                {branch.openUntil ? `Açıqdır · ${branch.openUntil}-a qədər` : ''}
+                {branch.openUntil && branch.phone ? ' · ' : ''}
+                {branch.phone ?? ''}
+              </Txt>
+            )}
           </View>
           <View style={{ alignItems: 'flex-end' }}>
             <Txt v="bodyStrong" num>
@@ -132,13 +146,24 @@ export default function MapScreen() {
           )}
         </View>
 
-        <Btn title="Marşruta bax" icon="navigate" onPress={openDirections} style={{ marginTop: space.md }} />
+        <Row gap={space.sm} style={{ marginTop: space.md }}>
+          <Btn title="Marşruta bax" icon="navigate" onPress={openDirections} style={{ flex: 1 }} />
+          <Pressable onPress={openPlace} accessibilityRole="button" accessibilityLabel="Google Maps-də aç" style={styles.mapsBtn}>
+            <Ionicons name="map-outline" size={22} color={colors.dark} />
+          </Pressable>
+        </Row>
+        {storeBranches.length > 1 && (
+          <Txt v="caption" color={colors.gray} center style={{ marginTop: space.sm, fontSize: 11 }}>
+            {getStore(storeId).name}-ın {storeBranches.length} filialı var · ən yaxını göstərilir
+          </Txt>
+        )}
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  mapsBtn: { width: 56, height: 56, borderRadius: radius.md, backgroundColor: colors.fill, alignItems: 'center', justifyContent: 'center' },
   card: {
     position: 'absolute',
     left: 0,

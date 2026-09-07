@@ -8,7 +8,7 @@ import { useRefresh } from '@/lib/useRefresh';
 import { Btn, Card, Divider, Pill, Price, Row, Txt } from '@/components/ui';
 import { ProductArt, StoreAvatar } from '@/components/product';
 import { StateView } from '@/components/states';
-import { MiniMap } from '@/components/MiniMap';
+import { RealMap } from '@/components/RealMap';
 import { nearestBranch } from '@/data/products';
 import { useBasket } from '@/store/basket';
 
@@ -107,7 +107,7 @@ export default function Markets() {
       {/* Map card */}
       {branch ? (
       <Pressable onPress={() => router.push(`/map?store=${chosen.store.id}`)} style={({ pressed }) => [styles.mapCard, pressed && { opacity: 0.95 }]}>
-        <MiniMap width={width - space.lg * 2} height={185} branch={branch} />
+        <RealMap width={width - space.lg * 2} height={185} branch={branch} interactive={false} />
         <Row style={{ padding: 12 }} gap={space.md}>
           <View style={{ flex: 1 }}>
             <Txt v="bodyStrong">{branch.name}</Txt>

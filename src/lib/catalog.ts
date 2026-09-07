@@ -89,6 +89,8 @@ export async function fetchBranches(from: LatLng): Promise<Branch[]> {
     lat: Number(b.lat),
     lng: Number(b.lng),
     openUntil: b.open_until ?? '',
+    mapsUrl: b.maps_url ?? null,
+    phone: b.phone ?? null,
     distanceKm: 0,
     walkMinutes: 0,
   }));
