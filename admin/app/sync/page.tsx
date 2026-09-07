@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, BarChart2, Bell, MapPin, Play, Plus, RefreshCw, Search, Tag, Trash2 } from 'lucide-react';
+import { AlertTriangle, BarChart2, Bell, BrainCircuit, MapPin, Play, Plus, RefreshCw, Search, Tag, Trash2 } from 'lucide-react';
 import { Shell } from '@/components/Shell';
 import { Store, db, slugify } from '@/lib/supabase';
 
@@ -21,6 +21,7 @@ export default function SyncPage() {
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [aiMatchBusy, setAiMatchBusy] = useState(false);
   const [q, setQ] = useState('');
   const [found, setFound] = useState<Array<{ slug: string; name: string; address: string | null; lat: number | null; lng: number | null; url: string; online?: boolean; pick: boolean }> | null>(null);
   const [searching, setSearching] = useState(false);
@@ -196,6 +197,21 @@ export default function SyncPage() {
       setMsg({ ok: false, text: (e as Error).message });
     } finally {
       setAlertBusy(false);
+    }
+  };
+
+  const runAiMatch = async () => {
+    setAiMatchBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch('/api/ai/match-pending', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ limit: 50 }) });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`);
+      setMsg({ ok: true, text: `AI eşləşdirməsi: ${j.processed} işləndi · ${j.matched} uyğun tapıldı · ${j.review} nəzərdən keçirilməlidir · ${j.rejected} uyğun tapılmadı` });
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error).message });
+    } finally {
+      setAiMatchBusy(false);
     }
   };
 
@@ -381,6 +397,9 @@ export default function SyncPage() {
           <button className="btn" disabled={!!busy || !sources.length} onClick={() => run()}><Play size={14} /> {busy === 'all' ? 'Yenilənir…' : 'Hamısını yenilə'}</button>
           <button className="btn secondary" disabled={testingAll || !sources.some((s) => s.enabled)} onClick={testAll}>
             <RefreshCw size={14} style={testingAll ? { animation: 'spin 1s linear infinite' } : {}} /> {testingAll ? 'Test edilir…' : 'Hamısını test et'}
+          </button>
+          <button className="btn secondary" disabled={aiMatchBusy} onClick={runAiMatch} title="Növbədəki uyğunsuz məhsullar üçün AI eşləşdirməsi işlət (50 ədəd)">
+            <BrainCircuit size={14} style={aiMatchBusy ? { animation: 'spin 1s linear infinite' } : {}} /> {aiMatchBusy ? 'AI işləyir…' : 'AI eşləşdirmə'}
           </button>
         </div>
         <table>
