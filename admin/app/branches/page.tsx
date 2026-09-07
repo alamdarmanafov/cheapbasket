@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Trash2, X } from 'lucide-react';
 import { Shell } from '@/components/Shell';
-import { Branch, Store, slugify, supabase } from '@/lib/supabase';
+import { Branch, Store, db, slugify } from '@/lib/supabase';
 
 export default function Branches() {
   const [stores, setStores] = useState<Store[]>([]);
@@ -11,22 +11,22 @@ export default function Branches() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const load = async () => {
-    const [{ data: s }, { data: b }] = await Promise.all([supabase.from('stores').select('*').order('name'), supabase.from('branches').select('*').order('name')]);
-    setStores(s ?? []);
-    setRows(b ?? []);
+    const [s, b] = await Promise.all([db.select<Store>('stores', { order: 'name' }), db.select<Branch>('branches', { order: 'name' })]).catch((e: Error) => { setMsg({ ok: false, text: e.message }); return [[], []] as [Store[], Branch[]]; });
+    setStores(s);
+    setRows(b);
   };
   useEffect(() => { load(); }, []);
 
   const save = async (b: Branch) => {
     const row = { ...b, id: b.id || slugify(`${b.store_id} ${b.name} ${b.address.slice(0, 20)}`), lat: Number(b.lat), lng: Number(b.lng), open_until: b.open_until || null };
-    const { error } = await supabase.from('branches').upsert(row);
-    setMsg({ ok: !error, text: error ? error.message : `${row.name} yadda saxlanıldı` });
+    const error = await db.upsert('branches', [row]).then(() => null, (e: Error) => e.message);
+    setMsg({ ok: !error, text: error ?? `${row.name} yadda saxlanıldı` });
     if (!error) { setEdit(null); load(); }
   };
   const remove = async (b: Branch) => {
     if (!confirm(`${b.name} silinsin?`)) return;
-    const { error } = await supabase.from('branches').delete().eq('id', b.id);
-    setMsg({ ok: !error, text: error ? error.message : 'Silindi' });
+    const error = await db.delete('branches', { id: b.id }).then(() => null, (e: Error) => e.message);
+    setMsg({ ok: !error, text: error ?? 'Silindi' });
     load();
   };
   const store = (id: string) => stores.find((s) => s.id === id);

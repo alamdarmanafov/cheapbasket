@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Shell } from '@/components/Shell';
-import { Store, slugify, supabase } from '@/lib/supabase';
+import { Store, db, slugify } from '@/lib/supabase';
 
 export default function Stores() {
   const [rows, setRows] = useState<Store[]>([]);
@@ -10,21 +10,20 @@ export default function Stores() {
   const [msg, setMsg] = useState<string | null>(null);
 
   const load = async () => {
-    const { data } = await supabase.from('stores').select('*').order('name');
-    setRows(data ?? []);
+    setRows(await db.select<Store>('stores', { order: 'name' }).catch(() => []));
   };
   useEffect(() => { load(); }, []);
 
   const save = async (s: Store) => {
     const row = { ...s, id: s.id || slugify(s.name), initial: s.initial || s.name.slice(0, 2) };
-    const { error } = await supabase.from('stores').upsert(row);
-    setMsg(error ? error.message : `${row.name} yadda saxlanıldı`);
+    const error = await db.upsert('stores', [row]).then(() => null, (e: Error) => e.message);
+    setMsg(error ?? `${row.name} yadda saxlanıldı`);
     if (!error) { setDraft({ id: '', name: '', color: '#E53935', initial: '' }); load(); }
   };
   const remove = async (s: Store) => {
     if (!confirm(`${s.name} silinsin? Bu marketin bütün qiymətləri və filialları da silinəcək.`)) return;
-    const { error } = await supabase.from('stores').delete().eq('id', s.id);
-    setMsg(error ? error.message : `${s.name} silindi`);
+    const error = await db.delete('stores', { id: s.id }).then(() => null, (e: Error) => e.message);
+    setMsg(error ?? `${s.name} silindi`);
     load();
   };
 

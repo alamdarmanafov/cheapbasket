@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Send } from 'lucide-react';
 import { Shell } from '@/components/Shell';
-import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/supabase';
 
 export default function Notifications() {
   const [count, setCount] = useState<number | null>(null);
@@ -12,14 +12,13 @@ export default function Notifications() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    supabase.from('push_tokens').select('*', { count: 'exact', head: true }).then(({ count }) => setCount(count ?? 0));
+    db.count('push_tokens').then(setCount).catch(() => setCount(0));
   }, []);
 
   const send = async () => {
     setBusy(true);
     setResult(null);
-    const { data: s } = await supabase.auth.getSession();
-    const res = await fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.session?.access_token}` }, body: JSON.stringify({ title, body }) });
+    const res = await fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, body }) });
     const j = await res.json();
     setBusy(false);
     setResult({ ok: res.ok, text: res.ok ? `${j.sent} cihaza göndərildi${j.errors ? `, ${j.errors} xəta` : ''}` : j.error ?? 'Xəta' });

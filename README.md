@@ -91,14 +91,19 @@ E-poçt, Apple və Google ilə giriş Supabase Auth üzərindən (`src/store/aut
 
 ## Admin panel
 
-`admin/` — Next.js paneli (saytdan ayrı, ayrıca Vercel layihəsi, **Root Directory: `admin`**, env: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`). Marketlər, məhsullar və hər market üzrə qiymətlər, filiallar (koordinat), istifadəçilər (Plus planı), bütün cihazlara push.
+`admin/` — Next.js paneli (saytdan ayrı, ayrıca Vercel layihəsi, **Root Directory: `admin`**). Girişi tətbiq istifadəçilərindən asılı deyil: admin e-poçtu/şifrəsi env-dədir, məlumat bazasına server tərəfdən Supabase service role ilə çıxır.
 
-Giriş: tətbiqdə e-poçt ilə qeydiyyatdan keçmiş hesab + Supabase-də admin kimi qeyd:
+Vercel env dəyişənləri:
 
-```sql
--- əvvəl supabase/migrations/0004_admin.sql işlədilməlidir
-insert into admins (user_id) select id from auth.users where email = 'sənin@epoçtun';
-```
+| Dəyişən | |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase Project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API → `service_role` (gizli, yalnız serverdə) |
+| `ADMIN_EMAIL` | admin e-poçtu (bir neçə: vergüllə) |
+| `ADMIN_PASSWORD` | admin şifrəsi (eyni sırayla) |
+| `ADMIN_SESSION_SECRET` | təsadüfi sətir, cookie imzası üçün |
+
+Marketlər, məhsullar və hər market üzrə qiymətlər, filiallar (koordinat), istifadəçilər (Plus planı), bütün cihazlara push.
 
 ```bash
 cd admin && npm install && npm run dev   # http://localhost:3100
