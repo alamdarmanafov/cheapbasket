@@ -1,11 +1,10 @@
 import { adminDb } from './server';
-import { buildMatcher, fetchAnySource, WoltItem, splitName, MatchableProduct } from './wolt';
+import { buildMatcher, fetchAnySource, WoltItem, MatchableProduct } from './wolt';
 import { notifyRecentDrops } from './alerts';
 import { slugify } from './supabase';
-import { aiMatch, logAiMatch } from './ai/productMatcher';
 
 export interface SyncSource { id: string; store_id: string; url: string; name: string | null; enabled: boolean; last_run_at: string | null; last_result: SyncResult | null }
-export interface SyncResult { ok: boolean; venue?: string; found: number; matched: number; created: number; updated: number; unchanged: number; removed: number; pending: number; ai_matched?: number; photos?: number; error?: string; at: string }
+export interface SyncResult { ok: boolean; venue?: string; found: number; matched: number; created: number; updated: number; unchanged: number; removed: number; pending: number; photos?: number; error?: string; at: string }
 
 function itemToProduct(it: WoltItem, brand: string) {
   const base = slugify(it.name);
@@ -37,69 +36,13 @@ export async function syncSource(src: { id: string; store_id: string; url: strin
 
     const brand = venue.venue || '';
     let matched = 0;
-    let aiMatched = 0;
-    const aiQueue: Array<{ it: WoltItem; np: ReturnType<typeof itemToProduct> }> = [];
 
     for (const it of venue.items) {
       if (it.price == null) continue;
       const matchedId = match(it);
       if (!matchedId) {
+        // Queue unmatched items for admin review (AI matching runs separately via /api/ai/match-pending)
         const np = itemToProduct(it, brand);
-        aiQueue.push({ it, np });
-        continue;
-      }
-      matched++;
-      if (it.image_url && noPhoto.has(matchedId) && !photos.has(matchedId)) photos.set(matchedId, it.image_url);
-      const cand = { price: it.regular_price ?? it.price, discount: it.regular_price != null ? it.price : null };
-      const prev = next.get(matchedId);
-      const eff = (x: { price: number; discount: number | null }) => x.discount ?? x.price;
-      if (!prev || eff(cand) < eff(prev)) next.set(matchedId, cand);
-    }
-
-    // 5th step: AI matching for items that didn't match algorithmically
-    // Batch into groups of 10 items to minimise API calls
-    const AI_BATCH = 10;
-    for (let i = 0; i < aiQueue.length; i += AI_BATCH) {
-      const batch = aiQueue.slice(i, i + AI_BATCH);
-      await Promise.all(batch.map(async ({ it, np }) => {
-        // Find similar candidates by first word of name
-        const firstWord = np.name.split(' ')[0].toLowerCase();
-        const candidates = productList
-          .filter((p) => `${p.brand} ${p.name}`.toLowerCase().includes(firstWord))
-          .slice(0, 20);
-
-        if (candidates.length > 0) {
-          const result = await aiMatch({ name: it.name, barcode: it.barcode }, candidates);
-          await logAiMatch(db, { name: it.name, barcode: it.barcode }, result);
-
-          if (result.status === 'matched' && result.product_id) {
-            // High confidence: auto-match
-            aiMatched++;
-            matched++;
-            if (it.image_url && noPhoto.has(result.product_id) && !photos.has(result.product_id)) photos.set(result.product_id, it.image_url);
-            const cand = { price: it.regular_price ?? it.price ?? 0, discount: it.regular_price != null ? it.price : null };
-            const prev = next.get(result.product_id);
-            const eff = (x: { price: number; discount: number | null }) => x.discount ?? x.price;
-            if (!prev || eff(cand) < eff(prev)) next.set(result.product_id, cand);
-            return;
-          }
-
-          if (result.status === 'review' && result.product_id) {
-            // Medium confidence: queue for admin review with AI suggestion
-            if (!productIds.has(np.id) && !pendingIds.has(np.id)) {
-              pendingInserts.push({
-                id: np.id, name: np.name, brand: np.brand, barcode: np.barcode, size: np.size,
-                image_url: np.image_url ?? it.image_url ?? null, category: it.category ?? null,
-                store_id: src.store_id, source_name: brand || null,
-                ai_suggested_id: result.product_id, ai_confidence: result.confidence,
-              });
-              pendingIds.add(np.id);
-            }
-            return;
-          }
-        }
-
-        // No AI match: queue for admin review
         if (!productIds.has(np.id) && !pendingIds.has(np.id)) {
           pendingInserts.push({
             id: np.id, name: np.name, brand: np.brand, barcode: np.barcode, size: np.size,
@@ -108,7 +51,14 @@ export async function syncSource(src: { id: string; store_id: string; url: strin
           });
           pendingIds.add(np.id);
         }
-      }));
+        continue;
+      }
+      matched++;
+      if (it.image_url && noPhoto.has(matchedId) && !photos.has(matchedId)) photos.set(matchedId, it.image_url);
+      const cand = { price: it.regular_price ?? it.price, discount: it.regular_price != null ? it.price : null };
+      const prev = next.get(matchedId);
+      const eff = (x: { price: number; discount: number | null }) => x.discount ?? x.price;
+      if (!prev || eff(cand) < eff(prev)) next.set(matchedId, cand);
     }
 
     // Insert new pending products in batches
@@ -142,7 +92,7 @@ export async function syncSource(src: { id: string; store_id: string; url: strin
 
     // Fill photos for existing products that had none
     for (const [id, image_url] of photos) await db.from('products').update({ image_url }).eq('id', id).is('image_url', null);
-    const result: SyncResult = { ok: true, venue: venue.venue, found: venue.items.length, matched, created: 0, updated: rows.length, unchanged, removed: 0, pending, ai_matched: aiMatched, photos: photos.size, at };
+    const result: SyncResult = { ok: true, venue: venue.venue, found: venue.items.length, matched, created: 0, updated: rows.length, unchanged, removed: 0, pending, photos: photos.size, at };
     await db.from('import_sources').update({ last_run_at: at, last_result: result, name: venue.venue || null }).eq('id', src.id);
     return result;
   } catch (e) {
