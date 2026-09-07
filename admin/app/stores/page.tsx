@@ -10,7 +10,7 @@ export default function Stores() {
   const [msg, setMsg] = useState<string | null>(null);
 
   const load = async () => {
-    setRows(await db.select<Store>('stores', { order: 'name' }).catch(() => []));
+    setRows(await db.select<Store>('stores', { order: 'name' }).catch((e: Error) => { setMsg(`Yükləmə xətası: ${e.message}`); return []; }));
   };
   useEffect(() => { load(); }, []);
 
@@ -29,7 +29,7 @@ export default function Stores() {
 
   return (
     <Shell title="Marketlər">
-      {msg && <div className="alert ok">{msg}</div>}
+      {msg && <div className={`alert ${msg.startsWith('Yükləmə xətası') || msg.includes('error') ? 'err' : 'ok'}`}>{msg}</div>}
       <table>
         <thead><tr><th>ID</th><th>Ad</th><th>Rəng</th><th>Qısaltma</th><th></th></tr></thead>
         <tbody>

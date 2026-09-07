@@ -8,9 +8,10 @@ interface Counts { stores: number; products: number; prices: number; branches: n
 
 export default function Dashboard() {
   const [c, setC] = useState<Counts | null>(null);
+  const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
     (async () => {
-      const count = (t: string, eq?: Record<string, unknown>) => db.count(t, eq).catch(() => 0);
+      const count = (t: string, eq?: Record<string, unknown>) => db.count(t, eq).catch((e: Error) => { setErr(e.message); return 0; });
       setC({
         stores: await count('stores'),
         products: await count('products'),
@@ -25,6 +26,7 @@ export default function Dashboard() {
 
   return (
     <Shell title="Panel">
+      {err && <div className="alert err">Baza ilə əlaqə xətası: {err} — Vercel-də SUPABASE_SERVICE_ROLE_KEY və NEXT_PUBLIC_SUPABASE_URL dəyişənlərini yoxla və Redeploy et.</div>}
       <div className="grid cols-4">
         {[
           ['Marketlər', c?.stores, '/stores'],
