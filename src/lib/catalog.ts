@@ -92,6 +92,8 @@ export async function fetchBranches(from: LatLng): Promise<Branch[]> {
     openUntil: b.open_until ?? '',
     mapsUrl: b.maps_url ?? null,
     phone: b.phone ?? null,
+    openFrom: b.open_from ?? null,
+    alwaysOpen: !!b.always_open,
     distanceKm: 0,
     walkMinutes: 0,
   }));

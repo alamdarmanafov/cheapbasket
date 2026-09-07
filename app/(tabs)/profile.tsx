@@ -20,6 +20,8 @@ const ROWS: RowDef[] = [
   { label: 'Mənim məlumatlarım', icon: 'person-outline', route: '/account' },
   { label: 'Lokasiya', icon: 'location-outline', action: 'location' },
   { label: 'Bildirişlər', icon: 'notifications-outline', route: '/notifications' },
+  { label: 'Siyahılarım', icon: 'list-outline', route: '/lists' },
+  { label: 'Xal və dəvət', icon: 'gift-outline', route: '/referral' },
   { label: 'Qənaət statistikası', icon: 'trending-up-outline', route: '/savings', plus: true },
   { label: 'Dil', icon: 'language-outline', value: 'Azərbaycan', info: true },
   { label: 'Valyuta', icon: 'cash-outline', value: '₼ AZN', info: true },
@@ -60,7 +62,7 @@ export default function Profile() {
       return notify('Təşəkkürlər ⭐', 'Qiymətləndirmə App Store / Google Play-də tətbiq yayımlanandan sonra açılacaq.');
     }
   };
-  const rowValue = (r: RowDef) => (r.action === 'location' ? cat.place ?? (cat.locationGranted === false ? 'Bağlıdır' : 'Açıqdır') : r.value);
+  const rowValue = (r: RowDef) => (r.action === 'location' ? cat.place ?? (cat.locationGranted === false ? 'Bağlıdır' : 'Açıqdır') : r.route === '/referral' && auth.profile?.points ? `${auth.profile.points} xal` : r.value);
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingTop: insets.top + space.md, padding: space.lg, paddingBottom: space.xxl }} refreshControl={refresh.control}>
       <Txt v="title">Profil</Txt>
@@ -79,6 +81,13 @@ export default function Profile() {
               {cat.place ? ` · ${cat.place}` : ''}
             </Txt>
           </View>
+          {auth.user && (auth.profile?.points ?? 0) > 0 && (
+            <Pressable onPress={() => router.push('/referral')} hitSlop={6} style={styles.points} accessibilityRole="button">
+              <Txt v="captionStrong" color={colors.dark} style={{ fontSize: 11 }}>
+                ⭐ {auth.profile?.points} xal
+              </Txt>
+            </Pressable>
+          )}
           {auth.user ? (
             <Pressable onPress={() => auth.signOut()} hitSlop={8}>
               <Txt v="captionStrong" color={colors.primary}>
@@ -176,6 +185,7 @@ export default function Profile() {
 }
 
 const styles = StyleSheet.create({
+  points: { backgroundColor: colors.warningSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, marginRight: 8 },
   card: { backgroundColor: colors.white, borderRadius: 17, padding: 14, marginTop: 15, ...shadow.card },
   loginBtn: { backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 12, height: 32, justifyContent: 'center' },
   avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },

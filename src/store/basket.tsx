@@ -16,6 +16,10 @@ interface BasketState {
   setQty: (id: string, qty: number) => void;
   clear: () => void;
   has: (id: string) => boolean;
+  /** Raw saved form (product id + qty), e.g. for saved lists. */
+  entries: Array<{ id: string; qty: number }>;
+  /** Replace the whole basket (loading a saved list). */
+  replace: (entries: Array<{ id: string; qty: number }>) => void;
   optimization: Optimization;
   /** Store the user picked on the result screen (defaults to the AI's best). */
   chosenStore: StoreId | null;
@@ -134,6 +138,8 @@ export function BasketProvider({ children }: { children: React.ReactNode }) {
       setQty,
       clear,
       has: (id) => entries.some((e) => e.id === id),
+      entries,
+      replace: (next) => setEntries(next.map((e) => ({ id: e.id, qty: Math.max(1, e.qty) }))),
       optimization,
       chosenStore,
       setChosenStore,

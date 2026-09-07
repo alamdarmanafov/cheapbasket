@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -9,6 +9,9 @@ import { StoreAvatar } from '@/components/product';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { PlusLock } from '@/components/PlusLock';
 import { useBasket } from '@/store/basket';
+import { useAuth } from '@/store/auth';
+import { supabase } from '@/lib/supabase';
+import { getStore } from '@/data/products';
 
 /**
  * Savings — computed from the real basket: best store vs the most expensive
@@ -16,9 +19,23 @@ import { useBasket } from '@/store/basket';
  * totals) is added once shopping trips are recorded.
  */
 export default function Savings() {
-  const refresh = useRefresh();
   const router = useRouter();
+  const auth = useAuth();
   const { lines, count, optimization: o } = useBasket();
+  const [trips, setTrips] = useState<Array<{ id: string; store_id: string; total: number; saving: number; items: number; created_at: string }>>([]);
+  const loadTrips = useCallback(async () => {
+    if (!supabase || !auth.user) return;
+    const { data } = await supabase.from('trips').select('id, store_id, total, saving, items, created_at').order('created_at', { ascending: false }).limit(60);
+    setTrips((data ?? []) as typeof trips);
+  }, [auth.user]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    loadTrips();
+  }, [loadTrips]);
+  const refresh = useRefresh(loadTrips);
+  const monthKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}`;
+  const thisMonth = trips.filter((t) => monthKey(new Date(t.created_at)) === monthKey(new Date()));
+  const monthSaving = thisMonth.reduce((a, t) => a + Number(t.saving), 0);
+  const allSaving = trips.reduce((a, t) => a + Number(t.saving), 0);
   const best = o.best;
   const worst = o.worst;
   const hasBasket = lines.length > 0 && !!best;
@@ -77,6 +94,43 @@ export default function Savings() {
             </Txt>
           </Card>
         )}
+
+        <Txt v="bodyStrong" style={{ marginTop: space.xl, marginBottom: space.sm }}>
+          Alış-veriş tarixçəsi
+        </Txt>
+        <PlusLock feature="Aylıq qənaət statistikası" minHeight={200}>
+          <Row gap={space.md}>
+            <Stat value={`${monthSaving.toFixed(2)} ₼`} label={`bu ay qənaət · ${thisMonth.length} səfər`} />
+            <Stat value={`${allSaving.toFixed(2)} ₼`} label={`ümumi qənaət · ${trips.length} səfər`} />
+          </Row>
+          {trips.length === 0 ? (
+            <Txt v="caption" color={colors.gray} center style={{ marginTop: space.md }}>
+              Xəritədə "Marşruta bax" basanda səfər qeydə alınır və burada toplanır.
+            </Txt>
+          ) : (
+            <Card style={{ marginTop: space.md, paddingVertical: space.xs }}>
+              {trips.slice(0, 12).map((t, i) => (
+                <React.Fragment key={t.id}>
+                  {i > 0 && <Divider />}
+                  <Row style={{ paddingVertical: 10 }} gap={space.md}>
+                    <StoreAvatar store={getStore(t.store_id)} size={32} />
+                    <View style={{ flex: 1 }}>
+                      <Txt v="body" style={{ fontSize: 14 }}>
+                        {getStore(t.store_id).name} · {t.items} məhsul
+                      </Txt>
+                      <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>
+                        {new Date(t.created_at).toLocaleDateString('az-AZ')} · {Number(t.total).toFixed(2)} ₼
+                      </Txt>
+                    </View>
+                    <Txt v="bodyStrong" color={colors.success}>
+                      −{Number(t.saving).toFixed(2)} ₼
+                    </Txt>
+                  </Row>
+                </React.Fragment>
+              ))}
+            </Card>
+          )}
+        </PlusLock>
 
         <Btn title={hasBasket ? 'Səbətə bax' : 'Məhsul əlavə et'} icon={hasBasket ? 'basket' : 'add'} variant="dark" onPress={() => router.push(hasBasket ? '/basket' : '/search')} style={{ marginTop: space.xl }} />
       </ScrollView>

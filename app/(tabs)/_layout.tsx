@@ -5,8 +5,9 @@ import { TabBar } from '@/components/TabBar';
 
 export default function TabsLayout() {
   const auth = useAuth();
-  // Login first: with Supabase configured, an anonymous visitor lands on /auth.
-  if (auth.enabled && !auth.loading && !auth.session && !auth.guest) return <Redirect href="/auth" />;
+  // First launch → onboarding; then login is mandatory (no guest mode).
+  if (auth.onboarded === false) return <Redirect href="/onboarding" />;
+  if (auth.enabled && !auth.loading && !auth.session) return <Redirect href="/auth" />;
   return (
     <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <TabBar {...props} />}>
       <Tabs.Screen name="index" />

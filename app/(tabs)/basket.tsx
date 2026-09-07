@@ -59,7 +59,10 @@ export default function Basket() {
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + space.md, paddingHorizontal: space.lg, paddingBottom: 180 }} refreshControl={refresh.control}>
         <Row style={{ justifyContent: 'space-between' }}>
           <Txt v="title">Səbətim</Txt>
-          <IconBtn name="trash-outline" bg={colors.white} onPress={clear} label="Səbəti təmizlə" />
+          <Row gap={8}>
+            <IconBtn name="bookmark-outline" bg={colors.white} onPress={() => router.push('/lists')} label="Siyahılarım" />
+            <IconBtn name="trash-outline" bg={colors.white} onPress={clear} label="Səbəti təmizlə" />
+          </Row>
         </Row>
         <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>
           {count} məhsul · {best ? `${best.total.toFixed(2)} ₼ (${best.store.name})` : ''}

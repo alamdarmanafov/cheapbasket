@@ -9,6 +9,9 @@ import { Btn, Card, Divider, Pill, Price, Row, Txt } from '@/components/ui';
 import { ProductArt, StoreAvatar } from '@/components/product';
 import { StateView } from '@/components/states';
 import { RealMap } from '@/components/RealMap';
+import { suggestSubstitute } from '@/lib/substitute';
+import { PlusTag } from '@/components/PlusLock';
+import { isOpenNow } from '@/data/products';
 import { nearestBranch } from '@/data/products';
 import { useBasket } from '@/store/basket';
 
@@ -21,7 +24,7 @@ export default function Markets() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { lines, count, optimization: o, chosenStore, setChosenStore } = useBasket();
+  const { lines, count, optimization: o, chosenStore, setChosenStore, isPlus, add, remove } = useBasket();
 
   if (lines.length === 0 || !o.best) {
     return (
@@ -114,6 +117,11 @@ export default function Markets() {
             <Txt v="caption" color={colors.gray} style={{ fontSize: 11, marginTop: 2 }}>
               {branch.address} · {branch.distanceKm} km · {branch.walkMinutes} dəqiqə
             </Txt>
+            {isOpenNow(branch) != null && (
+              <Txt v="captionStrong" color={isOpenNow(branch) ? colors.success : colors.warning} style={{ fontSize: 11, marginTop: 2 }}>
+                {branch.alwaysOpen ? '24 saat açıqdır' : isOpenNow(branch) ? `İndi açıqdır · ${branch.openUntil}-a qədər` : `Bağlıdır${branch.openFrom ? ` · ${branch.openFrom}-da açılır` : ''}`}
+              </Txt>
+            )}
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.grayLight} />
         </Row>
@@ -126,6 +134,7 @@ export default function Markets() {
         </Card>
       )}
       {branch && <Btn title="Xəritədə göstər" icon="navigate" onPress={() => router.push(`/map?store=${chosen.store.id}`)} style={{ marginTop: 10 }} />}
+      <Btn title="Yaxınlıqdakı bütün marketlər" variant="secondary" size="md" icon="storefront-outline" onPress={() => router.push('/nearby')} style={{ marginTop: 8 }} />
 
       {/* Shopping list at the chosen store */}
       <Txt v="bodyStrong" style={{ marginTop: 19, marginBottom: 9 }}>
@@ -149,6 +158,27 @@ export default function Markets() {
                 </View>
                 {p != null ? <Price value={p * l.qty} size="sm" /> : <Pill tone="warning" text="Yoxdur" />}
               </Row>
+              {p == null && (() => {
+                const alt = suggestSubstitute(l.product, chosen.store.id);
+                if (!alt) return null;
+                return (
+                  <Pressable
+                    onPress={() => {
+                      if (!isPlus) return router.push('/plus');
+                      remove(l.product.id);
+                      add(alt.product, l.qty);
+                    }}
+                    accessibilityRole="button"
+                    style={({ pressed }) => [styles.altRow, pressed && { opacity: 0.8 }]}
+                  >
+                    <Ionicons name="swap-horizontal" size={16} color={colors.primary} />
+                    <Txt v="caption" style={{ flex: 1, marginLeft: 8, fontSize: 12 }} numberOfLines={1}>
+                      Əvəzedici: <Txt v="captionStrong" style={{ fontSize: 12 }}>{alt.product.brand} {alt.product.name} {alt.product.size}</Txt> · {(alt.price * l.qty).toFixed(2)} ₼
+                    </Txt>
+                    {isPlus ? <Txt v="captionStrong" color={colors.primary} style={{ fontSize: 12 }}>Əvəz et</Txt> : <PlusTag />}
+                  </Pressable>
+                );
+              })()}
             </React.Fragment>
           );
         })}
@@ -158,6 +188,7 @@ export default function Markets() {
 }
 
 const styles = StyleSheet.create({
+  altRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primarySoft, borderRadius: radius.sm, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 6 },
   hero: { backgroundColor: colors.white, borderRadius: 20, padding: 18, marginTop: 14, alignItems: 'center', ...shadow.card },
   mini: { flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: 11, paddingVertical: 9, paddingHorizontal: 4, alignItems: 'center', overflow: 'hidden' },
   miniActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
