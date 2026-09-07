@@ -1,8 +1,8 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import { Download, Search } from 'lucide-react';
+import { Download, Search, Tags } from 'lucide-react';
 import { Shell } from '@/components/Shell';
-import { CATEGORIES, Product, Store, db, slugify } from '@/lib/supabase';
+import { Product, Store, db, slugify, useCategories } from '@/lib/supabase';
 import { mapCategory, splitName, type WoltItem, type WoltResult } from '@/lib/wolt';
 
 interface Row extends WoltItem {
@@ -34,6 +34,7 @@ export default function ImportPage() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [existing, setExisting] = useState<Product[]>([]);
+  const { categories: ourCategories, names: catNames, reload: reloadCategories } = useCategories();
 
   useEffect(() => {
     db.select<Store>('stores', { order: 'name' }).then((s) => { setStores(s); if (s[0]) setStoreId(s[0].id); }).catch((e: Error) => setMsg({ ok: false, text: e.message }));
@@ -74,7 +75,7 @@ export default function ImportPage() {
             ...it,
             key: it.ext_id,
             selected: it.price != null,
-            appCategory: mapCategory(it.category, it.name, CATEGORIES),
+            appCategory: it.category && catNames.includes(it.category) ? it.category : mapCategory(it.category, it.name, catNames),
             existingId: match(it),
             brand: sp.brand,
             title: sp.name,
@@ -108,6 +109,26 @@ export default function ImportPage() {
   const selected = rows.filter((r) => r.selected && eligible(r));
   const setAll = (v: boolean) => setRows(rows.map((r) => (filtered.includes(r) ? { ...r, selected: v && eligible(r) } : r)));
   const patch = (key: string, p: Partial<Row>) => setRows(rows.map((r) => (r.key === key ? { ...r, ...p } : r)));
+
+  /** One-time: adopt the venue's category names as our own categories, then re-map rows to them. */
+  const adoptCategories = async () => {
+    if (!result) return;
+    const have = new Set(ourCategories.map((c) => c.name.toLowerCase()));
+    const fresh = result.categories.filter((c) => !have.has(c.toLowerCase()));
+    if (!fresh.length) { setMsg({ ok: true, text: 'Bu kateqoriyalar artıq bizdə var.' }); return; }
+    setBusy(true);
+    try {
+      let sort = ourCategories.length;
+      await db.upsert('categories', fresh.map((name) => ({ id: slugify(name) || `cat-${sort}`, name, emoji: null, sort: sort++ })), 'id');
+      await reloadCategories();
+      setRows(rows.map((r) => (r.category && !r.existingId ? { ...r, appCategory: r.category } : r)));
+      setMsg({ ok: true, text: `${fresh.length} kateqoriya əlavə olundu ("Kateqoriyalar" səhifəsində emoji və sıra verə bilərsən). Sətirlər Wolt kateqoriyasına uyğunlaşdırıldı.` });
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const importSelected = async () => {
     if (!storeId) { setMsg({ ok: false, text: 'Əvvəlcə market seç.' }); return; }
@@ -172,6 +193,7 @@ export default function ImportPage() {
               {result?.categories.map((c) => <option key={c} value={c}>{c} ({rows.filter((r) => r.category === c).length})</option>)}
             </select>
             <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13 }}><input type="checkbox" checked={onlyDiscount} onChange={(e) => setOnlyDiscount(e.target.checked)} /> Yalnız endirimlilər</label>
+            <button className="btn secondary" disabled={busy || !result?.categories.length} onClick={adoptCategories} title="Wolt-un kateqoriya adlarını bizim kateqoriya siyahısına əlavə et"><Tags size={14} /> Kateqoriyaları götür ({result?.categories.length ?? 0})</button>
             <button className="btn ghost" onClick={() => setAll(true)}>Hamısını seç</button>
             <button className="btn ghost" onClick={() => setAll(false)}>Seçimi sil</button>
           </div>
@@ -191,7 +213,7 @@ export default function ImportPage() {
                     <td><input value={r.brand} placeholder="Brend" style={{ width: 90 }} onChange={(e) => patch(r.key, { brand: e.target.value })} disabled={!!r.existingId} /></td>
                     <td><input value={r.title} placeholder="Ad" style={{ width: 160 }} onChange={(e) => patch(r.key, { title: e.target.value })} disabled={!!r.existingId} /></td>
                     <td><input value={r.size} placeholder="1 L" style={{ width: 64 }} onChange={(e) => patch(r.key, { size: e.target.value })} disabled={!!r.existingId} /></td>
-                    <td><select value={r.appCategory} onChange={(e) => patch(r.key, { appCategory: e.target.value })} disabled={!!r.existingId}>{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></td>
+                    <td><select value={r.appCategory} onChange={(e) => patch(r.key, { appCategory: e.target.value })} disabled={!!r.existingId}>{[...new Set([...catNames, r.appCategory])].map((c) => <option key={c}>{c}</option>)}</select></td>
                     <td className="muted" style={{ fontFamily: 'monospace', fontSize: 12 }}>{r.barcode ?? '—'}</td>
                     <td><input inputMode="decimal" value={r.priceText} placeholder="—" style={{ width: 64, textAlign: 'right', textDecoration: r.discountText ? 'line-through' : undefined, color: r.discountText ? '#9CA3AF' : undefined }} onChange={(e) => patch(r.key, { priceText: e.target.value })} /></td>
                     <td><input inputMode="decimal" value={r.discountText} placeholder="endirim" style={{ width: 64, textAlign: 'right', color: '#16A34A', fontWeight: 600 }} onChange={(e) => patch(r.key, { discountText: e.target.value })} /></td>

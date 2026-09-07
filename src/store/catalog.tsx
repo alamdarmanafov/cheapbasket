@@ -1,8 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 import * as Location from 'expo-location';
-import { Product, Branch, Banner, Store, LatLng, DEFAULT_LOCATION, catalog, withDistances } from '@/data/products';
-import { fetchBanners, fetchBranches, fetchProducts, fetchStores } from '@/lib/catalog';
+import { Product, Branch, Banner, Category, Store, LatLng, DEFAULT_LOCATION, catalog, withDistances } from '@/data/products';
+import { fetchBanners, fetchBranches, fetchCategories, fetchProducts, fetchStores } from '@/lib/catalog';
 import { hasSupabase, supabase } from '@/lib/supabase';
 
 interface CatalogState {
@@ -40,10 +40,11 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     try {
       const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Şəbəkə cavab vermir')), 10000));
-      const [s, p, b, bn] = await Promise.race([
-        Promise.all([fetchStores(), fetchProducts(), fetchBranches(catalog.location), fetchBanners().catch(() => [] as Banner[])]),
+      const [s, p, b, bn, cs] = await Promise.race([
+        Promise.all([fetchStores(), fetchProducts(), fetchBranches(catalog.location), fetchBanners().catch(() => [] as Banner[]), fetchCategories().catch(() => [] as Category[])]),
         timeout,
       ]);
+      catalog.categories = cs;
       catalog.stores = s;
       catalog.products = p;
       catalog.branches = b;
@@ -101,6 +102,7 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'prices' }, scheduleRefresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'branches' }, scheduleRefresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'banners' }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, scheduleRefresh)
       .subscribe();
 
     // 2) Coming back to the app refreshes too (covers devices without a live socket).

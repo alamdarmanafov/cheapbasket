@@ -1,4 +1,5 @@
 'use client';
+import { useEffect, useState } from 'react';
 
 /** Client-side data access: every call goes through /api/db (admin cookie + service role on the server). */
 async function call<T>(body: unknown): Promise<T> {
@@ -26,7 +27,21 @@ export interface Banner { id: string; title: string; subtitle: string | null; im
 export interface Branch { id: string; store_id: string; name: string; address: string; lat: number; lng: number; open_until: string | null }
 export interface AdminUser { id: string; email: string | null; created_at: string; last_sign_in_at: string | null; provider: string; display_name: string | null; plan: 'free' | 'plus'; plan_expires_at: string | null; plan_note: string | null; blocked: boolean; city: string | null; devices?: number }
 
+/** Fallback list used until the `categories` table has rows. */
 export const CATEGORIES = ['Süd məhsulları', 'Yumurta', 'Qida', 'İçkilər', 'Ət', 'Meyvə-tərəvəz', 'Çörək', 'Şirniyyat', 'Ev və gigiyena'];
+export interface Category { id: string; name: string; emoji: string | null; sort: number }
+
+/** Category names from the admin-managed table (ordered), falling back to the built-in list. */
+export function useCategories(): { categories: Category[]; names: string[]; reload: () => Promise<void> } {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const reload = async () => {
+    const rows = await db.select<Category>('categories', { order: 'sort' }).catch(() => [] as Category[]);
+    setCategories(rows);
+  };
+  useEffect(() => { reload(); }, []);
+  const names = categories.length ? categories.map((c) => c.name) : CATEGORIES;
+  return { categories, names, reload };
+}
 
 export const slugify = (s: string) =>
   s.toLowerCase().replace(/ə/g, 'e').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/ş/g, 's').replace(/ç/g, 'c').replace(/ğ/g, 'g')

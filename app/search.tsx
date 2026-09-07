@@ -7,7 +7,7 @@ import { colors, radius, space } from '@/theme';
 import { Chip, Divider, Row, Txt } from '@/components/ui';
 import { ProductRow } from '@/components/product';
 import { ProductRowSkeleton, StateView } from '@/components/states';
-import { Product, catalogCategories, searchProducts } from '@/data/products';
+import { Product, catalogCategories, categoryEmoji, searchProducts } from '@/data/products';
 import { useCatalog } from '@/store/catalog';
 import { useBasket } from '@/store/basket';
 
@@ -85,7 +85,7 @@ export default function Search() {
                   </Txt>
                   <Row gap={8} style={{ flexWrap: 'wrap' }}>
                     {catalogCategories().map((r) => (
-                      <Chip key={r} text={r} onPress={() => setQ(r)} />
+                      <Chip key={r} text={categoryEmoji(r) ? `${categoryEmoji(r)} ${r}` : r} onPress={() => setQ(r)} />
                     ))}
                   </Row>
                 </>

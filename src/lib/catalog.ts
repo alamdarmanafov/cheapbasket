@@ -1,4 +1,4 @@
-import { Product, Branch, Banner, Store, StoreId, LatLng, withDistances } from '@/data/products';
+import { Product, Branch, Banner, Category, Store, StoreId, LatLng, withDistances } from '@/data/products';
 import { supabase } from './supabase';
 
 interface ProductPriceRow {
@@ -108,4 +108,10 @@ export async function fetchBanners(): Promise<Banner[]> {
     textColor: b.text_color ?? '#FFFFFF',
     link: b.link ?? null,
   }));
+}
+
+export async function fetchCategories(): Promise<Category[]> {
+  const { data, error } = await need().from('categories').select('id, name, emoji').order('sort');
+  if (error) throw error;
+  return (data ?? []).map((c) => ({ id: c.id, name: c.name, emoji: c.emoji ?? null }));
 }
