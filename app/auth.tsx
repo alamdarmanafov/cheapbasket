@@ -16,7 +16,7 @@ const PROVIDERS = (process.env.EXPO_PUBLIC_AUTH_PROVIDERS ?? 'google,apple').spl
 const SHOW_APPLE = PROVIDERS.includes('apple');
 const SHOW_GOOGLE = PROVIDERS.includes('google');
 
-/** Sign in / sign up: email + password, Apple, Google. Guests can keep using the app. */
+/** Sign in / sign up: email + password, Apple, Google. An account is required. */
 export default function AuthScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -30,10 +30,6 @@ export default function AuthScreen() {
   const [info, setInfo] = useState<string | null>(null);
 
   const done = () => router.replace('/');
-  const asGuest = () => {
-    auth.continueAsGuest();
-    router.replace('/');
-  };
 
   const run = async (key: string, fn: () => Promise<{ error?: string; needsConfirm?: boolean }>) => {
     setBusy(key);
@@ -57,9 +53,9 @@ export default function AuthScreen() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      {(auth.session || auth.guest) && <ScreenHeader closeIcon />}
+      {auth.session && <ScreenHeader closeIcon />}
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: insets.bottom + space.xxl }} keyboardShouldPersistTaps="handled">
-        <View style={{ alignItems: 'center', marginTop: auth.session || auth.guest ? space.sm : insets.top + space.xxl }}>
+        <View style={{ alignItems: 'center', marginTop: auth.session ? space.sm : insets.top + space.xxl }}>
           <LogoMark size={56} />
           <Txt v="title" center style={{ marginTop: space.md }}>
             {mode === 'signup' ? 'Hesab yarat' : mode === 'reset' ? 'Şifrəni sıfırla' : 'Xoş gəldin'}
@@ -148,11 +144,6 @@ export default function AuthScreen() {
           </Pressable>
         </Row>
 
-        <Pressable onPress={asGuest} style={{ alignSelf: 'center', marginTop: space.lg }} hitSlop={8}>
-          <Txt v="caption" color={colors.grayLight}>
-            Qonaq kimi davam et
-          </Txt>
-        </Pressable>
 
         <Txt v="caption" color={colors.grayLight} center style={{ marginTop: space.xl, fontSize: 11 }}>
           Davam etməklə İstifadə şərtləri və Məxfilik siyasəti ilə razılaşırsan.

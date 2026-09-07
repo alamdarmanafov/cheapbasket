@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Platform, Pressable, ScrollView, Share, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +15,8 @@ import { fetchPriceHistory } from '@/lib/catalog';
 import { hasSupabase } from '@/lib/supabase';
 import { useBasket } from '@/store/basket';
 import { useRefresh } from '@/lib/useRefresh';
+import { notify } from '@/lib/confirm';
+import { WEB_APP_URL } from '@/lib/links';
 
 /** Product comparison + detail: one screen, price first. */
 export default function ProductScreen() {
@@ -57,11 +59,29 @@ export default function ProductScreen() {
   const best = basket.optimization.best;
   const atBest = best ? product.prices[best.store.id] : null;
 
+  /** System share sheet: cheapest price + link to the web version of this product. */
+  const share = async () => {
+    const url = `${WEB_APP_URL}/product/${product.id}`;
+    const message = c.price != null ? `${product.brand} ${product.name} ${product.size} — ən ucuz ${c.store.name}-da ${c.price.toFixed(2)} ₼. Cheap Basket ilə müqayisə et: ${url}` : `${product.brand} ${product.name} ${product.size} — Cheap Basket: ${url}`;
+    try {
+      if (Platform.OS === 'web' && typeof navigator !== 'undefined' && (navigator as Navigator & { share?: (d: { title: string; text: string; url: string }) => Promise<void> }).share) {
+        await (navigator as Navigator & { share: (d: { title: string; text: string; url: string }) => Promise<void> }).share({ title: 'Cheap Basket', text: message, url });
+      } else if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(message);
+        notify('Kopyalandı', 'Məhsul linki panoya kopyalandı.');
+      } else {
+        await Share.share({ message, url, title: 'Cheap Basket' });
+      }
+    } catch {
+      /* user dismissed */
+    }
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScreenHeader
         title={`${product.brand} ${product.name} ${product.size}`}
-        right={<Pressable hitSlop={8} accessibilityLabel="Paylaş"><Ionicons name="share-outline" size={22} color={colors.dark} /></Pressable>}
+        right={<Pressable hitSlop={8} accessibilityLabel="Paylaş" accessibilityRole="button" onPress={share}><Ionicons name="share-outline" size={22} color={colors.dark} /></Pressable>}
       />
       <ScrollView contentContainerStyle={{ paddingBottom: 140 }} refreshControl={refresh.control}>
         {/* Hero */}
@@ -179,7 +199,7 @@ export default function ProductScreen() {
       <View style={[styles.sticky, { paddingBottom: insets.bottom + space.lg }]}>
         {inBasket ? (
           <Row gap={space.sm}>
-            <Btn title="Səbətdədir" variant="secondary" icon="checkmark" style={{ flex: 1 }} onPress={() => basket.add(product)} />
+            <Btn title={`Səbətdədir · ${basket.lines.find((l) => l.product.id === product.id)?.qty ?? 1} ədəd`} variant="secondary" icon="add" style={{ flex: 1 }} onPress={() => basket.add(product)} />
             <Btn title="Səbətə bax" variant="dark" style={{ flex: 1 }} onPress={() => router.push('/basket')} />
           </Row>
         ) : (

@@ -50,6 +50,10 @@ export default function RootLayout() {
           <Stack.Screen name="account" />
           <Stack.Screen name="deals" />
           <Stack.Screen name="notifications" />
+          <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
+          <Stack.Screen name="lists" />
+          <Stack.Screen name="referral" />
+          <Stack.Screen name="nearby" />
           <Stack.Screen name="feedback" options={{ presentation: 'modal' }} />
           <Stack.Screen name="product/[id]" />
         </Stack>

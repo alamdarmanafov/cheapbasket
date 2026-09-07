@@ -5,6 +5,7 @@ import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import * as Crypto from 'expo-crypto';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, hasSupabase } from '@/lib/supabase';
 import { PlanId } from '@/data/plans';
 
@@ -15,6 +16,7 @@ export interface Profile {
   /** Effective plan: 'plus' only while the subscription has not expired. */
   plan: PlanId;
   planExpiresAt: string | null;
+  points: number;
   blocked: boolean;
   city: string | null;
 }
@@ -32,9 +34,9 @@ interface AuthState {
   resetPassword: (email: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
-  /** User chose to continue without an account this session. */
-  guest: boolean;
-  continueAsGuest: () => void;
+  /** null until read from storage; false → show onboarding first. */
+  onboarded: boolean | null;
+  finishOnboarding: () => void;
   /** Last error a provider sent back through the redirect URL (web), for display. */
   lastError: string | null;
 }
@@ -50,7 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(hasSupabase);
-  const [guest, setGuest] = useState(false);
+  const [onboarded, setOnboarded] = useState<boolean | null>(null);
   const [lastError, setLastError] = useState<string | null>(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
     const p = new URLSearchParams(window.location.hash.replace(/^#/, '') || window.location.search.replace(/^\?/, ''));
@@ -63,9 +65,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(null);
       return;
     }
-    const { data } = await supabase.from('profiles').select('display_name, plan, plan_expires_at, blocked, city').eq('user_id', userId).maybeSingle();
+    const { data } = await supabase.from('profiles').select('display_name, plan, plan_expires_at, blocked, city, points').eq('user_id', userId).maybeSingle();
     if (!data) {
-      setProfile({ display_name: null, plan: 'free', planExpiresAt: null, blocked: false, city: null });
+      setProfile({ display_name: null, plan: 'free', planExpiresAt: null, blocked: false, city: null, points: 0 });
       return;
     }
     const expired = !!data.plan_expires_at && new Date(data.plan_expires_at) <= new Date();
@@ -75,8 +77,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       planExpiresAt: data.plan_expires_at,
       blocked: !!data.blocked,
       city: data.city,
+      points: Number((data as { points?: number }).points ?? 0),
     });
     if (data.blocked) await supabase.auth.signOut();
+  }, []);
+
+  useEffect(() => {
+    AsyncStorage.getItem('cb_onboarded').then((v) => setOnboarded(v === '1')).catch(() => setOnboarded(true));
   }, []);
 
   useEffect(() => {
@@ -187,11 +194,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setProfile(null);
       },
       refreshProfile: () => loadProfile(session?.user.id),
-      guest,
-      continueAsGuest: () => setGuest(true),
+      onboarded,
+      finishOnboarding: () => {
+        setOnboarded(true);
+        AsyncStorage.setItem('cb_onboarded', '1').catch(() => undefined);
+      },
       lastError,
     }),
-    [loading, session, profile, loadProfile, guest, lastError], // eslint-disable-line react-hooks/exhaustive-deps
+    [loading, session, profile, loadProfile, onboarded, lastError], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

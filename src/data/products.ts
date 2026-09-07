@@ -49,6 +49,27 @@ export interface Branch {
   /** Google Maps place link from the admin panel (optional). */
   mapsUrl?: string | null;
   phone?: string | null;
+  /** Opening time 'HH:MM' (optional); openUntil is the closing time. */
+  openFrom?: string | null;
+  alwaysOpen?: boolean;
+}
+
+/** true/false when hours are known (Baku time), null when the branch has no hours. */
+export function isOpenNow(b: Branch, now = new Date()): boolean | null {
+  if (b.alwaysOpen) return true;
+  if (!b.openUntil) return null;
+  const toMin = (t: string) => {
+    const m = t.match(/^(\d{1,2}):(\d{2})/);
+    return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+  };
+  const baku = new Date(now.getTime() + (4 * 60 + now.getTimezoneOffset()) * 60000);
+  const cur = baku.getHours() * 60 + baku.getMinutes();
+  const close = toMin(b.openUntil);
+  const open = b.openFrom ? toMin(b.openFrom) : 0;
+  if (close == null || open == null) return null;
+  if (close === 0) return cur >= open; // closes at midnight
+  if (close < open) return cur >= open || cur < close; // past midnight, e.g. 08:00–02:00
+  return cur >= open && cur < close;
 }
 
 export interface LatLng {

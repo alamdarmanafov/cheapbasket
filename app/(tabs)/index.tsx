@@ -169,9 +169,14 @@ export default function Home() {
         {/* Stores (live from admin) */}
         {cat.stores.length > 0 && (
           <>
-            <Txt v="bodyStrong" style={{ marginTop: 19, marginBottom: 9 }}>
-              Marketlər
-            </Txt>
+            <Row style={{ justifyContent: 'space-between', marginTop: 19, marginBottom: 9 }}>
+              <Txt v="bodyStrong">Marketlər</Txt>
+              <Pressable onPress={() => router.push('/nearby')} hitSlop={8} accessibilityRole="button">
+                <Txt v="captionStrong" color={colors.primary}>
+                  Yaxınlıqdakılar →
+                </Txt>
+              </Pressable>
+            </Row>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
               {cat.stores.map((s) => (
                 <Pressable key={s.id} onPress={() => router.push(`/map?store=${s.id}`)} style={({ pressed }) => [styles.storeChip, pressed && { backgroundColor: colors.primarySoft }]}>

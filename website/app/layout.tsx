@@ -4,7 +4,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Cheap Basket — Alış-verişə getməzdən əvvəl ən sərfəli marketi tap',
   description: 'Səbətini yarat, qiymətləri müqayisə et, bütün səbət üçün ən sərfəli marketi və ən yaxın filialı tap. Araz, Bravo, Neptun, Bazarstore.',
-  metadataBase: new URL('https://cheapbasket.az'),
+  metadataBase: new URL('https://cheapmarket.app'),
   openGraph: {
     title: 'Cheap Basket — Səbətini yarat. Ən sərfəli marketi tap. Get və al.',
     description: 'AI alış-veriş köməkçisi: bütün səbət üçün ən sərfəli market və ən yaxın filial.',

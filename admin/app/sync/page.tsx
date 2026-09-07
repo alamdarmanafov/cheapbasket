@@ -55,7 +55,7 @@ export default function SyncPage() {
         added++;
         if (alsoBranches && v.lat != null && v.lng != null) {
           const id = slugify(`${storeId} ${v.slug}`);
-          await db.upsert('branches', [{ id, store_id: storeId, name: v.name, address: v.address ?? v.name, lat: v.lat, lng: v.lng, maps_url: `https://www.google.com/maps?q=${v.lat},${v.lng}` }], 'id');
+          await db.upsert('branches', [{ id, store_id: storeId, name: v.name, address: v.address ?? v.name, lat: v.lat, lng: v.lng, maps_url: `https://www.google.com/maps?q=${v.lat},${v.lng}`, open_from: '08:00', open_until: '23:00' }], 'id');
           branches++;
         }
       }

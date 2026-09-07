@@ -90,7 +90,7 @@ export default function Deals() {
           <View style={{ flex: 1, marginLeft: space.md }}>
             <Txt v="bodyStrong">AI endirim xəbəri</Txt>
             <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>
-              {isPlus ? 'Plus: hər gün səhər ucuzlaşan məhsulları göndəririk.' : 'Free: ayda 3 dəfə. Plus ilə hər gün.'}
+              {isPlus ? 'Plus: hər gün səhər ucuzlaşan məhsulları və səbətindəki qiymət düşüşlərini göndəririk.' : 'Plus abunəçiləri hər gün endirim xəbəri və səbətindəki qiymət düşüşü bildirişi alır.'}
               {auth.user ? '' : ' Daxil ol ki, səbətinə görə göndərək.'}
             </Txt>
           </View>
