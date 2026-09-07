@@ -12,7 +12,10 @@ WebBrowser.maybeCompleteAuthSession();
 
 export interface Profile {
   display_name: string | null;
+  /** Effective plan: 'plus' only while the subscription has not expired. */
   plan: PlanId;
+  planExpiresAt: string | null;
+  blocked: boolean;
   city: string | null;
 }
 
@@ -60,8 +63,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(null);
       return;
     }
-    const { data } = await supabase.from('profiles').select('display_name, plan, city').eq('user_id', userId).maybeSingle();
-    setProfile(data ? { display_name: data.display_name, plan: (data.plan as PlanId) ?? 'free', city: data.city } : { display_name: null, plan: 'free', city: null });
+    const { data } = await supabase.from('profiles').select('display_name, plan, plan_expires_at, blocked, city').eq('user_id', userId).maybeSingle();
+    if (!data) {
+      setProfile({ display_name: null, plan: 'free', planExpiresAt: null, blocked: false, city: null });
+      return;
+    }
+    const expired = !!data.plan_expires_at && new Date(data.plan_expires_at) <= new Date();
+    setProfile({
+      display_name: data.display_name,
+      plan: data.plan === 'plus' && !expired ? 'plus' : 'free',
+      planExpiresAt: data.plan_expires_at,
+      blocked: !!data.blocked,
+      city: data.city,
+    });
+    if (data.blocked) await supabase.auth.signOut();
   }, []);
 
   useEffect(() => {

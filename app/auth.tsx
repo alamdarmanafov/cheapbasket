@@ -186,6 +186,7 @@ function translate(m: string): string {
   if (l.includes('bad_oauth_state') || l.includes('flow state')) return 'Giriş sessiyası itdi — eyni brauzerdə yenidən cəhd et.';
   if (l.includes('requested path is invalid') || l.includes('redirect')) return 'Redirect URL Supabase-də icazəli deyil (Auth → URL Configuration → Redirect URLs).';
   if (l.includes('invalid email')) return 'E-poçt ünvanı düzgün deyil.';
+  if (l.includes('blocked')) return 'Bu hesab bloklanıb. Dəstəklə əlaqə saxla.';
   return m;
 }
 

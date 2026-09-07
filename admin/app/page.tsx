@@ -9,20 +9,20 @@ interface Counts { stores: number; products: number; prices: number; branches: n
 export default function Dashboard() {
   const [c, setC] = useState<Counts | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  useEffect(() => {
-    (async () => {
-      const count = (t: string, eq?: Record<string, unknown>) => db.count(t, eq).catch((e: Error) => { setErr(e.message); return 0; });
-      setC({
-        stores: await count('stores'),
-        products: await count('products'),
-        prices: await count('prices'),
-        branches: await count('branches'),
-        users: await count('profiles'),
-        plus: await count('profiles', { plan: 'plus' }),
-        tokens: await count('push_tokens'),
+  const load = async () => {
+    setErr(null);
+    // Parallel counts with a hard timeout so the dashboard never sits on "…".
+    const count = (t: string, eq?: Record<string, unknown>) =>
+      Promise.race([db.count(t, eq), new Promise<number>((_, rej) => setTimeout(() => rej(new Error(`${t}: 10 s ərzində cavab gəlmədi`)), 10000))]).catch((e: Error) => {
+        setErr(e.message);
+        return -1;
       });
-    })();
-  }, []);
+    const [stores, products, prices, branches, users, plus, tokens] = await Promise.all([
+      count('stores'), count('products'), count('prices'), count('branches'), count('profiles'), count('profiles', { plan: 'plus' }), count('push_tokens'),
+    ]);
+    setC({ stores, products, prices, branches, users, plus, tokens });
+  };
+  useEffect(() => { load(); }, []);
 
   return (
     <Shell title="Panel">
@@ -38,11 +38,12 @@ export default function Dashboard() {
           ['Push cihazları', c?.tokens, '/notifications'],
         ].map(([label, n, href]) => (
           <Link key={label as string} href={href as string} className="card stat">
-            <b>{n ?? '…'}</b>
+            <b>{n == null ? '…' : (n as number) < 0 ? '?' : n}</b>
             <small>{label}</small>
           </Link>
         ))}
       </div>
+      <div style={{ marginTop: 12 }}><button className="btn secondary" onClick={load}>Yenilə</button></div>
       <div className="card" style={{ marginTop: 16 }}>
         <h2>Başlanğıc</h2>
         <ol className="muted" style={{ lineHeight: 1.9, margin: 0, paddingLeft: 18 }}>

@@ -13,7 +13,7 @@ import { useAuth } from '@/store/auth';
 import { registerForPush, unregisterPush } from '@/lib/notifications';
 
 const ROWS: Array<{ label: string; icon: keyof typeof Ionicons.glyphMap; value?: string; route?: string; plus?: boolean }> = [
-  { label: 'Mənim məlumatlarım', icon: 'person-outline' },
+  { label: 'Mənim məlumatlarım', icon: 'person-outline', route: '/account' },
   { label: 'Lokasiya', icon: 'location-outline' },
   { label: 'Sevimli marketlər', icon: 'storefront-outline' },
   { label: 'Qənaət statistikası', icon: 'trending-up-outline', route: '/savings', plus: true },
@@ -54,7 +54,7 @@ export default function Profile() {
         <IconBtn name="settings-outline" bg={colors.white} label="Tənzimləmələr" />
       </Row>
 
-      <Pressable onPress={() => (auth.user ? undefined : router.push('/auth'))} style={({ pressed }) => [styles.card, pressed && !auth.user && { opacity: 0.9 }]}>
+      <Pressable onPress={() => router.push(auth.user ? '/account' : '/auth')} style={({ pressed }) => [styles.card, pressed && { opacity: 0.9 }]}>
         <Row gap={12}>
           <View style={styles.avatar}>
             <Txt v="title" color={colors.white}>
@@ -91,7 +91,11 @@ export default function Profile() {
             {isPlus ? 'Cheap Basket Plus aktivdir' : 'Cheap Basket Plus'}
           </Txt>
           <Txt v="caption" color="rgba(255,255,255,0.75)" style={{ fontSize: 11 }}>
-            {isPlus ? 'Bütün funksiyalar açıqdır' : 'Qiymət tarixçəsi, bildirişlər, AI · 1.99 $ / ay'}
+            {isPlus
+              ? auth.profile?.planExpiresAt
+                ? `${Math.max(0, Math.ceil((new Date(auth.profile.planExpiresAt).getTime() - Date.now()) / 86400000))} gün qalıb · ${new Date(auth.profile.planExpiresAt).toLocaleDateString('az-AZ')}`
+                : 'Bütün funksiyalar açıqdır'
+              : 'Qiymət tarixçəsi, bildirişlər, AI · 1.99 $ / ay'}
           </Txt>
         </View>
         <Ionicons name="chevron-forward" size={20} color={colors.white} />
