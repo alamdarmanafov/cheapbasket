@@ -19,6 +19,7 @@ const FEATURES: Array<[string, string | boolean, string | boolean]> = [
   ['Ən sərfəli market', true, true],
   ['Yaxın filial və xəritə', true, true],
   ['Barkod skanı', true, true],
+  ['Şəkillə məhsul tanıma (AI)', 'Gündə 1', 'Limitsiz'],
   ['AI endirim xəbəri', 'Ayda 3 dəfə', 'Hər gün'],
   ['Qiymət tarixçəsi', false, true],
   ['Qiymət düşüşü bildirişi', false, true],

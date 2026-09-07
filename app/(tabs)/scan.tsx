@@ -5,6 +5,9 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { API_URL } from '@/lib/plusStore';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/store/auth';
+import { PlusTag } from '@/components/PlusLock';
 import { colors, fonts, radius, shadow, space } from '@/theme';
 import { Btn, Divider, IconBtn, Pill, Price, Row, Txt } from '@/components/ui';
 import { Freshness, ProductArt, StoreAvatar } from '@/components/product';
@@ -12,7 +15,7 @@ import { StateView } from '@/components/states';
 import { Product, StoreId, catalog, cheapest, findByBarcode, getStore, sortedPrices } from '@/data/products';
 import { useBasket } from '@/store/basket';
 
-type Phase = 'scanning' | 'searching' | 'found' | 'notfound' | 'error';
+type Phase = 'scanning' | 'searching' | 'found' | 'notfound' | 'error' | 'limit' | 'login';
 
 /**
  * In-store scanner. Recognises a product, compares prices, and tells the user
@@ -24,6 +27,7 @@ export default function Scan() {
   const params = useLocalSearchParams<{ mode?: string; store?: string }>();
   const mode = params.mode === 'photo' ? 'photo' : 'barcode';
   const basket = useBasket();
+  const auth = useAuth();
   const [permission, requestPermission] = useCameraPermissions();
   const [phase, setPhase] = useState<Phase>('scanning');
   const [product, setProduct] = useState<Product | null>(null);
@@ -71,13 +75,28 @@ export default function Scan() {
     if (lockRef.current) return;
     if (!camRef.current) return setHint('Kamera hazır deyil.');
     if (!API_URL) return setHint('Server konfiqurasiya olunmayıb (EXPO_PUBLIC_API_URL).');
+    if (!auth.user) {
+      setPhase('login');
+      return;
+    }
     lockRef.current = true;
     setPhase('searching');
     try {
+      const token = (await supabase?.auth.getSession())?.data.session?.access_token;
       const pic = await camRef.current.takePictureAsync({ base64: true, quality: 0.4, skipProcessing: true });
-      const res = await fetch(`${API_URL}/api/ai/identify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: pic?.base64 ?? '' }) });
-      const j = (await res.json()) as { identified?: { query: string }; candidates?: Array<{ id: string }>; error?: string };
+      const res = await fetch(`${API_URL}/api/ai/identify`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token ?? ''}` }, body: JSON.stringify({ image: pic?.base64 ?? '' }) });
+      const j = (await res.json()) as { identified?: { query: string }; candidates?: Array<{ id: string }>; remaining?: number | null; error?: string; code?: string };
+      if (res.status === 429 || j.code === 'limit') {
+        setHint(j.error ?? null);
+        setPhase('limit');
+        return;
+      }
+      if (res.status === 401 || j.code === 'auth') {
+        setPhase('login');
+        return;
+      }
       if (!res.ok) throw new Error(j.error ?? `Server xətası (${res.status})`);
+      if (j.remaining != null) setHint(j.remaining > 0 ? `Bu gün daha ${j.remaining} pulsuz foto qalır.` : 'Bu günkü pulsuz foto istifadə olundu. Limitsiz tanıma Plus-dadır.');
       const top = j.candidates?.[0] ? catalog.products.find((p) => p.id === j.candidates?.[0].id) : undefined;
       if (top) {
         setProduct(top);
@@ -134,6 +153,14 @@ export default function Scan() {
           <Txt v="bodyStrong" color={colors.white} center style={{ marginTop: space.xl }}>
             {mode === 'photo' ? 'Məhsulu çərçivəyə gətir və şəkil çək' : 'Barkodu çərçivəyə gətir'}
           </Txt>
+          {mode === 'photo' && !basket.isPlus && (
+            <Row gap={6} style={{ justifyContent: 'center', marginTop: 6 }}>
+              <PlusTag />
+              <Txt v="caption" color="rgba(255,255,255,0.8)">
+                Pulsuz planda gündə 1 foto
+              </Txt>
+            </Row>
+          )}
           <Txt v="caption" color="rgba(255,255,255,0.7)" center style={{ marginTop: 4 }}>
             Məhsul tanındıqdan sonra qiymətləri avtomatik müqayisə edəcəyik.
           </Txt>
@@ -200,6 +227,29 @@ export default function Scan() {
             secondary={mode === 'photo' ? 'Yenidən çək' : 'Yenidən skan et'}
             onSecondary={reset}
           />
+        </View>
+      )}
+
+      {phase === 'limit' && (
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + space.lg }]}>
+          <StateView
+            emoji="⭐"
+            title="Bu günkü pulsuz foto bitdi"
+            body={hint ?? 'Pulsuz planda gündə 1 foto. Plus ilə limitsiz şəkillə tanıma, qiymət tarixçəsi və hər gün endirim xəbəri.'}
+            cta="Plus-a keç"
+            onCta={() => router.push('/plus')}
+            secondary="Barkodla skan et"
+            onSecondary={() => {
+              reset();
+              router.replace('/scan');
+            }}
+          />
+        </View>
+      )}
+
+      {phase === 'login' && (
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + space.lg }]}>
+          <StateView emoji="👤" title="Daxil ol" body="Şəkillə tanıma üçün hesabına daxil olmalısan. Pulsuz planda gündə 1 foto, Plus-da limitsiz." cta="Daxil ol" onCta={() => router.push('/auth')} secondary="Geri" onSecondary={reset} />
         </View>
       )}
 

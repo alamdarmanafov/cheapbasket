@@ -128,7 +128,7 @@ export default function Home() {
 
         {/* Quick grid */}
         <Row gap={10} style={{ marginTop: 10 }}>
-          <QuickTile icon="camera-outline" label="Məhsulun şəklini çək" onPress={() => router.push('/scan?mode=photo')} />
+          <QuickTile icon="camera-outline" label="Məhsulun şəklini çək" onPress={() => router.push('/scan?mode=photo')} plus={!basket.isPlus} />
           <QuickTile icon="list-outline" label="Siyahını əlavə et" onPress={() => router.push('/search')} />
         </Row>
 
@@ -263,9 +263,14 @@ export default function Home() {
   );
 }
 
-function QuickTile({ icon, label, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) {
+function QuickTile({ icon, label, onPress, plus }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; plus?: boolean }) {
   return (
     <Pressable onPress={onPress} accessibilityRole="button" style={({ pressed }) => [styles.tile, pressed && { backgroundColor: colors.primarySoft }]}>
+      {plus && (
+        <View style={{ position: 'absolute', top: 8, right: 8 }}>
+          <PlusTag />
+        </View>
+      )}
       <Ionicons name={icon} size={22} color={colors.primary} />
       <Txt v="captionStrong" center style={{ fontSize: 11, marginTop: 6 }}>
         {label}
