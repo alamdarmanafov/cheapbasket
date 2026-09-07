@@ -65,6 +65,7 @@ export default function MapScreen() {
     Linking.openURL(url).catch(() => undefined);
   };
   const storeBranches = catalog.branches.filter((b) => b.storeId === storeId);
+  const otherBranches = catalog.branches.filter((b) => b.storeId !== storeId);
 
   if (!branch) {
     return (
@@ -92,7 +93,13 @@ export default function MapScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: '#EAF0EA' }}>
       <View style={{ alignSelf: 'center' }}>
-        <RealMap width={mapW} height={mapH} branch={branch} others={storeBranches} />
+        <RealMap
+          width={mapW} height={mapH}
+          branch={branch}
+          others={storeBranches}
+          allBranches={otherBranches}
+          onBranchPress={(b) => setStoreId(b.storeId)}
+        />
       </View>
 
       <Row gap={space.sm} style={{ position: 'absolute', top: insets.top + space.sm, left: space.lg, right: space.lg }}>

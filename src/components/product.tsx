@@ -143,11 +143,31 @@ export function PriceLine({ item, rank, best }: { item: StorePrice; rank: number
         <View style={{ alignItems: 'flex-end' }}>
           {item.regular != null && <OldPrice value={item.regular} />}
           <Price value={item.price} size="md" color={rank === 0 || item.regular != null ? colors.primary : colors.dark} />
+          {item.regular != null && (item.discountEnds || item.discountStarts) && (
+            <DiscountRange starts={item.discountStarts} ends={item.discountEnds} />
+          )}
         </View>
       ) : (
         <Ionicons name="remove-circle-outline" size={20} color={colors.grayLight} />
       )}
     </Row>
+  );
+}
+
+/** "DD.MM" from an ISO date string. */
+function fmtDate(iso: string): string {
+  const [, m, d] = iso.split('-');
+  return `${d}.${m}`;
+}
+
+/** Small tag showing the discount validity window: "–27.09" or "20.08–27.09". */
+export function DiscountRange({ starts, ends }: { starts?: string; ends?: string }) {
+  if (!starts && !ends) return null;
+  const label = starts && ends ? `${fmtDate(starts)}–${fmtDate(ends)}` : ends ? `–${fmtDate(ends)}` : `${fmtDate(starts!)}–`;
+  return (
+    <View style={{ backgroundColor: colors.successSoft, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, marginTop: 2 }}>
+      <Txt v="caption" color={colors.success} style={{ fontSize: 10 }}>🏷 {label}</Txt>
+    </View>
   );
 }
 

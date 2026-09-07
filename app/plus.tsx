@@ -85,7 +85,7 @@ export default function Plus() {
             <Txt style={{ fontSize: 30, lineHeight: 36 }}>⭐</Txt>
           </View>
           <Txt v="display" center style={{ marginTop: space.md }}>
-            Cheap Market{' '}
+            Cheap Market AI{' '}
             <Txt v="display" color={colors.primary}>
               Plus
             </Txt>

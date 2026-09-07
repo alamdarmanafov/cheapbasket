@@ -14,6 +14,8 @@ interface ProductPriceRow {
   rating: number | null;
   prices: Record<string, number | null> | null;
   regular_prices?: Record<string, number | null> | null;
+  discount_ends?: Record<string, string | null> | null;
+  discount_starts?: Record<string, string | null> | null;
   updated_at: string | null;
 }
 
@@ -27,6 +29,10 @@ function rowToProduct(r: ProductPriceRow, history: number[] = []): Product {
   for (const [k, v] of Object.entries(r.prices ?? {})) prices[k] = v == null ? null : Number(v);
   const regularPrices: Record<StoreId, number> = {};
   for (const [k, v] of Object.entries(r.regular_prices ?? {})) if (v != null && prices[k] != null && Number(v) > (prices[k] as number)) regularPrices[k] = Number(v);
+  const discountEnds: Record<StoreId, string> = {};
+  for (const [k, v] of Object.entries(r.discount_ends ?? {})) if (v) discountEnds[k] = v;
+  const discountStarts: Record<StoreId, string> = {};
+  for (const [k, v] of Object.entries(r.discount_starts ?? {})) if (v) discountStarts[k] = v;
   const updatedMinutesAgo = r.updated_at ? Math.max(0, Math.round((Date.now() - new Date(r.updated_at).getTime()) / 60000)) : 0;
   return {
     id: r.id,
@@ -40,6 +46,8 @@ function rowToProduct(r: ProductPriceRow, history: number[] = []): Product {
     imageUrl: r.image_url,
     prices,
     regularPrices,
+    discountEnds: Object.keys(discountEnds).length ? discountEnds : undefined,
+    discountStarts: Object.keys(discountStarts).length ? discountStarts : undefined,
     history,
     updatedMinutesAgo,
     rating: r.rating ?? undefined,

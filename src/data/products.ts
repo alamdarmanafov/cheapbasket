@@ -29,6 +29,10 @@ export interface Product {
   prices: Record<StoreId, number | null>;
   /** Regular (pre-discount) price per store id, only where the store currently runs a discount. */
   regularPrices: Record<StoreId, number>;
+  /** ISO date (YYYY-MM-DD) when the discount ends, per store. Only present when the admin set an end date. */
+  discountEnds?: Record<StoreId, string>;
+  /** ISO date (YYYY-MM-DD) when the discount starts, per store. Only present when the admin set a start date. */
+  discountStarts?: Record<StoreId, string>;
   /** Recorded prices (oldest → newest) in the cheapest store; empty until history exists. */
   history: number[];
   /** Minutes since the price was last verified. */
@@ -155,12 +159,22 @@ export interface StorePrice {
   price: number | null;
   /** Crossed-out regular price when the store has a discount on this product. */
   regular?: number;
+  /** ISO date string (YYYY-MM-DD) when this store's discount expires. */
+  discountEnds?: string;
+  /** ISO date string (YYYY-MM-DD) when this store's discount starts. */
+  discountStarts?: string;
 }
 
 /** Prices sorted cheapest → most expensive; unavailable last. */
 export function sortedPrices(p: Product): StorePrice[] {
   return catalog.stores
-    .map((store) => ({ store, price: p.prices[store.id] ?? null, regular: p.regularPrices?.[store.id] }))
+    .map((store) => ({
+      store,
+      price: p.prices[store.id] ?? null,
+      regular: p.regularPrices?.[store.id],
+      discountEnds: p.discountEnds?.[store.id],
+      discountStarts: p.discountStarts?.[store.id],
+    }))
     .sort((a, b) => {
       if (a.price == null) return 1;
       if (b.price == null) return -1;

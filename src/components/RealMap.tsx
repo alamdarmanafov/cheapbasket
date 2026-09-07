@@ -10,7 +10,7 @@ const STATIC_MAP = process.env.EXPO_PUBLIC_STATIC_MAP === '1';
  * Web build: Google Maps embed (no API key). Shows the selected branch pin; the native build
  * (RealMap.native.tsx) renders Apple/Google Maps with every branch of the store.
  */
-export function RealMap({ width, height, branch, interactive = true, radius = 0 }: { width: number; height: number; branch: Branch; others?: Branch[]; interactive?: boolean; radius?: number }) {
+export function RealMap({ width, height, branch, interactive = true, radius = 0 }: { width: number; height: number; branch: Branch; others?: Branch[]; allBranches?: Branch[]; interactive?: boolean; radius?: number; onBranchPress?: (b: Branch) => void }) {
   const me = catalog.location;
   if (STATIC_MAP) {
     return (

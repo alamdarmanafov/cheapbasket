@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     let sent = 0;
     let errors = 0;
     for (let i = 0; i < tokens.length; i += 100) {
-      const chunk = tokens.slice(i, i + 100).map((to) => ({ to, title: title || 'Cheap Market', body, sound: 'default', channelId: 'price-drops', data: url ? { url } : undefined }));
+      const chunk = tokens.slice(i, i + 100).map((to) => ({ to, title: title || 'Cheap Market AI', body, sound: 'default', channelId: 'price-drops', data: url ? { url } : undefined }));
       const res = await fetch('https://exp.host/--/api/v2/push/send', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(chunk) });
       const j = (await res.json()) as { data?: Array<{ status: string }> };
       for (const t of j.data ?? []) t.status === 'ok' ? sent++ : errors++;

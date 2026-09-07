@@ -62,15 +62,15 @@ export default function ProductScreen() {
   /** System share sheet: cheapest price + link to the web version of this product. */
   const share = async () => {
     const url = SITE_URL;
-    const message = c.price != null ? `${product.brand} ${product.name} ${product.size} — ən ucuz ${c.store.name}-da ${c.price.toFixed(2)} ₼. Cheap Market ilə müqayisə et: ${url}` : `${product.brand} ${product.name} ${product.size} — Cheap Market: ${url}`;
+    const message = c.price != null ? `${product.brand} ${product.name} ${product.size} — ən ucuz ${c.store.name}-da ${c.price.toFixed(2)} ₼. Cheap Market AI ilə müqayisə et: ${url}` : `${product.brand} ${product.name} ${product.size} — Cheap Market AI: ${url}`;
     try {
       if (Platform.OS === 'web' && typeof navigator !== 'undefined' && (navigator as Navigator & { share?: (d: { title: string; text: string; url: string }) => Promise<void> }).share) {
-        await (navigator as Navigator & { share: (d: { title: string; text: string; url: string }) => Promise<void> }).share({ title: 'Cheap Market', text: message, url });
+        await (navigator as Navigator & { share: (d: { title: string; text: string; url: string }) => Promise<void> }).share({ title: 'Cheap Market AI', text: message, url });
       } else if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
         await navigator.clipboard.writeText(message);
         notify('Kopyalandı', 'Məhsul linki panoya kopyalandı.');
       } else {
-        await Share.share({ message, url, title: 'Cheap Market' });
+        await Share.share({ message, url, title: 'Cheap Market AI' });
       }
     } catch {
       /* user dismissed */

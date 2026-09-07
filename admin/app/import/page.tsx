@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Download, Search, Tags } from 'lucide-react';
 import { Shell } from '@/components/Shell';
-import { Product, Store, db, slugify, useCategories } from '@/lib/supabase';
+import { PriceRow, Product, Store, db, slugify, useCategories } from '@/lib/supabase';
 import { buildMatcher, mapCategory, splitName, type WoltItem, type WoltResult } from '@/lib/wolt';
 
 interface Row extends WoltItem {
@@ -19,6 +19,8 @@ interface Row extends WoltItem {
   existingId: string | null;
   /** for existing products: also overwrite name/brand/size/category/image from Wolt (default: price only) */
   updateInfo: boolean;
+  /** current price stored in DB for the selected store (null = not stored yet) */
+  dbPrice: number | null;
 }
 
 export default function ImportPage() {
@@ -37,15 +39,37 @@ export default function ImportPage() {
   const [pricesOnly, setPricesOnly] = useState(false);
   /** Products-only: create/update products without writing any price (catalogue sites that are not a store). */
   const [productsOnly, setProductsOnly] = useState(false);
+  /** Optional discount validity window applied to all rows that have a discount price. */
+  const [discountFrom, setDiscountFrom] = useState('');
+  const [discountUntil, setDiscountUntil] = useState('');
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [existing, setExisting] = useState<Product[]>([]);
+  /** product_id → effective price currently stored for the selected store */
+  const [dbPriceMap, setDbPriceMap] = useState<Map<string, number>>(new Map());
   const { categories: ourCategories, names: catNames, reload: reloadCategories } = useCategories();
 
   useEffect(() => {
     db.select<Store>('stores', { order: 'name' }).then((s) => { setStores(s); if (s[0]) setStoreId(s[0].id); }).catch((e: Error) => setMsg({ ok: false, text: e.message }));
     db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url' }).then(setExisting).catch(() => {});
   }, []);
+
+  // Reload stored prices for the selected store whenever storeId changes.
+  useEffect(() => {
+    if (!storeId) return;
+    db.select<PriceRow>('prices', { columns: 'product_id,price,discount_price', eq: { store_id: storeId } })
+      .then((rows) => {
+        const m = new Map<string, number>();
+        for (const r of rows) {
+          const eff = r.discount_price != null && r.discount_price < (r.price ?? Infinity) ? r.discount_price : r.price;
+          if (eff != null) m.set(r.product_id, eff);
+        }
+        setDbPriceMap(m);
+        // Refresh dbPrice on existing rows when store changes.
+        setRows((prev) => prev.map((r) => r.existingId ? { ...r, dbPrice: m.get(r.existingId) ?? null } : r));
+      })
+      .catch(() => {});
+  }, [storeId]);
 
   const matcher = (list: Product[]) => buildMatcher(list.map((p) => ({ id: p.id, barcode: p.barcode, brand: p.brand, name: p.name, size: p.size })));
 
@@ -62,19 +86,21 @@ export default function ImportPage() {
       setResult(j);
       setRows(
         j.items.map((it) => {
-          const sp = splitName(it.name);
+          const sp = splitName(it.name ?? '');
+          const existingId = match(it);
           return {
             ...it,
             key: it.ext_id,
-            selected: productsOnly ? !match(it) : it.price != null,
-            appCategory: it.category && catNames.includes(it.category) ? it.category : mapCategory(it.category, it.name, catNames),
-            existingId: match(it),
+            selected: productsOnly ? !existingId : it.price != null,
+            appCategory: it.category && catNames.includes(it.category) ? it.category : mapCategory(it.category, it.name ?? '', catNames),
+            existingId,
             updateInfo: false,
             brand: sp.brand,
             title: sp.name,
             size: sp.size,
             priceText: it.regular_price != null ? it.regular_price.toFixed(2) : it.price != null ? it.price.toFixed(2) : '',
             discountText: it.regular_price != null && it.price != null ? it.price.toFixed(2) : '',
+            dbPrice: existingId ? (dbPriceMap.get(existingId) ?? null) : null,
           };
         }),
       );
@@ -94,10 +120,11 @@ export default function ImportPage() {
 
   const num = (v: string) => (v.trim() === '' ? null : Number(v.replace(',', '.')));
   const valid = (r: Row) => {
-    if (productsOnly) return r.title.trim() !== '';
+    const title = (r.title ?? '').trim();
+    if (productsOnly) return title !== '';
     const p = num(r.priceText);
     const d = num(r.discountText);
-    return p != null && !Number.isNaN(p) && p > 0 && (d == null || (!Number.isNaN(d) && d > 0 && d < p)) && r.title.trim() !== '';
+    return p != null && !Number.isNaN(p) && p > 0 && (d == null || (!Number.isNaN(d) && d > 0 && d < p)) && title !== '';
   };
   const eligible = (r: Row) => valid(r) && (!pricesOnly || !!r.existingId);
   const selected = rows.filter((r) => r.selected && eligible(r));
@@ -162,18 +189,31 @@ export default function ImportPage() {
         usedIds.add(id);
         if (r.barcode) idByBarcode.set(r.barcode, id);
         if (!known) {
-          products.push({ id, barcode: r.barcode, name: r.title.trim(), brand: r.brand.trim(), size: r.size.trim() || '—', category: r.appCategory, emoji: '🛒', tint: '#F3F4F6', image_url: r.image_url });
+          const name = (r.title ?? '').trim();
+          if (!name) continue; // skip rows with no name (defensive)
+          products.push({ id, barcode: r.barcode, name, brand: (r.brand ?? '').trim(), size: (r.size ?? '').trim() || '—', category: r.appCategory, emoji: '🛒', tint: '#F3F4F6', image_url: r.image_url });
         } else {
           updated++;
           // several Wolt rows can map to one product (same barcode / name) → keep a single info update per id
           if (r.updateInfo && !infoUpdates.some((u) => u.id === id)) infoUpdates.push({ id, name: r.title.trim(), brand: r.brand.trim(), size: r.size.trim() || '—', category: r.appCategory, image_url: r.image_url });
           // no photo in our catalogue yet → take Wolt's (never replaces an existing photo)
-          else if (!r.updateInfo && r.image_url && !fresh.find((p) => p.id === id)?.image_url && !photoUpdates.some((u) => u.id === id)) photoUpdates.push({ id, image_url: r.image_url });
+          // Guard: only update if the product actually exists in fresh (undefined?.image_url = undefined, !undefined = true would otherwise INSERT a partial row → null name crash)
+          else if (!r.updateInfo && r.image_url && !photoUpdates.some((u) => u.id === id)) {
+            const fp = fresh.find((p) => p.id === id);
+            if (fp && !fp.image_url) photoUpdates.push({ id, image_url: r.image_url });
+          }
         }
         if (productsOnly || num(r.priceText) == null) continue; // no price to write
         // one price row per product (a duplicate barcode in the venue keeps the first / cheaper price)
         const prev = priceById.get(id);
-        const candidate = { product_id: id, store_id: storeId, price: num(r.priceText), discount_price: num(r.discountText), updated_at: now };
+        const hasDiscount = num(r.discountText) != null;
+        const candidate = {
+          product_id: id, store_id: storeId,
+          price: num(r.priceText), discount_price: num(r.discountText),
+          discount_starts: hasDiscount && discountFrom  ? discountFrom  : null,
+          discount_ends:   hasDiscount && discountUntil ? discountUntil : null,
+          updated_at: now,
+        };
         const eff = (x: Record<string, unknown>) => (x.discount_price as number | null) ?? (x.price as number);
         if (!prev || eff(candidate) < eff(prev)) priceById.set(id, candidate);
       }
@@ -214,6 +254,12 @@ export default function ImportPage() {
         <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, whiteSpace: 'nowrap' }} title="Yeni məhsul yaratmır; yalnız bazada olan məhsulların bu marketdəki qiymətini yazır">
           <input type="checkbox" checked={pricesOnly} onChange={(e) => { setPricesOnly(e.target.checked); if (e.target.checked) { setProductsOnly(false); setRows(rows.map((r) => ({ ...r, selected: r.selected && !!r.existingId }))); } }} style={{ width: 'auto' }} /> Yalnız qiymətlər
         </label>
+        <span style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, whiteSpace: 'nowrap' }} title="Endirimli qiymətlər üçün keçərlilik aralığı. Boş qoysan tarix olmadan yazılır.">
+          Endirim:
+          <input type="date" value={discountFrom} onChange={(e) => setDiscountFrom(e.target.value)} style={{ width: 130 }} title="Başlayır" />
+          –
+          <input type="date" value={discountUntil} onChange={(e) => setDiscountUntil(e.target.value)} style={{ width: 130 }} title="Bitir" />
+        </span>
         <button className="btn secondary" disabled={loading || !url} onClick={load}><Download size={14} /> {loading ? 'Yüklənir…' : 'Məhsulları çək'}</button>
         <button className="btn" disabled={!selected.length || busy || (!storeId && !productsOnly)} onClick={importSelected}>{busy ? 'Yazılır…' : `Seçilənləri import et (${selected.length})`}</button>
       </div>
@@ -266,7 +312,10 @@ export default function ImportPage() {
                     <td><input value={r.size} placeholder="1 L" style={{ width: 64 }} onChange={(e) => patch(r.key, { size: e.target.value })} disabled={!!r.existingId && !r.updateInfo} /></td>
                     <td><select value={r.appCategory} onChange={(e) => patch(r.key, { appCategory: e.target.value })} disabled={!!r.existingId && !r.updateInfo}>{[...new Set([...catNames, r.appCategory])].map((c) => <option key={c}>{c}</option>)}</select></td>
                     <td className="muted" style={{ fontFamily: 'monospace', fontSize: 12 }}>{r.barcode ?? '—'}</td>
-                    <td><input inputMode="decimal" value={r.priceText} placeholder="—" style={{ width: 64, textAlign: 'right', textDecoration: r.discountText ? 'line-through' : undefined, color: r.discountText ? '#9CA3AF' : undefined }} onChange={(e) => patch(r.key, { priceText: e.target.value })} /></td>
+                    <td>
+                      <input inputMode="decimal" value={r.priceText} placeholder="—" style={{ width: 64, textAlign: 'right', textDecoration: r.discountText ? 'line-through' : undefined, color: r.discountText ? '#9CA3AF' : undefined }} onChange={(e) => patch(r.key, { priceText: e.target.value })} />
+                      {r.dbPrice != null && <div style={{ fontSize: 10, color: '#9CA3AF', textAlign: 'right', marginTop: 2 }}>DB: {r.dbPrice.toFixed(2)} ₼{num(r.discountText ?? r.priceText) != null && num(r.discountText ?? r.priceText)! < r.dbPrice ? <span style={{ color: '#16A34A' }}> ↓</span> : num(r.priceText) != null && num(r.priceText)! > r.dbPrice ? <span style={{ color: '#E53935' }}> ↑</span> : <span> =</span>}</div>}
+                    </td>
                     <td><input inputMode="decimal" value={r.discountText} placeholder="endirim" style={{ width: 64, textAlign: 'right', color: '#16A34A', fontWeight: 600 }} onChange={(e) => patch(r.key, { discountText: e.target.value })} /></td>
                     <td style={{ whiteSpace: 'nowrap' }}>
                       {r.existingId ? (

@@ -36,7 +36,7 @@ export function PlusLock({ feature, children, minHeight = 160, fill = false }: {
           {feature}
         </Txt>
         <Txt v="caption" color={colors.gray} center style={{ marginTop: 2 }}>
-          Cheap Market Plus ilə açılır · 1.99 $ / ay
+          Cheap Market AI Plus ilə açılır · 1.99 $ / ay
         </Txt>
         <Btn title="Plus-a keç" size="md" full={false} icon="star" onPress={() => router.push('/plus')} style={{ marginTop: space.md, minWidth: 160 }} />
       </Pressable>

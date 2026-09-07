@@ -39,6 +39,103 @@ function htmlToText(html: string): string {
     .trim();
 }
 
+/**
+ * Products embedded in __NEXT_DATA__ / __NUXT_DATA__ / window.__INITIAL_STATE__ JSON blobs.
+ * These appear on Next.js / Nuxt / other SSR frameworks and contain the full product list
+ * without needing AI. We walk the JSON recursively looking for arrays that look like product lists.
+ */
+function fromEmbeddedJson(html: string, base: URL): WoltItem[] {
+  // Extract all large JSON-like script payloads
+  const blobs: string[] = [];
+  for (const m of html.matchAll(/<script[^>]*id=["'](?:__NEXT_DATA__|__NUXT_DATA__|__INITIAL_STATE__|__REDUX_STATE__|__APP_STATE__|initial-state)["'][^>]*>([\s\S]*?)<\/script>/gi)) blobs.push(m[1]);
+  // Also: window.__X__ = {...} / window.__X__ = [...] assignments
+  for (const m of html.matchAll(/window\.__[A-Z_]+__\s*=\s*(\{[\s\S]{200,}?\}|\[[\s\S]{200,}?\])\s*;/g)) blobs.push(m[1]);
+
+  const out: WoltItem[] = [];
+  const seen = new Set<string>();
+
+  const tryItem = (o: Obj) => {
+    const name = str(o.name ?? o.title ?? o.product_name ?? o.productName);
+    const price = parsePrice(o.price ?? o.sell_price ?? o.selling_price ?? o.current_price ?? o.salePrice ?? o.price_value ?? o.price_az ?? o.priceCurrent);
+    if (!name || price == null || seen.has(name.toLowerCase())) return;
+    seen.add(name.toLowerCase());
+    const old = parsePrice(o.old_price ?? o.compare_price ?? o.comparePrice ?? o.regular_price ?? o.originalPrice ?? o.price_old ?? o.crossed_price);
+    const img = str(o.image ?? o.image_url ?? o.imageUrl ?? o.thumbnail ?? o.photo ?? o.cover ?? o.main_image ?? o.picture);
+    const absImg = img ? (() => { try { return new URL(img, base).toString(); } catch { return null; } })() : null;
+    const barcode = str(o.barcode ?? o.ean ?? o.ean13 ?? o.gtin ?? o.gtin13 ?? o.upc);
+    const id = str(o.id ?? o.uuid ?? o.sku ?? o.slug ?? o.product_id ?? o.productId ?? o.guid) ?? name;
+    out.push({
+      ext_id: `${base.hostname}-${id}`,
+      name,
+      description: str(o.description ?? o.short_description),
+      price,
+      regular_price: old != null && old > price ? old : null,
+      barcode: barcode && /^\d{8,14}$/.test(barcode) ? barcode : null,
+      image_url: absImg,
+      category: str(o.category ?? o.category_name ?? o.categoryName ?? obj(o.category)?.name) ?? str(obj(arr(o.categories)[0])?.name),
+    });
+  };
+
+  const walk = (v: unknown, depth: number) => {
+    if (depth > 12) return;
+    if (Array.isArray(v)) {
+      // If this array looks like a product list (≥3 items with name+price), process it
+      const sample = v.slice(0, 3).map((x) => obj(x)).filter(Boolean) as Obj[];
+      const looksLikeProducts = sample.length >= 2 && sample.every((o) => {
+        const hasName = !!(o.name ?? o.title ?? o.product_name ?? o.productName);
+        const hasPrice = parsePrice(o.price ?? o.sell_price ?? o.selling_price ?? o.current_price ?? o.priceCurrent) != null;
+        return hasName && hasPrice;
+      });
+      if (looksLikeProducts) { v.forEach((x) => { const o = obj(x); if (o) tryItem(o); }); return; }
+      v.forEach((x) => walk(x, depth + 1));
+      return;
+    }
+    const o = obj(v);
+    if (!o) return;
+    for (const val of Object.values(o)) walk(val, depth + 1);
+  };
+
+  for (const blob of blobs) {
+    try { walk(JSON.parse(blob), 0); } catch { /* broken JSON */ }
+    if (out.length > 0) break; // first blob that yields products is enough
+  }
+  return out;
+}
+
+/**
+ * Schema.org microdata (itemprop attributes) — used by older / PHP-based shop platforms
+ * that don't emit JSON-LD.  Finds every [itemtype*="Product"] block and reads
+ * itemprop="name", "price", "image", "sku", "description".
+ */
+function fromMicrodata(html: string, base: URL): WoltItem[] {
+  const out: WoltItem[] = [];
+  // Split on itemtype containing "Product"
+  const blocks = html.split(/<[^>]+itemtype=["'][^"']*Product[^"']*["'][^>]*>/i).slice(1);
+  for (const block of blocks) {
+    // Read up to the end of this product block (next itemtype or 3000 chars)
+    const chunk = block.slice(0, 3000);
+    const iProp = (p: string) =>
+      chunk.match(new RegExp(`itemprop=["']${p}["'][^>]+content=["']([^"']+)["']`, 'i'))?.[1] ??
+      chunk.match(new RegExp(`itemprop=["']${p}["'][^>]*>([^<]{1,120})<`, 'i'))?.[1]?.trim() ??
+      null;
+    const name = iProp('name');
+    const price = parsePrice(iProp('price'));
+    if (!name || price == null) continue;
+    const img = iProp('image') ?? chunk.match(/itemprop=["']image["'][^>]+src=["']([^"']+)["']/i)?.[1] ?? null;
+    out.push({
+      ext_id: iProp('sku') ?? iProp('productID') ?? `${base.hostname}-${name}`,
+      name,
+      description: iProp('description'),
+      price,
+      regular_price: null,
+      barcode: null,
+      image_url: img ? (() => { try { return new URL(img, base).toString(); } catch { return null; } })() : null,
+      category: null,
+    });
+  }
+  return out;
+}
+
 /** Products from schema.org JSON-LD blocks. */
 function fromJsonLd(html: string, base: URL): WoltItem[] {
   const out: WoltItem[] = [];
@@ -121,48 +218,150 @@ const MAX_PAGES = 60;
 const TIME_BUDGET_MS = 45_000; // the API route allows 60 s
 
 async function fetchHtml(url: URL): Promise<string> {
-  const res = await fetch(url.toString(), { headers: { 'User-Agent': UA, Accept: 'text/html,application/xhtml+xml', 'Accept-Language': 'az,ru,en' }, redirect: 'follow' });
+  const res = await fetch(url.toString(), {
+    headers: { 'User-Agent': UA, Accept: 'text/html,application/xhtml+xml,application/json', 'Accept-Language': 'az,ru,en' },
+    redirect: 'follow',
+  });
   if (!res.ok) throw new Error(`Səhifə açılmadı: ${res.status} ${url.hostname}`);
   return res.text();
 }
 
-/** Products of one page: JSON-LD → OpenGraph → AI over the text. */
+/**
+ * If the URL returns raw JSON (a REST/GraphQL product API), parse it directly
+ * without going through HTML extraction. Handles paginated APIs that return
+ * { items: [...], data: [...], products: [...], results: [...] } or a bare array.
+ */
+function fromJsonApi(body: string, base: URL): WoltItem[] {
+  const trimmed = body.trimStart();
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return [];
+  let root: unknown;
+  try { root = JSON.parse(body); } catch { return []; }
+  // Unwrap common API envelope shapes to find an array of products
+  const candidates: unknown[] = [];
+  if (Array.isArray(root)) {
+    candidates.push(root);
+  } else {
+    const o = root as Record<string, unknown>;
+    for (const key of ['items', 'data', 'products', 'results', 'goods', 'catalog', 'list', 'entities', 'rows', 'content']) {
+      if (Array.isArray(o[key])) { candidates.push(o[key]); break; }
+    }
+    // Also try one level deeper (e.g. { data: { products: [...] } })
+    if (!candidates.length) {
+      for (const v of Object.values(o)) {
+        if (v && typeof v === 'object' && !Array.isArray(v)) {
+          const inner = v as Record<string, unknown>;
+          for (const key of ['items', 'data', 'products', 'results', 'goods']) {
+            if (Array.isArray(inner[key])) { candidates.push(inner[key]); break; }
+          }
+          if (candidates.length) break;
+        }
+      }
+    }
+  }
+  if (!candidates.length) return [];
+  const list = candidates[0] as unknown[];
+  if (!list.length || typeof list[0] !== 'object') return [];
+  // Reuse the embedded-JSON item extractor by wrapping in an object
+  const fakeHtml = `<script id="__NEXT_DATA__">${JSON.stringify({ pageProps: { products: list } })}</script>`;
+  return fromEmbeddedJson(fakeHtml, base);
+}
+
+/** Products of one page: json-api → embedded-JSON → JSON-LD → microdata → OpenGraph → AI over the text. */
 async function parsePage(html: string, base: URL, allowAI: boolean): Promise<{ items: WoltItem[]; source: string }> {
-  let items = fromJsonLd(html, base);
-  let source = 'json-ld';
-  if (items.length < 3) {
-    const og = fromOpenGraph(html, base);
-    if (og.length) { items = [...items, ...og]; source = items.length > og.length ? 'json-ld+og' : 'og'; }
-  }
-  if (items.length < 3 && allowAI) {
+  // 0. Raw JSON API response (user pasted a direct REST endpoint URL)
+  const api = fromJsonApi(html, base);
+  if (api.length >= 1) return { items: api, source: 'json-api' };
+
+  // 1. Embedded SSR JSON blobs (__NEXT_DATA__, window.__INITIAL_STATE__, etc.)
+  const embedded = fromEmbeddedJson(html, base);
+  if (embedded.length >= 3) return { items: embedded, source: 'embedded-json' };
+
+  // 2. schema.org JSON-LD
+  const jld = fromJsonLd(html, base);
+  if (jld.length >= 3) return { items: jld, source: 'json-ld' };
+
+  // 3. schema.org microdata (itemprop) — common on older PHP / OpenCart / Magento shops
+  const micro = fromMicrodata(html, base);
+  if (micro.length >= 3) return { items: micro, source: 'microdata' };
+
+  // 4. OpenGraph single-product tags
+  const og = fromOpenGraph(html, base);
+  if (og.length) return { items: [...jld, ...micro, ...og], source: 'og' };
+
+  // 5. AI over the visible text (first page only)
+  if (allowAI) {
     const text = htmlToText(html);
-    if (text.length < 200) throw new Error('Səhifə boş gəldi: məhsullar JavaScript ilə yüklənir, serverdən oxumaq mümkün deyil. Saytın kateqoriya səhifəsini və ya JSON API linkini sına.');
+    if (text.length < 200) throw new Error(
+      'Səhifə boş gəldi — məhsullar JavaScript ilə yüklənir, server HTML-ə vermır.\n' +
+      'Həll: brauzerdə F12 → Network → Fetch/XHR → saytı yenilə → "products", "catalog", "items" adlı sorğunun URL-ini kopyala → admin import-a yapışdır.'
+    );
     const ai = await fromAI(text, base);
-    if (ai.length) { items = ai; source = 'ai'; }
+    if (ai.length) return { items: ai, source: 'ai' };
   }
-  return { items, source };
+  return { items: [...jld, ...micro, ...og, ...embedded], source: 'partial' };
 }
 
 /**
- * Next page of a paginated listing: <link rel="next">, an <a rel="next">, a link whose page number is
- * current+1 (?page=N, &p=N, /page/N), or — when the page carries a page parameter already — the same URL with it incremented.
+ * Next page of a paginated listing. Strategies tried in order:
+ *  1. <link rel="next"> or <a rel="next"> in the HTML.
+ *  2. An <a href> whose URL contains page=N+1 / p=N+1 / /page/N+1.
+ *  3. The current URL already has a page/p/pg param → increment it.
+ *  4. The current URL pathname ends in /page/N → increment it.
+ *  5. Offset-based pagination: ?offset=N or ?start=N or ?from=N or ?skip=N in the HTML or current URL.
+ *  6. Probe fallback: page 1 with items but no link found → guess ?page=2.
  */
-function nextPageUrl(html: string, current: URL, pageNo: number): URL | null {
+function nextPageUrl(html: string, current: URL, pageNo: number, prevCount = 0): URL | null {
   const abs = (h: string) => { try { const u = new URL(h.replace(/&amp;/g, '&'), current); return u.hostname === current.hostname ? u : null; } catch { return null; } };
+
+  // 1. rel=next
   const rel = html.match(/<(?:link|a)[^>]+rel=["']next["'][^>]+href=["']([^"']+)["']/i)?.[1] ?? html.match(/<(?:link|a)[^>]+href=["']([^"']+)["'][^>]+rel=["']next["']/i)?.[1];
   if (rel) { const u = abs(rel); if (u && u.toString() !== current.toString()) return u; }
+
+  // 2. href with page number pattern
   const want = pageNo + 1;
   for (const m of html.matchAll(/href=["']([^"']+)["']/gi)) {
     const h = m[1].replace(/&amp;/g, '&');
-    if (new RegExp(`(?:[?&](?:page|p|pg|pagina)=${want}(?:&|$)|/page/${want}(?:/|$|\\?))`).test(h)) { const u = abs(h); if (u) return u; }
+    if (new RegExp(`(?:[?&](?:page|p|pg|pagina|sayfa|stranka|seite)=${want}(?:&|$)|/page/${want}(?:/|$|\\?))`).test(h)) { const u = abs(h); if (u) return u; }
   }
-  for (const key of ['page', 'p', 'pg']) {
+
+  // 3. current URL already has a page param → increment
+  for (const key of ['page', 'p', 'pg', 'sayfa', 'stranka']) {
     if (current.searchParams.has(key) && /^\d+$/.test(current.searchParams.get(key) ?? '')) {
       const u = new URL(current.toString()); u.searchParams.set(key, String(want)); return u;
     }
   }
-  const m = current.pathname.match(/^(.*\/page\/)(\d+)(\/?)$/);
-  if (m) { const u = new URL(current.toString()); u.pathname = `${m[1]}${want}${m[3]}`; return u; }
+
+  // 4. pathname /page/N
+  const pm = current.pathname.match(/^(.*\/page\/)(\d+)(\/?)$/);
+  if (pm) { const u = new URL(current.toString()); u.pathname = `${pm[1]}${want}${pm[3]}`; return u; }
+
+  // 5. Offset-based: look for ?offset=N, ?start=N, ?from=N, ?skip=N either in current URL or in hrefs
+  const offsetKeys = ['offset', 'start', 'from', 'skip'];
+  for (const key of offsetKeys) {
+    const cur = current.searchParams.get(key);
+    if (cur && /^\d+$/.test(cur)) {
+      const u = new URL(current.toString());
+      u.searchParams.set(key, String(Number(cur) + prevCount));
+      return u;
+    }
+  }
+  // Look for an offset href in the HTML where offset = prevCount (i.e. the next page link)
+  if (prevCount > 0) {
+    for (const m of html.matchAll(/href=["']([^"']+)["']/gi)) {
+      const h = m[1].replace(/&amp;/g, '&');
+      for (const key of offsetKeys) {
+        if (new RegExp(`[?&]${key}=${prevCount}(?:&|$)`).test(h)) { const u = abs(h); if (u) return u; }
+      }
+    }
+  }
+
+  // 6. Probe fallback: if this was page 1 and we got items, guess there might be a page 2
+  if (pageNo === 1 && prevCount > 0) {
+    const u = new URL(current.toString());
+    u.searchParams.set('page', '2');
+    return u;
+  }
+
   return null;
 }
 
@@ -200,7 +399,7 @@ export async function fetchGenericPage(input: string): Promise<WoltResult> {
     }
     if (pages > 1 && added === 0) break; // a page with nothing new = end of the listing
     if (!items.length) break;
-    url = nextPageUrl(html, url, pageNo);
+    url = nextPageUrl(html, url, pageNo, items.length);
     pageNo += 1;
   }
   if (!seen.size) throw new Error(`${first.hostname}: məhsul tapılmadı`);

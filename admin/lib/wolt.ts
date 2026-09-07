@@ -292,19 +292,34 @@ const slug = (s: string) =>
 
 export interface MatchableProduct { id: string; barcode: string | null; brand: string; name: string; size: string }
 
+/** Word-order-independent slug: sort the words so "Banan Azərbaycan" == "Azərbaycan Banan". */
+const sortedSlug = (s: string) => slug(s).split('-').filter(Boolean).sort().join('-');
+
 /** Existing-product lookup shared by the import page and the sync job: barcode first, then normalised name. */
 export function buildMatcher(list: MatchableProduct[]): (it: { name: string; barcode: string | null }) => string | null {
   const byBarcode = new Map(list.filter((p) => p.barcode).map((p) => [p.barcode as string, p.id]));
   const byName = new Map<string, string>();
+  const bySorted = new Map<string, string>();
   for (const p of list) {
-    byName.set(slug(`${p.brand} ${p.name} ${p.size}`), p.id);
-    byName.set(slug(`${p.brand} ${p.name}`), p.id);
+    const full = `${p.brand} ${p.name} ${p.size}`;
+    const short = `${p.brand} ${p.name}`;
+    byName.set(slug(full), p.id);
+    byName.set(slug(short), p.id);
+    bySorted.set(sortedSlug(full), p.id);
+    bySorted.set(sortedSlug(short), p.id);
     if (p.id.startsWith('wolt-')) byName.set(p.id.slice(5), p.id);
   }
   return (it) => {
     if (it.barcode && byBarcode.has(it.barcode)) return byBarcode.get(it.barcode) ?? null;
     const sp = splitName(it.name);
-    return byName.get(slug(it.name)) ?? byName.get(slug(`${sp.brand} ${sp.name} ${sp.size}`)) ?? byName.get(slug(`${sp.brand} ${sp.name}`)) ?? null;
+    return (
+      byName.get(slug(it.name)) ??
+      byName.get(slug(`${sp.brand} ${sp.name} ${sp.size}`)) ??
+      byName.get(slug(`${sp.brand} ${sp.name}`)) ??
+      bySorted.get(sortedSlug(it.name)) ??
+      bySorted.get(sortedSlug(`${sp.brand} ${sp.name} ${sp.size}`)) ??
+      null
+    );
   };
 }
 

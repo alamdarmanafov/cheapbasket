@@ -32,7 +32,7 @@ export function Shell({ children, title }: { children: React.ReactNode; title: s
         <div className="brand">
           <img src="/icon.png" alt="" width={32} height={32} style={{ borderRadius: 9 }} />
           <span>
-            Cheap Market
+            Cheap Market AI
             <small>Admin</small>
           </span>
         </div>
