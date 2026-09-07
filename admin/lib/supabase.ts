@@ -3,8 +3,8 @@
 /** Client-side data access: every call goes through /api/db (admin cookie + service role on the server). */
 async function call<T>(body: unknown): Promise<T> {
   const res = await fetch('/api/db', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  const j = await res.json();
-  if (!res.ok) throw new Error(j.error ?? 'Xəta');
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof j.error === 'string' ? j.error : JSON.stringify(j.error ?? j) || `HTTP ${res.status}`);
   return j as T;
 }
 

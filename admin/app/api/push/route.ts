@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb, requireAdmin } from '@/lib/server';
+import { adminDb, errText, requireAdmin } from '@/lib/server';
 
 /** Sends a push to every registered device via Expo Push Service. */
 export async function POST(req: Request) {
@@ -8,7 +8,7 @@ export async function POST(req: Request) {
   if (!body?.trim()) return NextResponse.json({ error: 'Mətn boşdur' }, { status: 400 });
 
   const { data: tokens, error } = await adminDb().from('push_tokens').select('token');
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ error: errText(error) }, { status: 500 });
 
   let sent = 0;
   let errors = 0;
