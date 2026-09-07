@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { fetchWoltVenue } from '@/lib/wolt';
+import { fetchAnySource } from '@/lib/wolt';
 import { errText, requireAdmin } from '@/lib/server';
 
 export const maxDuration = 60;
@@ -10,7 +10,7 @@ export async function POST(req: Request) {
   try {
     const { url } = (await req.json()) as { url?: string };
     if (!url) return NextResponse.json({ error: 'Link boşdur' }, { status: 400 });
-    return NextResponse.json(await fetchWoltVenue(url));
+    return NextResponse.json(await fetchAnySource(url));
   } catch (e) {
     return NextResponse.json({ error: errText(e) }, { status: 500 });
   }

@@ -8,7 +8,7 @@ const NAV = [
   ['/stores', 'Marketlər', Store],
   ['/products', 'Məhsullar və qiymətlər', Package],
   ['/categories', 'Kateqoriyalar', Tags],
-  ['/import', 'Wolt-dan import', Download],
+  ['/import', 'Saytdan import', Download],
   ['/sync', 'Avtomatik yeniləmə', RefreshCw],
   ['/branches', 'Filiallar', MapPin],
   ['/banners', 'Bannerlər', ImageIcon],

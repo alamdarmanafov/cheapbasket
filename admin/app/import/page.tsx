@@ -194,10 +194,10 @@ export default function ImportPage() {
   };
 
   return (
-    <Shell title="Wolt-dan import">
+    <Shell title="Saytdan import">
       {msg && <div className={`alert ${msg.ok ? 'ok' : 'err'}`}>{msg.text}</div>}
       <div className="toolbar">
-        <input placeholder="https://wolt.com/az/aze/baku/venue/…" value={url} onChange={(e) => setUrl(e.target.value)} />
+        <input placeholder="Wolt linki və ya istənilən market saytının məhsul/kateqoriya səhifəsi: https://…" value={url} onChange={(e) => setUrl(e.target.value)} />
         <select value={storeId} onChange={(e) => setStoreId(e.target.value)} title="Qiymətlər hansı marketə yazılsın">
           {stores.length === 0 && <option value="">Market yoxdur</option>}
           {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -209,7 +209,7 @@ export default function ImportPage() {
         <button className="btn" disabled={!selected.length || busy || !storeId} onClick={importSelected}>{busy ? 'Yazılır…' : `Seçilənləri import et (${selected.length})`}</button>
       </div>
       <p className="note">
-        Wolt venue linkini yapışdır, məhsullar adi və endirimli qiymətlə çəkilir. Soldakı siyahıdan hansı marketə yazılacağını seç (məs. Wolt Market özü ayrıca market kimi "Marketlər" səhifəsində əlavə oluna bilər, Araz/Bravo filialının Wolt səhifəsi isə həmin markete yazılır).
+        Wolt linki və ya istənilən market saytının səhifəsini yapışdır. Wolt API ilə, digər saytlar səhifədəki strukturlu məlumatla (JSON-LD/OpenGraph) oxunur; o yoxdursa səhifə mətni AI-a verilir (səhifə başına ≈ 0.01 $, OPENAI_API_KEY lazımdır). Yalnız JavaScript ilə yüklənən səhifələr oxunmur. Soldakı siyahıdan hansı marketə yazılacağını seç (məs. Wolt Market özü ayrıca market kimi "Marketlər" səhifəsində əlavə oluna bilər, Araz/Bravo filialının Wolt səhifəsi isə həmin markete yazılır).
         Yazmazdan əvvəl brend, ad, ölçü, kateqoriya və qiymətləri cədvəldə düzəldə bilərsən. Bazada olan məhsul (barkod və ya eyni ad üzrə) təkrar yaradılmır, yalnız qiyməti yenilənir.
         <b> "Yalnız qiymətlər"</b> rejimi digər marketlərin Wolt səhifəsi üçündür: yeni məhsul yaratmır, yalnız artıq bazada olan məhsulların seçdiyin marketdəki qiymətini yazır. Wolt qiymətləri mağaza rəfindəki qiymətdən fərqlənə bilər.
       </p>

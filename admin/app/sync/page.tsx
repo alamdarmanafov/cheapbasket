@@ -149,7 +149,7 @@ export default function SyncPage() {
         )}
         <div className="toolbar">
           <select value={storeId} onChange={(e) => setStoreId(e.target.value)}>{stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
-          <input placeholder="və ya Wolt linkini yapışdır: https://wolt.com/az/aze/baku/venue/…" value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
+          <input placeholder="və ya linki yapışdır: Wolt venue / istənilən market saytının kateqoriya səhifəsi" value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
           <button className="btn secondary" disabled={busy === 'add' || !url.trim()} onClick={add}><Plus size={14} /> Mənbə əlavə et</button>
           <button className="btn" disabled={!!busy || !sources.length} onClick={() => run()}><Play size={14} /> {busy === 'all' ? 'Yenilənir…' : 'Hamısını yenilə'}</button>
         </div>
