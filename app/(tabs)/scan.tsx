@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { API_URL } from '@/lib/plusStore';
 import { supabase } from '@/lib/supabase';
+import { track } from '@/lib/track';
 import { useAuth } from '@/store/auth';
 import { PlusTag } from '@/components/PlusLock';
 import { colors, fonts, radius, shadow, space } from '@/theme';
@@ -49,6 +50,7 @@ export default function Scan() {
   const resolve = (p: Product | undefined) => {
     if (lockRef.current) return;
     lockRef.current = true;
+    track('scan', { product_id: p?.id ?? null, found: !!p, store_id: hereId });
     setPhase('searching');
     setTimeout(() => {
       if (p) {
@@ -98,6 +100,7 @@ export default function Scan() {
       if (!res.ok) throw new Error(j.error ?? `Server xətası (${res.status})`);
       if (j.remaining != null) setHint(j.remaining > 0 ? `Bu gün daha ${j.remaining} pulsuz foto qalır.` : 'Bu günkü pulsuz foto istifadə olundu. Limitsiz tanıma Plus-dadır.');
       const top = j.candidates?.[0] ? catalog.products.find((p) => p.id === j.candidates?.[0].id) : undefined;
+      track('photo', { product_id: top?.id ?? null, found: !!top, query: j.identified?.query ?? null });
       if (top) {
         setProduct(top);
         setPhase('found');

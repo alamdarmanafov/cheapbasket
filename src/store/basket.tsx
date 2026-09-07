@@ -1,3 +1,4 @@
+import { track } from '@/lib/track';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useAuth } from './auth';
 import { Product, StoreId } from '@/data/products';
@@ -35,6 +36,7 @@ export function BasketProvider({ children }: { children: React.ReactNode }) {
   }, [auth.profile]);
 
   const add = useCallback((p: Product, qty = 1) => {
+    track('basket_add', { product_id: p.id });
     setLines((ls) => {
       const i = ls.findIndex((l) => l.product.id === p.id);
       if (i >= 0) {

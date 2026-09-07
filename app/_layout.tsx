@@ -10,6 +10,7 @@ import { PhoneFrame } from '@/components/PhoneFrame';
 import { colors } from '@/theme';
 import { hasSupabase } from '@/lib/supabase';
 import { useNotificationDeepLink } from '@/lib/notifications';
+import { track } from '@/lib/track';
 import { View, Text } from 'react-native';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
@@ -20,6 +21,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (loaded || error) SplashScreen.hideAsync().catch(() => undefined);
+    if (loaded) track('app_open');
   }, [loaded, error]);
 
   if (!loaded && !error) return null;
