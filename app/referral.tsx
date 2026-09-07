@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { notify } from '@/lib/confirm';
 import { useRefresh } from '@/lib/useRefresh';
 import { useAuth } from '@/store/auth';
+import { SITE_URL } from '@/lib/links';
 
 interface Ledger { delta: number; reason: string; created_at: string }
 interface PointsSettings { referral: number; trip: number; plus_cost: number; plus_days: number }
@@ -46,7 +47,7 @@ export default function Referral() {
 
   const share = async () => {
     if (!code) return;
-    const message = `Cheap Basket ilə səbətinin ən ucuz olduğu marketi tap 🧺 Dəvət kodum: ${code} — qeydiyyatdan sonra "Dəvət kodu" bölməsinə yaz, ikimiz də ${cfg.referral} xal qazanaq. https://cheapbasket.vercel.app`;
+    const message = `Cheap Basket ilə səbətinin ən ucuz olduğu marketi tap 🧺 Dəvət kodum: ${code} — qeydiyyatdan sonra "Dəvət kodu" bölməsinə yaz, ikimiz də ${cfg.referral} xal qazanaq. ${SITE_URL}`;
     try {
       if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
         await navigator.clipboard.writeText(message);
