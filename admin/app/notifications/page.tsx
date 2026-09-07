@@ -1,12 +1,31 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Send, Sparkles } from 'lucide-react';
+import { BookOpen, Send, Sparkles, Star, Trash2 } from 'lucide-react';
 import { Shell } from '@/components/Shell';
 import { SEGMENTS } from '@/lib/segments.shared';
 import { db } from '@/lib/supabase';
 
 interface Settings { enabled: boolean; free_days: number[]; hour_baku: number; max_items: number; lookback_free_days: number; use_ai?: boolean; plus_only?: boolean }
 interface Info { settings: Settings; last: Array<{ sent_at: string; title: string; body: string }>; drops: Array<{ brand: string; name: string; size: string; store_name: string; old_price: number; new_price: number; drop_percent: number; changed_at: string }>; ai: 'openai' | 'claude' | 'template'; cron: boolean }
+
+interface NotifTemplate { id: string; title: string; body: string; builtin?: boolean }
+
+const BUILTIN_TEMPLATES: NotifTemplate[] = [
+  { id: 'bt1', builtin: true, title: '🔥 Endirim: [MƏHSUL]', body: '[MARKET]-da [MƏHSUL] [FAIZ]% endirimlə! Tez ol, təklif məhduddur 🛒' },
+  { id: 'bt2', builtin: true, title: '🆕 Yeni filial: [MARKET]', body: '[MARKET] [ÜNVAN]-da açıldı! İndi filiallarımıza bax 📍' },
+  { id: 'bt3', builtin: true, title: '💰 Ən sərfəli market bu həftə', body: 'Bu həftə [MARKET] ən aşağı qiymətləri təklif edir. Qiymət müqayisəsinə bax 👇' },
+  { id: 'bt4', builtin: true, title: '📦 Yeni məhsullar: [KATEQORİYA]', body: '[KATEQORİYA] bölməsinə [N] yeni məhsul əlavə olundu. Hamısına bax!' },
+  { id: 'bt5', builtin: true, title: '⏰ Son gün: [MARKET] endirimi', body: '[MARKET]-da endirim sabah bitir! Qaçırma, indi al 🏃' },
+];
+
+const TEMPLATES_KEY = 'notif_custom_templates';
+
+function loadCustomTemplates(): NotifTemplate[] {
+  try { return JSON.parse(localStorage.getItem(TEMPLATES_KEY) ?? '[]'); } catch { return []; }
+}
+function saveCustomTemplates(tpls: NotifTemplate[]) {
+  try { localStorage.setItem(TEMPLATES_KEY, JSON.stringify(tpls)); } catch { /* ignore */ }
+}
 
 export default function Notifications() {
   const [count, setCount] = useState<number | null>(null);
@@ -26,6 +45,14 @@ export default function Notifications() {
   const [info, setInfo] = useState<Info | null>(null);
   const [s, setS] = useState<Settings | null>(null);
   const [preview, setPreview] = useState<Array<{ user_id: string; title: string; body: string }> | null>(null);
+
+  // Templates
+  const [customTemplates, setCustomTemplates] = useState<NotifTemplate[]>([]);
+  const [showTemplates, setShowTemplates] = useState(false);
+
+  useEffect(() => {
+    setCustomTemplates(loadCustomTemplates());
+  }, []);
 
   const load = async () => {
     const r = await fetch('/api/digest').then((x) => x.json());
@@ -64,6 +91,28 @@ export default function Notifications() {
     }
   };
   const toggleDay = (d: number) => s && setS({ ...s, free_days: s.free_days.includes(d) ? s.free_days.filter((x) => x !== d) : [...s.free_days, d].sort((a, b) => a - b) });
+
+  const applyTemplate = (tpl: NotifTemplate) => {
+    setTitle(tpl.title);
+    setBody(tpl.body);
+  };
+
+  const saveAsTemplate = () => {
+    if (!title.trim() || !body.trim()) return;
+    const newTpl: NotifTemplate = { id: `custom-${Date.now()}`, title, body };
+    const updated = [...customTemplates, newTpl];
+    setCustomTemplates(updated);
+    saveCustomTemplates(updated);
+    setResult({ ok: true, text: 'Şablon yadda saxlanıldı.' });
+  };
+
+  const deleteTemplate = (id: string) => {
+    const updated = customTemplates.filter((t) => t.id !== id);
+    setCustomTemplates(updated);
+    saveCustomTemplates(updated);
+  };
+
+  const allTemplates = [...BUILTIN_TEMPLATES, ...customTemplates];
 
   return (
     <Shell title="Bildirişlər">
@@ -131,21 +180,65 @@ export default function Notifications() {
           )}
         </div>
 
-        <div className="card">
-          <h2>Əl ilə göndəriş</h2>
-          <p className="muted" style={{ marginTop: 0 }}>Qeydiyyatlı cihaz: <b>{count ?? '…'}</b></p>
-          <label>Kimə
-            <select value={segment} onChange={(e) => setSegment(e.target.value)}>
-              {SEGMENTS.map((sg) => <option key={sg.id} value={sg.id}>{sg.label}</option>)}
-            </select>
-          </label>
-          {segment === 'city' && <label style={{ marginTop: 10 }}>Şəhər<input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Bakı" /></label>}
-          <p className="note">Seçilən seqment: <b>{segCount ? `${segCount.users} istifadəçi · ${segCount.devices} cihaz` : '…'}</b></p>
-          <label style={{ marginTop: 10 }}>Başlıq<input value={title} onChange={(e) => setTitle(e.target.value)} /></label>
-          <label style={{ marginTop: 10 }}>Mətn<textarea rows={3} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Bu həftə sonu Araz-da süd məhsulları 15% endirimlə 🎉" /></label>
-          <label style={{ marginTop: 10 }}>Açılacaq səhifə (istəyə görə)<input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="/deals, /plus, /product/ID" /></label>
-          <div className="actions">
-            <button className="btn" disabled={!body.trim() || busy || !segCount?.devices} onClick={() => { if (confirm(`${segCount?.users ?? 0} istifadəçiyə (${segCount?.devices ?? 0} cihaz) göndərilsin?`)) send(); }}><Send size={14} /> {busy ? 'Göndərilir…' : 'Göndər'}</button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className="card">
+            <h2>Əl ilə göndəriş</h2>
+            <p className="muted" style={{ marginTop: 0 }}>Qeydiyyatlı cihaz: <b>{count ?? '…'}</b></p>
+            <label>Kimə
+              <select value={segment} onChange={(e) => setSegment(e.target.value)}>
+                {SEGMENTS.map((sg) => <option key={sg.id} value={sg.id}>{sg.label}</option>)}
+              </select>
+            </label>
+            {segment === 'city' && <label style={{ marginTop: 10 }}>Şəhər<input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Bakı" /></label>}
+            <p className="note">Seçilən seqment: <b>{segCount ? `${segCount.users} istifadəçi · ${segCount.devices} cihaz` : '…'}</b></p>
+            <label style={{ marginTop: 10 }}>Başlıq<input value={title} onChange={(e) => setTitle(e.target.value)} /></label>
+            <label style={{ marginTop: 10 }}>Mətn<textarea rows={3} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Bu həftə sonu Araz-da süd məhsulları 15% endirimlə 🎉" /></label>
+            <label style={{ marginTop: 10 }}>Açılacaq səhifə (istəyə görə)<input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="/deals, /plus, /product/ID" /></label>
+            <div className="actions" style={{ justifyContent: 'flex-start', flexWrap: 'wrap' }}>
+              <button className="btn" disabled={!body.trim() || busy || !segCount?.devices} onClick={() => { if (confirm(`${segCount?.users ?? 0} istifadəçiyə (${segCount?.devices ?? 0} cihaz) göndərilsin?`)) send(); }}><Send size={14} /> {busy ? 'Göndərilir…' : 'Göndər'}</button>
+              {(title.trim() || body.trim()) && (
+                <button className="btn secondary" onClick={saveAsTemplate}><Star size={14} /> Şablon kimi saxla</button>
+              )}
+            </div>
+          </div>
+
+          {/* Notification Templates */}
+          <div className="card">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h2 style={{ margin: 0 }}><BookOpen size={18} style={{ verticalAlign: -3 }} /> Şablonlar</h2>
+              <button className="btn ghost" onClick={() => setShowTemplates(!showTemplates)}>{showTemplates ? 'Gizlət' : `Göstər (${allTemplates.length})`}</button>
+            </div>
+            {showTemplates && (
+              <div style={{ marginTop: 12 }}>
+                <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>Şablona klik et — başlıq və mətn avtomatik doldurulacaq. <code>[MƏHSUL]</code>, <code>[MARKET]</code> kimi yer tutucuları özün dəyişdir.</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {BUILTIN_TEMPLATES.map((tpl) => (
+                    <button key={tpl.id} onClick={() => applyTemplate(tpl)} style={{ textAlign: 'left', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 10, padding: '10px 14px', cursor: 'pointer', transition: 'background 0.15s' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = '#EEF2FF')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = '#F9FAFB')}>
+                      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{tpl.title}</div>
+                      <div style={{ fontSize: 12, color: '#6B7280' }}>{tpl.body}</div>
+                    </button>
+                  ))}
+                  {customTemplates.length > 0 && (
+                    <>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#6B7280', marginTop: 4 }}>Xüsusi şablonlar</div>
+                      {customTemplates.map((tpl) => (
+                        <div key={tpl.id} style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+                          <button onClick={() => applyTemplate(tpl)} style={{ flex: 1, textAlign: 'left', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 10, padding: '10px 14px', cursor: 'pointer' }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = '#FFEDD5')}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = '#FFF7ED')}>
+                            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{tpl.title}</div>
+                            <div style={{ fontSize: 12, color: '#6B7280' }}>{tpl.body}</div>
+                          </button>
+                          <button className="btn ghost" style={{ padding: '0 10px', color: '#DC2626' }} onClick={() => { if (confirm('Şablon silinsin?')) deleteTemplate(tpl.id); }} title="Şablonu sil"><Trash2 size={14} /></button>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

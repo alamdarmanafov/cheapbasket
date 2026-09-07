@@ -1,12 +1,15 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { MapPin, Play, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { AlertTriangle, BarChart2, MapPin, Play, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { Shell } from '@/components/Shell';
 import { Store, db, slugify } from '@/lib/supabase';
 
 interface Result { ok: boolean; venue?: string; found: number; matched: number; updated: number; unchanged: number; photos?: number; error?: string; at: string }
 interface Source { id: string; store_id: string; url: string; name: string | null; enabled: boolean; last_run_at: string | null; last_result: Result | null }
 interface Alerts { enabled: boolean; plus_only: boolean; min_percent: number }
+interface PriceSnap { product_id: string; store_id: string; price: number | null; discount_price: number | null }
+interface Anomaly { product_id: string; store_id: string; storeName: string; oldPrice: number; newPrice: number; changePct: number; flagged: boolean }
+interface TrendRow { store_id: string; storeName: string; storeColor: string; avgPrice: number; discountCount: number; totalCount: number; lastSync: string | null }
 
 export default function SyncPage() {
   const [stores, setStores] = useState<Store[]>([]);
@@ -17,12 +20,20 @@ export default function SyncPage() {
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  // Wolt venue search ("Araz" → every Araz on Wolt)
   const [q, setQ] = useState('');
   const [found, setFound] = useState<Array<{ slug: string; name: string; address: string | null; lat: number | null; lng: number | null; url: string; online?: boolean; pick: boolean }> | null>(null);
   const [searching, setSearching] = useState(false);
   const [alsoBranches, setAlsoBranches] = useState(true);
   const [autoProgress, setAutoProgress] = useState<Array<{ storeId: string; name: string; status: 'pending' | 'loading' | 'done' | 'error'; count?: number; error?: string }>>([]);
+
+  // Price anomaly detection
+  const priceSnapshot = useRef<PriceSnap[]>([]);
+  const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
+  const [showAnalysis, setShowAnalysis] = useState(false);
+
+  // Market trends
+  const [trends, setTrends] = useState<TrendRow[]>([]);
+  const [trendsLoading, setTrendsLoading] = useState(false);
 
   const search = async () => {
     if (q.trim().length < 2) return;
@@ -79,6 +90,7 @@ export default function SyncPage() {
     if (!res.ok) throw new Error(typeof j.error === 'string' ? j.error : `HTTP ${res.status}`);
     return j;
   };
+
   const load = async () => {
     try {
       const [s, res] = await Promise.all([db.select<Store>('stores', { order: 'name' }), fetch('/api/sync')]);
@@ -102,23 +114,64 @@ export default function SyncPage() {
     setBusy('add');
     try { await api({ op: 'add', store_id: storeId, url }); setUrl(''); setMsg({ ok: true, text: 'Mənbə əlavə olundu. "İndi yenilə" ilə yoxla.' }); load(); } catch (e) { setMsg({ ok: false, text: (e as Error).message }); } finally { setBusy(null); }
   };
+
+  const captureSnapshot = async () => {
+    try {
+      const snap = await db.select<PriceSnap>('prices', { columns: 'product_id,store_id,price,discount_price' });
+      priceSnapshot.current = snap;
+    } catch { /* ignore */ }
+  };
+
+  const detectAnomalies = async (storeMap: Map<string, string>) => {
+    try {
+      const after = await db.select<PriceSnap>('prices', { columns: 'product_id,store_id,price,discount_price' });
+      const beforeMap = new Map(priceSnapshot.current.map((p) => [`${p.product_id}:${p.store_id}`, p]));
+      const found: Anomaly[] = [];
+      for (const p of after) {
+        const key = `${p.product_id}:${p.store_id}`;
+        const before = beforeMap.get(key);
+        if (!before) continue;
+        const oldEff = before.discount_price != null && before.discount_price < (before.price ?? Infinity) ? before.discount_price : before.price;
+        const newEff = p.discount_price != null && p.discount_price < (p.price ?? Infinity) ? p.discount_price : p.price;
+        if (oldEff == null || newEff == null || oldEff === 0) continue;
+        const changePct = ((newEff - oldEff) / oldEff) * 100;
+        if (changePct > 50 || changePct < -60) {
+          found.push({
+            product_id: p.product_id,
+            store_id: p.store_id,
+            storeName: storeMap.get(p.store_id) ?? p.store_id,
+            oldPrice: oldEff,
+            newPrice: newEff,
+            changePct,
+            flagged: false,
+          });
+        }
+      }
+      setAnomalies(found);
+      if (found.length > 0) setShowAnalysis(true);
+    } catch { /* ignore */ }
+  };
+
   const run = async (id?: string) => {
     setBusy(id ?? 'all');
     setMsg(null);
+    await captureSnapshot();
     try {
       const r = (await api({ op: 'run', id })) as { results: Array<Result & { store_id: string }>; alerts: { users: number; sent: number } | null };
       const upd = r.results.reduce((a, x) => a + x.updated, 0);
       const bad = r.results.filter((x) => !x.ok);
       setMsg({ ok: bad.length === 0, text: `${r.results.length} mənbə yoxlanıldı · ${upd} qiymət dəyişdi${r.alerts ? ` · ${r.alerts.users} istifadəçiyə qiymət düşüşü bildirişi (${r.alerts.sent} cihaz)` : ''}${bad.length ? ` · xəta: ${bad.map((b) => b.error).join('; ')}` : ''}` });
+      const storeMap = new Map(stores.map((s) => [s.id, s.name]));
+      await detectAnomalies(storeMap);
       load();
     } catch (e) { setMsg({ ok: false, text: (e as Error).message }); } finally { setBusy(null); }
   };
+
   const remove = async (s: Source) => { if (!confirm('Mənbə silinsin? (məhsullar və qiymətlər qalır)')) return; await api({ op: 'delete', id: s.id }).catch((e: Error) => setMsg({ ok: false, text: e.message })); load(); };
   const toggle = async (s: Source) => { await api({ op: 'toggle', id: s.id, enabled: !s.enabled }).catch((e: Error) => setMsg({ ok: false, text: e.message })); load(); };
   const saveAlerts = async () => { if (!alerts) return; await api({ op: 'alerts', value: alerts }).then(() => setMsg({ ok: true, text: 'Bildiriş ayarları saxlanıldı' })).catch((e: Error) => setMsg({ ok: false, text: e.message })); };
   const store = (id: string) => stores.find((s) => s.id === id);
 
-  /** Auto-find and add one Wolt source for every store that has no source yet. */
   const autoSetup = async () => {
     const unconfigured = stores.filter((s) => !sources.some((src) => src.store_id === s.id));
     if (!unconfigured.length) { setMsg({ ok: true, text: 'Bütün marketlər üçün artıq mənbə var.' }); return; }
@@ -149,6 +202,43 @@ export default function SyncPage() {
     setBusy(null);
   };
 
+  const loadTrends = async () => {
+    setTrendsLoading(true);
+    try {
+      const [prices, storeList] = await Promise.all([
+        db.select<{ store_id: string; price: number | null; discount_price: number | null }>('prices', { columns: 'store_id,price,discount_price' }),
+        db.select<Store>('stores', { columns: 'id,name,color' }),
+      ]);
+      const storeMap = new Map(storeList.map((s) => [s.id, s]));
+      const grouped = new Map<string, { prices: number[]; discounts: number }>();
+      for (const p of prices) {
+        if (!grouped.has(p.store_id)) grouped.set(p.store_id, { prices: [], discounts: 0 });
+        const g = grouped.get(p.store_id)!;
+        const eff = p.discount_price != null && p.discount_price < (p.price ?? Infinity) ? p.discount_price : p.price;
+        if (eff != null) g.prices.push(eff);
+        if (p.discount_price != null) g.discounts++;
+      }
+      const rows: TrendRow[] = [];
+      for (const [sid, g] of grouped) {
+        const s = storeMap.get(sid);
+        const src = sources.find((x) => x.store_id === sid);
+        rows.push({
+          store_id: sid,
+          storeName: s?.name ?? sid,
+          storeColor: s?.color ?? '#999',
+          avgPrice: g.prices.length ? g.prices.reduce((a, b) => a + b, 0) / g.prices.length : 0,
+          discountCount: g.discounts,
+          totalCount: g.prices.length,
+          lastSync: src?.last_run_at ?? null,
+        });
+      }
+      rows.sort((a, b) => a.storeName.localeCompare(b.storeName));
+      setTrends(rows);
+    } catch { /* ignore */ } finally {
+      setTrendsLoading(false);
+    }
+  };
+
   return (
     <Shell title="Avtomatik yeniləmə">
       {msg && <div className={`alert ${msg.ok ? 'ok' : 'err'}`}>{msg.text}</div>}
@@ -158,7 +248,6 @@ export default function SyncPage() {
           Hər market üçün Wolt səhifəsini bir dəfə yadda saxla. "Hamısını yenilə" bütün mənbələri oxuyur və <b>yalnız bazada olan məhsulların</b> qiymətini (adi + endirim) yeniləyir; yeni məhsul yaratmır.
           {' '}<span className={`pill ${cron ? 'green' : 'red'}`}>{cron ? 'Avtomatik: hər bazar ertəsi 08:00 (Bakı)' : 'CRON_SECRET yoxdur — avtomatik işləmir'}</span>
         </p>
-        {/* One-click: auto-find a Wolt source for every store that has none */}
         {stores.some((s) => !sources.some((src) => src.store_id === s.id)) && (
           <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 12, padding: 12, marginBottom: 10 }}>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -257,6 +346,94 @@ export default function SyncPage() {
           </div>
         </div>
       )}
+
+      {/* Price Analysis Card */}
+      <div className="card" style={{ marginTop: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+          <h2 style={{ margin: 0 }}><BarChart2 size={18} style={{ verticalAlign: -3 }} /> Qiymət analizi</h2>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn secondary" onClick={() => setShowAnalysis(!showAnalysis)}>{showAnalysis ? 'Gizlət' : 'Göstər'}</button>
+            <button className="btn secondary" disabled={trendsLoading} onClick={loadTrends}>{trendsLoading ? 'Yüklənir…' : 'Trendi yenilə'}</button>
+          </div>
+        </div>
+
+        {showAnalysis && (
+          <>
+            {/* Anomaly table */}
+            {anomalies.length > 0 && (
+              <div style={{ marginTop: 14 }}>
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  <AlertTriangle size={16} style={{ color: '#D97706' }} /> Qiymət anomaliyaları ({anomalies.filter((a) => !a.flagged).length})
+                </h3>
+                <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>Son sinxronizasiyadan sonra &gt;50% artım və ya &gt;60% düşüş olan məhsullar (mümkün məlumat xətası).</p>
+                <div style={{ overflowX: 'auto' }}>
+                  <table>
+                    <thead>
+                      <tr><th>Məhsul ID</th><th>Market</th><th style={{ textAlign: 'right' }}>Əvvəl ₼</th><th style={{ textAlign: 'right' }}>İndi ₼</th><th style={{ textAlign: 'right' }}>Dəyişim</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                      {anomalies.map((a, i) => (
+                        <tr key={i} style={{ opacity: a.flagged ? 0.4 : 1 }}>
+                          <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{a.product_id}</td>
+                          <td>{a.storeName}</td>
+                          <td style={{ textAlign: 'right' }}>{a.oldPrice.toFixed(2)}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 600 }}>{a.newPrice.toFixed(2)}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            <span className={`pill ${a.changePct > 0 ? 'red' : 'green'}`}>
+                              {a.changePct > 0 ? '+' : ''}{a.changePct.toFixed(1)}%
+                            </span>
+                          </td>
+                          <td>
+                            <button className="btn ghost" style={{ fontSize: 12 }} onClick={() => setAnomalies(anomalies.map((x, j) => j === i ? { ...x, flagged: !x.flagged } : x))}>
+                              {a.flagged ? 'Geri al' : 'Bildir / Nəzərə alma'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {anomalies.length === 0 && (
+              <p className="muted" style={{ marginTop: 12, fontSize: 13 }}>Anomaliya yoxdur. "Hamısını yenilə" işlədikdən sonra burada görünəcək.</p>
+            )}
+
+            {/* Market trends */}
+            {trends.length > 0 && (
+              <div style={{ marginTop: 20 }}>
+                <h3 style={{ marginBottom: 8 }}>Qiymət trendi — marketlər üzrə</h3>
+                <div style={{ overflowX: 'auto' }}>
+                  <table>
+                    <thead>
+                      <tr><th>Market</th><th style={{ textAlign: 'right' }}>Orta qiymət ₼</th><th style={{ textAlign: 'right' }}>Endirimlilər</th><th style={{ textAlign: 'right' }}>Cəmi məhsul</th><th>Son sinxron</th></tr>
+                    </thead>
+                    <tbody>
+                      {trends.map((t) => (
+                        <tr key={t.store_id}>
+                          <td>
+                            <span className="avatar" style={{ background: t.storeColor }}>{t.storeName[0]}</span>
+                            {t.storeName}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 600 }}>{t.avgPrice.toFixed(2)}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            <span className="pill green">{t.discountCount}</span>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>{t.totalCount}</td>
+                          <td className="muted" style={{ fontSize: 12 }}>{t.lastSync ? new Date(t.lastSync).toLocaleString('az-AZ') : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {trends.length === 0 && (
+              <p className="muted" style={{ marginTop: 12, fontSize: 13 }}>Trendi görmək üçün "Trendi yenilə" düyməsinə bas.</p>
+            )}
+          </>
+        )}
+      </div>
     </Shell>
   );
 }
