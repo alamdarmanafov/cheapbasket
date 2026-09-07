@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,6 +11,7 @@ import { useBasket } from '@/store/basket';
 import { useCatalog } from '@/store/catalog';
 import { useAuth } from '@/store/auth';
 import { registerForPush, unregisterPush } from '@/lib/notifications';
+import { notify } from '@/lib/confirm';
 
 const ROWS: Array<{ label: string; icon: keyof typeof Ionicons.glyphMap; value?: string; route?: string; plus?: boolean }> = [
   { label: 'Mənim məlumatlarım', icon: 'person-outline', route: '/account' },
@@ -39,8 +40,8 @@ export default function Profile() {
     if (v) {
       const r = await registerForPush(auth.user?.id ?? null);
       if (r.status === 'granted') setNotif(true);
-      else if (r.status === 'unsupported') Alert.alert('Bildirişlər', 'Push bildirişlər yalnız real cihazda (iOS/Android) işləyir.');
-      else Alert.alert('Bildirişlər', 'İcazə verilmədi. Telefonun Ayarlarından bildirişləri aç.');
+      else if (r.status === 'unsupported') notify('Bildirişlər', 'Push bildirişlər yalnız real cihazda (iOS/Android) işləyir.');
+      else notify('Bildirişlər', 'İcazə verilmədi. Telefonun Ayarlarından bildirişləri aç.');
     } else {
       await unregisterPush(auth.user?.id ?? null);
       setNotif(false);

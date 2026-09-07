@@ -9,7 +9,9 @@ create or replace function public.effective_plan(p profiles) returns text langua
   select case when p.plan = 'plus' and (p.plan_expires_at is null or p.plan_expires_at > now()) then 'plus' else 'free' end;
 $$;
 
-create or replace view admin_users with (security_invoker = false) as
+-- column set changed → drop and recreate (CREATE OR REPLACE cannot reorder columns)
+drop view if exists admin_users;
+create view admin_users with (security_invoker = false) as
 select u.id, u.email, u.created_at, u.last_sign_in_at,
        coalesce(u.raw_app_meta_data->>'provider', 'email') as provider,
        p.display_name, coalesce(p.plan, 'free') as plan, p.plan_expires_at, p.plan_note, coalesce(p.blocked, false) as blocked, p.city,

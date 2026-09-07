@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { Platform } from 'react-native';
+import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
@@ -50,4 +52,19 @@ export async function registerForPush(userId: string | null): Promise<{ status: 
 export async function unregisterPush(userId: string | null) {
   if (!supabase || !userId) return;
   await supabase.from('push_tokens').delete().eq('user_id', userId);
+}
+
+/** Opens the screen a push carries in `data.url` (e.g. '/deals') when the user taps it. */
+export function useNotificationDeepLink() {
+  const router = useRouter();
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const go = (r: Notifications.NotificationResponse | null) => {
+      const url = r?.notification.request.content.data?.url;
+      if (typeof url === 'string') setTimeout(() => router.push(url as never), 300);
+    };
+    Notifications.getLastNotificationResponseAsync().then(go).catch(() => undefined);
+    const sub = Notifications.addNotificationResponseReceivedListener(go);
+    return () => sub.remove();
+  }, [router]);
 }

@@ -1,8 +1,11 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Send } from 'lucide-react';
+import { Send, Sparkles } from 'lucide-react';
 import { Shell } from '@/components/Shell';
 import { db } from '@/lib/supabase';
+
+interface Settings { enabled: boolean; free_days: number[]; hour_baku: number; max_items: number; lookback_free_days: number }
+interface Info { settings: Settings; last: Array<{ sent_at: string; title: string; body: string }>; drops: Array<{ brand: string; name: string; size: string; store_name: string; old_price: number; new_price: number; drop_percent: number; changed_at: string }>; ai: 'openai' | 'claude' | 'template'; cron: boolean }
 
 export default function Notifications() {
   const [count, setCount] = useState<number | null>(null);
@@ -10,9 +13,18 @@ export default function Notifications() {
   const [body, setBody] = useState('');
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [info, setInfo] = useState<Info | null>(null);
+  const [s, setS] = useState<Settings | null>(null);
+  const [preview, setPreview] = useState<Array<{ user_id: string; title: string; body: string }> | null>(null);
 
+  const load = async () => {
+    const r = await fetch('/api/digest').then((x) => x.json());
+    setInfo(r);
+    setS(r.settings);
+  };
   useEffect(() => {
     db.count('push_tokens').then(setCount).catch(() => setCount(0));
+    load();
   }, []);
 
   const send = async () => {
@@ -24,17 +36,90 @@ export default function Notifications() {
     setResult({ ok: res.ok, text: res.ok ? `${j.sent} cihaza göndərildi${j.errors ? `, ${j.errors} xəta` : ''}` : j.error ?? 'Xəta' });
   };
 
+  const saveSettings = async () => {
+    const res = await fetch('/api/digest', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'settings', value: s }) });
+    setResult({ ok: res.ok, text: res.ok ? 'Ayarlar yadda saxlanıldı' : (await res.json()).error });
+  };
+  const runDigest = async (dryRun: boolean) => {
+    setBusy(true);
+    setPreview(null);
+    const res = await fetch('/api/digest', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'run', force: true, dryRun }) });
+    const j = await res.json();
+    setBusy(false);
+    if (!res.ok) setResult({ ok: false, text: j.error });
+    else {
+      setPreview(j.preview ?? []);
+      setResult({ ok: true, text: dryRun ? `${j.users} istifadəçi üçün mətn hazırlandı (göndərilmədi)` : `${j.users} istifadəçi · ${j.sent} cihaza göndərildi${j.errors ? `, ${j.errors} xəta` : ''}` });
+      load();
+    }
+  };
+  const toggleDay = (d: number) => s && setS({ ...s, free_days: s.free_days.includes(d) ? s.free_days.filter((x) => x !== d) : [...s.free_days, d].sort((a, b) => a - b) });
+
   return (
     <Shell title="Bildirişlər">
-      <div className="card" style={{ maxWidth: 560 }}>
-        <p className="muted" style={{ marginTop: 0 }}>Qeydiyyatlı cihaz: <b>{count ?? '…'}</b></p>
-        <label>Başlıq<input value={title} onChange={(e) => setTitle(e.target.value)} /></label>
-        <label style={{ marginTop: 10 }}>Mətn<textarea rows={3} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Sütaş Süd 1L Araz-da 1.99 ₼ oldu 🎉" /></label>
-        {result && <div className={`alert ${result.ok ? 'ok' : 'err'}`} style={{ marginTop: 12 }}>{result.text}</div>}
-        <div className="actions">
-          <button className="btn" disabled={!body.trim() || busy || !count} onClick={send}><Send size={14} /> {busy ? 'Göndərilir…' : 'Hamısına göndər'}</button>
+      {result && <div className={`alert ${result.ok ? 'ok' : 'err'}`}>{result.text}</div>}
+      <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', alignItems: 'start' }}>
+        <div className="card">
+          <h2><Sparkles size={18} style={{ verticalAlign: -3 }} /> AI endirim xəbəri</h2>
+          <p className="muted" style={{ marginTop: 0 }}>Ucuzlaşan məhsullardan avtomatik push. <b>Plus</b>: hər gün. <b>Free</b>: ayın seçilmiş günlərində. Səbətindəki məhsullar birinci gəlir.</p>
+          {!info ? <p className="muted">Yüklənir…</p> : (
+            <>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                <span className={`pill ${info.cron ? 'green' : 'red'}`}>{info.cron ? 'Cron aktiv' : 'CRON_SECRET yoxdur'}</span>
+                <span className={`pill ${info.ai !== 'template' ? 'green' : 'gray'}`}>{info.ai === 'openai' ? 'Mətn: ChatGPT' : info.ai === 'claude' ? 'Mətn: Claude' : 'Mətn: şablon (OPENAI_API_KEY yoxdur)'}</span>
+              </div>
+              {s && (
+                <>
+                  <label style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={s.enabled} onChange={(e) => setS({ ...s, enabled: e.target.checked })} /> Aktiv</label>
+                  <label style={{ marginTop: 10 }}>Free istifadəçilər üçün günlər (ayın günü)</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                    {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                      <button key={d} className={`btn ${s.free_days.includes(d) ? '' : 'secondary'}`} style={{ padding: '4px 8px', fontSize: 12 }} onClick={() => toggleDay(d)}>{d}</button>
+                    ))}
+                  </div>
+                  <div className="form-grid" style={{ marginTop: 10 }}>
+                    <label>Maks. məhsul sayı<input type="number" min={1} max={10} value={s.max_items} onChange={(e) => setS({ ...s, max_items: Number(e.target.value) })} /></label>
+                    <label>Free üçün son N gün<input type="number" min={1} max={31} value={s.lookback_free_days} onChange={(e) => setS({ ...s, lookback_free_days: Number(e.target.value) })} /></label>
+                  </div>
+                  <p className="note">Göndəriş vaxtı: hər gün 09:00 (Bakı). Vaxtı dəyişmək üçün <code>admin/vercel.json</code> → crons.</p>
+                  <div className="actions" style={{ justifyContent: 'flex-start' }}>
+                    <button className="btn secondary" onClick={saveSettings}>Ayarları saxla</button>
+                    <button className="btn secondary" disabled={busy} onClick={() => runDigest(true)}>Mətni göstər (göndərmə)</button>
+                    <button className="btn" disabled={busy} onClick={() => { if (confirm('Bütün cihazlara indi göndərilsin?')) runDigest(false); }}>İndi göndər</button>
+                  </div>
+                </>
+              )}
+              {preview && (
+                <div style={{ marginTop: 12 }}>
+                  <b>Hazırlanan mətnlər ({preview.length})</b>
+                  {preview.length === 0 && <p className="muted">Göndəriləcək endirim yoxdur: son günlərdə qiymət düşüşü qeydə alınmayıb və ya cihaz yoxdur.</p>}
+                  {preview.slice(0, 5).map((p, i) => <div key={i} className="card" style={{ marginTop: 8, padding: 12 }}><b>{p.title}</b><br /><span className="muted" style={{ whiteSpace: 'pre-line' }}>{p.body}</span></div>)}
+                </div>
+              )}
+              <div style={{ marginTop: 14 }}>
+                <b>Son qiymət düşüşləri</b>
+                {info.drops.length === 0 ? <p className="muted">Hələ yoxdur. Məhsullar səhifəsində qiyməti aşağı salanda burada görünəcək.</p> : (
+                  <table style={{ marginTop: 8 }}><tbody>
+                    {info.drops.slice(0, 8).map((d, i) => <tr key={i}><td>{d.brand} {d.name} <span className="muted">{d.size}</span></td><td className="muted">{d.store_name}</td><td style={{ textAlign: 'right' }}><s className="muted">{d.old_price}</s> <b>{d.new_price} ₼</b> <span className="pill green">−{d.drop_percent}%</span></td></tr>)}
+                  </tbody></table>
+                )}
+              </div>
+              {info.last.length > 0 && (
+                <div style={{ marginTop: 14 }}><b>Son göndərişlər</b>{info.last.map((l, i) => <div key={i} className="muted" style={{ fontSize: 12, marginTop: 4 }}>{new Date(l.sent_at).toLocaleString('az-AZ')} · {l.title}</div>)}</div>
+              )}
+            </>
+          )}
         </div>
-        <p className="note">Expo Push Service ilə göndərilir. Avtomatik "qiymət düşdü" bildirişləri növbəti addımdır (Supabase Edge Function + cron).</p>
+
+        <div className="card">
+          <h2>Əl ilə göndəriş</h2>
+          <p className="muted" style={{ marginTop: 0 }}>Qeydiyyatlı cihaz: <b>{count ?? '…'}</b></p>
+          <label>Başlıq<input value={title} onChange={(e) => setTitle(e.target.value)} /></label>
+          <label style={{ marginTop: 10 }}>Mətn<textarea rows={3} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Bu həftə sonu Araz-da süd məhsulları 15% endirimlə 🎉" /></label>
+          <div className="actions">
+            <button className="btn" disabled={!body.trim() || busy || !count} onClick={send}><Send size={14} /> {busy ? 'Göndərilir…' : 'Hamısına göndər'}</button>
+          </div>
+        </div>
       </div>
     </Shell>
   );
