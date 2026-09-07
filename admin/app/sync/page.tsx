@@ -26,6 +26,11 @@ export default function SyncPage() {
   const [alsoBranches, setAlsoBranches] = useState(true);
   const [autoProgress, setAutoProgress] = useState<Array<{ storeId: string; name: string; status: 'pending' | 'loading' | 'done' | 'error'; count?: number; error?: string }>>([]);
 
+  // Per-row test status
+  type TestState = { loading?: boolean; ok?: boolean; found?: number; venue?: string; error?: string };
+  const [testStatus, setTestStatus] = useState<Record<string, TestState>>({});
+  const [testingAll, setTestingAll] = useState(false);
+
   // Price anomaly detection
   const priceSnapshot = useRef<PriceSnap[]>([]);
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
@@ -170,6 +175,27 @@ export default function SyncPage() {
   const remove = async (s: Source) => { if (!confirm('Mənbə silinsin? (məhsullar və qiymətlər qalır)')) return; await api({ op: 'delete', id: s.id }).catch((e: Error) => setMsg({ ok: false, text: e.message })); load(); };
   const toggle = async (s: Source) => { await api({ op: 'toggle', id: s.id, enabled: !s.enabled }).catch((e: Error) => setMsg({ ok: false, text: e.message })); load(); };
   const saveAlerts = async () => { if (!alerts) return; await api({ op: 'alerts', value: alerts }).then(() => setMsg({ ok: true, text: 'Bildiriş ayarları saxlanıldı' })).catch((e: Error) => setMsg({ ok: false, text: e.message })); };
+
+  const testRow = async (id: string) => {
+    setTestStatus((prev) => ({ ...prev, [id]: { loading: true } }));
+    try {
+      const res = await fetch('/api/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'test', id }) });
+      const j = (await res.json()) as { ok: boolean; found?: number; venue?: string; error?: string };
+      setTestStatus((prev) => ({ ...prev, [id]: { ok: j.ok, found: j.found, venue: j.venue, error: j.error } }));
+    } catch (e) {
+      setTestStatus((prev) => ({ ...prev, [id]: { ok: false, error: (e as Error).message } }));
+    }
+  };
+
+  const testAll = async () => {
+    const enabled = sources.filter((s) => s.enabled);
+    if (!enabled.length) return;
+    setTestingAll(true);
+    for (const s of enabled) {
+      await testRow(s.id);
+    }
+    setTestingAll(false);
+  };
   const store = (id: string) => stores.find((s) => s.id === id);
 
   const autoSetup = async () => {
@@ -308,9 +334,12 @@ export default function SyncPage() {
           <input placeholder="və ya linki yapışdır: Wolt venue / istənilən market saytının kateqoriya səhifəsi" value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
           <button className="btn secondary" disabled={busy === 'add' || !url.trim()} onClick={add}><Plus size={14} /> Mənbə əlavə et</button>
           <button className="btn" disabled={!!busy || !sources.length} onClick={() => run()}><Play size={14} /> {busy === 'all' ? 'Yenilənir…' : 'Hamısını yenilə'}</button>
+          <button className="btn secondary" disabled={testingAll || !sources.some((s) => s.enabled)} onClick={testAll}>
+            <RefreshCw size={14} style={testingAll ? { animation: 'spin 1s linear infinite' } : {}} /> {testingAll ? 'Test edilir…' : 'Hamısını test et'}
+          </button>
         </div>
         <table>
-          <thead><tr><th>Market</th><th>Wolt səhifəsi</th><th>Son yeniləmə</th><th>Nəticə</th><th>Aktiv</th><th></th></tr></thead>
+          <thead><tr><th>Market</th><th>Wolt səhifəsi</th><th>Son yeniləmə</th><th>Nəticə</th><th>Aktiv</th><th>Test</th><th></th></tr></thead>
           <tbody>
             {sources.map((s) => (
               <tr key={s.id} style={{ opacity: s.enabled ? 1 : 0.55 }}>
@@ -323,13 +352,25 @@ export default function SyncPage() {
                     : <span className="pill red" title={s.last_result.error}>xəta: {s.last_result.error?.slice(0, 60)}</span>}
                 </td>
                 <td><input type="checkbox" checked={s.enabled} onChange={() => toggle(s)} /></td>
+                <td style={{ whiteSpace: 'nowrap', fontSize: 12 }}>
+                  {testStatus[s.id]?.loading ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Yoxlanır…
+                    </span>
+                  ) : testStatus[s.id]?.ok === true ? (
+                    <span style={{ color: '#16A34A' }}>✓ {testStatus[s.id].found} məhsul tapıldı</span>
+                  ) : testStatus[s.id]?.ok === false ? (
+                    <span style={{ color: '#DC2626' }} title={testStatus[s.id].error}>{testStatus[s.id].error?.slice(0, 50)}</span>
+                  ) : null}
+                </td>
                 <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
+                  <button className="btn ghost" disabled={testingAll || testStatus[s.id]?.loading} onClick={() => testRow(s.id)}>{testStatus[s.id]?.loading ? '…' : 'Test et'}</button>
                   <button className="btn ghost" disabled={!!busy} onClick={() => run(s.id)}>{busy === s.id ? 'Yenilənir…' : 'İndi yenilə'}</button>
                   <button className="btn ghost" onClick={() => remove(s)}><Trash2 size={14} /></button>
                 </td>
               </tr>
             ))}
-            {sources.length === 0 && <tr><td colSpan={6} className="muted" style={{ textAlign: 'center', padding: 24 }}>Mənbə yoxdur. Yuxarıdan market seçib Wolt linkini əlavə et (və ya "Wolt-dan import" səhifəsində importdan sonra "mənbəni yadda saxla").</td></tr>}
+            {sources.length === 0 && <tr><td colSpan={7} className="muted" style={{ textAlign: 'center', padding: 24 }}>Mənbə yoxdur. Yuxarıdan market seçib Wolt linkini əlavə et (və ya "Wolt-dan import" səhifəsində importdan sonra "mənbəni yadda saxla").</td></tr>}
           </tbody>
         </table>
       </div>
