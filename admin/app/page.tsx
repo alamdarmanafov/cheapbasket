@@ -38,7 +38,7 @@ export default function Dashboard() {
           ['Push cihazları', c?.tokens, '/notifications'],
         ].map(([label, n, href]) => (
           <Link key={label as string} href={href as string} className="card stat">
-            <b>{n == null ? '…' : n < 0 ? '?' : n}</b>
+            <b>{n == null ? '…' : (n as number) < 0 ? '?' : n}</b>
             <small>{label}</small>
           </Link>
         ))}

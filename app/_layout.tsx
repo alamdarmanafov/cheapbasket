@@ -43,6 +43,7 @@ export default function RootLayout() {
           <Stack.Screen name="savings" />
           <Stack.Screen name="plus" options={{ presentation: 'modal' }} />
           <Stack.Screen name="auth" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="account" />
           <Stack.Screen name="product/[id]" />
         </Stack>
       </PhoneFrame>

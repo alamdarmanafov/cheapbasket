@@ -13,7 +13,7 @@ import { useAuth } from '@/store/auth';
 import { registerForPush, unregisterPush } from '@/lib/notifications';
 
 const ROWS: Array<{ label: string; icon: keyof typeof Ionicons.glyphMap; value?: string; route?: string; plus?: boolean }> = [
-  { label: 'Mənim məlumatlarım', icon: 'person-outline' },
+  { label: 'Mənim məlumatlarım', icon: 'person-outline', route: '/account' },
   { label: 'Lokasiya', icon: 'location-outline' },
   { label: 'Sevimli marketlər', icon: 'storefront-outline' },
   { label: 'Qənaət statistikası', icon: 'trending-up-outline', route: '/savings', plus: true },
@@ -54,7 +54,7 @@ export default function Profile() {
         <IconBtn name="settings-outline" bg={colors.white} label="Tənzimləmələr" />
       </Row>
 
-      <Pressable onPress={() => (auth.user ? undefined : router.push('/auth'))} style={({ pressed }) => [styles.card, pressed && !auth.user && { opacity: 0.9 }]}>
+      <Pressable onPress={() => router.push(auth.user ? '/account' : '/auth')} style={({ pressed }) => [styles.card, pressed && { opacity: 0.9 }]}>
         <Row gap={12}>
           <View style={styles.avatar}>
             <Txt v="title" color={colors.white}>
