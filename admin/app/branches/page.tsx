@@ -178,7 +178,7 @@ export default function Branches() {
                   <span style={{ flex: 1, fontWeight: 500 }}>{b.name}</span>
                   {b.status === 'loading' && <span className="muted">axtarılır…</span>}
                   {b.status === 'done' && <span style={{ color: '#16A34A' }}>{b.count} filial</span>}
-                  {b.status === 'error' && <span style={{ color: '#DC2626', fontSize: 12 }} title={b.error}>xəta</span>}
+                  {b.status === 'error' && <span style={{ color: '#DC2626', fontSize: 11 }}>xəta: {b.error?.slice(0, 120)}</span>}
                 </div>
               ))}
             </div>

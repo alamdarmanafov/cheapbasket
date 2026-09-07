@@ -355,22 +355,34 @@ function collectVenues(payload: unknown): WoltVenue[] {
 
 /** Search Wolt for venues by name around Baku (e.g. "Araz", "Bravo"). Tries the known search endpoints. */
 export async function searchWoltVenues(q: string, lat = 40.4093, lon = 49.8671): Promise<{ venues: WoltVenue[]; endpoint: string }> {
+  const qFirst = q.toLowerCase().split(' ')[0];
+  const matchesQuery = (v: WoltVenue) =>
+    v.name.toLowerCase().includes(qFirst) ||
+    v.slug.includes(qFirst) ||
+    // Also match transliterated: Araz→araz, Bravo→bravo, etc.
+    v.slug.replace(/-/g, '').includes(qFirst.replace(/[^a-z0-9]/g, ''));
+
   const attempts: Array<{ url: string; init?: RequestInit }> = [
+    // Azerbaijani consumer API (most reliable for az locale)
+    { url: `https://consumer-api.wolt.com/consumer-api/consumer-assortment/v1/pages/search?q=${encodeURIComponent(q)}&lat=${lat}&lon=${lon}&language=az` },
+    { url: `https://consumer-api.wolt.com/v1/pages/search?q=${encodeURIComponent(q)}&lat=${lat}&lon=${lon}` },
     { url: `https://restaurant-api.wolt.com/v1/pages/search?q=${encodeURIComponent(q)}&lat=${lat}&lon=${lon}&target=venues` },
     { url: 'https://restaurant-api.wolt.com/v1/pages/search', init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q, lat, lon, target: 'venues' }) } },
-    { url: `https://consumer-api.wolt.com/v1/pages/search?q=${encodeURIComponent(q)}&lat=${lat}&lon=${lon}` },
     { url: `https://restaurant-api.wolt.com/v1/search?q=${encodeURIComponent(q)}&lat=${lat}&lon=${lon}` },
   ];
   const errors: string[] = [];
   for (const a of attempts) {
     try {
       const res = await fetch(a.url, { ...a.init, headers: { 'User-Agent': UA, Accept: 'application/json', 'Accept-Language': 'az,en', ...(a.init?.headers ?? {}) }, cache: 'no-store' });
-      if (!res.ok) { errors.push(`${res.status} ${a.url}`); continue; }
-      const venues = collectVenues(await res.json()).filter((v) => v.name.toLowerCase().includes(q.toLowerCase().split(' ')[0]) || v.slug.includes(q.toLowerCase().split(' ')[0]));
-      if (venues.length) return { venues, endpoint: a.url };
-      errors.push(`boş: ${a.url}`);
+      if (!res.ok) { errors.push(`${res.status} ${a.url.split('?')[0]}`); continue; }
+      const all = collectVenues(await res.json());
+      if (!all.length) { errors.push(`boş (struct): ${a.url.split('?')[0]}`); continue; }
+      const venues = all.filter(matchesQuery);
+      // If name filter yields nothing, fall back to all venues (admin can pick)
+      const result = venues.length ? venues : all;
+      return { venues: result, endpoint: a.url };
     } catch (e) {
-      errors.push((e as Error).message);
+      errors.push((e as Error).message.slice(0, 80));
     }
   }
   throw new Error(`Wolt axtarışı nəticə vermədi. ${errors.join(' | ')}`);
