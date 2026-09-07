@@ -203,7 +203,7 @@ async function consumerApi(slug: string): Promise<WoltResult | null> {
   if (!first) return null;
   const cats = arr(obj(top)?.categories);
   const slugs = cats.map((c) => str(obj(c)?.slug)).filter((s): s is string => !!s);
-  if (first.items.length > 50 || !slugs.length) return first;
+  if (first.items.length > 500 || !slugs.length) return first;
 
   // Fetch each category (limited concurrency) and merge.
   const merged = new Map<string, WoltItem>(first.items.map((i) => [i.ext_id, i]));
