@@ -1,11 +1,16 @@
 import React, { useEffect, useRef } from 'react';
-import { View } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
+import { Platform, View } from 'react-native';
+import Constants from 'expo-constants';
+import MapView, { Marker, Polyline, PROVIDER_DEFAULT, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Branch, catalog, getStore } from '@/data/products';
 import { colors } from '@/theme';
 import { Txt } from './ui';
 
-/** Native map (Apple Maps on iOS, Google Maps on Android): user, the selected branch and the store's other branches. */
+/** Google Maps on Android always; on iOS too when GOOGLE_MAPS_IOS_KEY was baked into the build, otherwise Apple Maps. */
+const iosGoogleKey = (Constants.expoConfig?.ios?.config as { googleMapsApiKey?: string } | undefined)?.googleMapsApiKey;
+const PROVIDER = Platform.OS === 'android' || iosGoogleKey ? PROVIDER_GOOGLE : PROVIDER_DEFAULT;
+
+/** Native map: user, the selected branch and the store's other branches. */
 export function RealMap({ width, height, branch, others = [], interactive = true, radius = 0 }: { width: number; height: number; branch: Branch; others?: Branch[]; interactive?: boolean; radius?: number }) {
   const me = catalog.location;
   const ref = useRef<MapView>(null);
@@ -29,7 +34,7 @@ export function RealMap({ width, height, branch, others = [], interactive = true
     <View style={{ width, height, borderRadius: radius, overflow: 'hidden' }} pointerEvents={interactive ? 'auto' : 'none'}>
       <MapView
         ref={ref}
-        provider={PROVIDER_DEFAULT}
+        provider={PROVIDER}
         style={{ width, height }}
         initialRegion={{ latitude: (me.lat + branch.lat) / 2, longitude: (me.lng + branch.lng) / 2, latitudeDelta: Math.max(0.02, Math.abs(me.lat - branch.lat) * 2.5), longitudeDelta: Math.max(0.02, Math.abs(me.lng - branch.lng) * 2.5) }}
         showsUserLocation

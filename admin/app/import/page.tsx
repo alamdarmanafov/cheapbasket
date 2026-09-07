@@ -40,7 +40,7 @@ export default function ImportPage() {
 
   useEffect(() => {
     db.select<Store>('stores', { order: 'name' }).then((s) => { setStores(s); if (s[0]) setStoreId(s[0].id); }).catch((e: Error) => setMsg({ ok: false, text: e.message }));
-    db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category' }).then(setExisting).catch(() => {});
+    db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url' }).then(setExisting).catch(() => {});
   }, []);
 
   const matcher = (list: Product[]) => buildMatcher(list.map((p) => ({ id: p.id, barcode: p.barcode, brand: p.brand, name: p.name, size: p.size })));
@@ -140,10 +140,11 @@ export default function ImportPage() {
     setMsg(null);
     try {
       // Fresh snapshot of the catalogue so a product created meanwhile (or by an earlier batch) is only price-updated.
-      const fresh = await db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category' });
+      const fresh = await db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url' });
       const match = matcher(fresh);
       const products: Record<string, unknown>[] = [];
       const infoUpdates: Record<string, unknown>[] = []; // existing products whose details are refreshed (barcode untouched)
+      const photoUpdates: Array<{ id: string; image_url: string }> = []; // existing products that had no photo
       const priceById = new Map<string, Record<string, unknown>>();
       const now = new Date().toISOString();
       const usedIds = new Set<string>();
@@ -161,6 +162,8 @@ export default function ImportPage() {
           updated++;
           // several Wolt rows can map to one product (same barcode / name) → keep a single info update per id
           if (r.updateInfo && !infoUpdates.some((u) => u.id === id)) infoUpdates.push({ id, name: r.title.trim(), brand: r.brand.trim(), size: r.size.trim() || '—', category: r.appCategory, image_url: r.image_url });
+          // no photo in our catalogue yet → take Wolt's (never replaces an existing photo)
+          else if (!r.updateInfo && r.image_url && !fresh.find((p) => p.id === id)?.image_url && !photoUpdates.some((u) => u.id === id)) photoUpdates.push({ id, image_url: r.image_url });
         }
         // one price row per product (a duplicate barcode in the venue keeps the first / cheaper price)
         const prev = priceById.get(id);
@@ -171,14 +174,15 @@ export default function ImportPage() {
       const prices = [...priceById.values()];
       for (let i = 0; i < products.length; i += 200) await db.upsert('products', products.slice(i, i + 200), 'id');
       for (let i = 0; i < infoUpdates.length; i += 200) await db.upsert('products', infoUpdates.slice(i, i + 200), 'id');
+      for (let i = 0; i < photoUpdates.length; i += 200) await db.upsert('products', photoUpdates.slice(i, i + 200), 'id');
       for (let i = 0; i < prices.length; i += 200) await db.upsert('prices', prices.slice(i, i + 200), 'product_id,store_id');
       // Instant "basket item got cheaper" pushes for any drop this import produced.
       const alertRes = await fetch('/api/alerts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ since: new Date(Date.now() - 5 * 60000).toISOString() }) }).then((r) => r.json()).catch(() => null);
-      setMsg({ ok: true, text: `${prices.length} qiymət yazıldı → ${storeName}: ${products.length} yeni məhsul, ${updated - infoUpdates.length} mövcud məhsul yalnız qiymətlə, ${infoUpdates.length} mövcud məhsul məlumatı ilə birlikdə yeniləndi.${alertRes?.users ? ` ${alertRes.users} istifadəçiyə qiymət düşüşü bildirişi getdi.` : ''}` });
+      setMsg({ ok: true, text: `${prices.length} qiymət yazıldı → ${storeName}: ${products.length} yeni məhsul, ${updated - infoUpdates.length} mövcud məhsul yalnız qiymətlə, ${infoUpdates.length} mövcud məhsul məlumatı ilə birlikdə yeniləndi${photoUpdates.length ? `, ${photoUpdates.length} məhsula Wolt şəkli qoyuldu` : ''}.${alertRes?.users ? ` ${alertRes.users} istifadəçiyə qiymət düşüşü bildirişi getdi.` : ''}` });
       if (confirm(`Bu Wolt səhifəsi "${storeName}" üçün mənbə kimi yadda saxlansın? Sonra "Avtomatik yeniləmə" səhifəsində bir kliklə (və hər həftə avtomatik) qiymətlər yenilənir.`)) {
         await fetch('/api/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'add', store_id: storeId, url }) }).catch(() => null);
       }
-      const ex = await db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category' });
+      const ex = await db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url' });
       setExisting(ex);
       const rematch = matcher(ex);
       setRows(rows.map((r) => ({ ...r, existingId: rematch(r) ?? r.existingId })));
