@@ -204,36 +204,38 @@ export default function Branches() {
       address: v.address ?? '',
       lat: v.lat!,
       lng: v.lng!,
-      open_until: null,
-      open_from: null,
-      always_open: false,
+      open_until: v.open_until ?? null,
+      open_from: v.open_from ?? null,
       maps_url: v.url ?? null,
       phone: null,
     }));
     return db.upsert('branches', branchRows as unknown as Record<string, unknown>[]).then(() => branchRows.length);
   };
 
-  /** Auto-import all stores sequentially, showing live progress. */
+  /** Auto-import all stores via server-side route (handles search + venue detail + upsert). */
   const importAll = async () => {
     if (!stores.length || bulkRunning) return;
     setBulkRunning(true);
-    setBulk(stores.map((s) => ({ storeId: s.id, name: s.name, status: 'pending' })));
-    let total = 0;
-    for (let i = 0; i < stores.length; i++) {
-      const s = stores[i];
-      setBulk((prev) => prev.map((p, idx) => idx === i ? { ...p, status: 'loading' } : p));
-      try {
-        const venues = await fetchVenues(s.name);
-        const count = await upsertBranches(s.id, venues);
-        total += count;
-        setBulk((prev) => prev.map((p, idx) => idx === i ? { ...p, status: 'done', count } : p));
-      } catch (e) {
-        setBulk((prev) => prev.map((p, idx) => idx === i ? { ...p, status: 'error', error: (e as Error).message } : p));
-      }
+    setBulk(stores.map((s) => ({ storeId: s.id, name: s.name, status: 'loading' as const })));
+    try {
+      const res = await fetch('/api/import/wolt/branches', { method: 'POST' });
+      const j = await res.json() as { results?: Array<{ store: string; found: number; upserted: number; error?: string }>; total?: number };
+      if (!res.ok) throw new Error((j as { error?: string }).error ?? `HTTP ${res.status}`);
+      const r = j.results ?? [];
+      setBulk(stores.map((s) => {
+        const match = r.find((x) => x.store === s.name);
+        if (!match) return { storeId: s.id, name: s.name, status: 'pending' as const };
+        return match.error
+          ? { storeId: s.id, name: s.name, status: 'error' as const, error: match.error }
+          : { storeId: s.id, name: s.name, status: 'done' as const, count: match.upserted };
+      }));
+      setMsg({ ok: true, text: `Wolt avtomatik import tamamlandı — ${j.total ?? 0} filial əlavə edildi` });
+      load();
+    } catch (e) {
+      setBulk((prev) => prev.map((b) => ({ ...b, status: 'error' as const, error: (e as Error).message })));
+      setMsg({ ok: false, text: (e as Error).message });
     }
     setBulkRunning(false);
-    setMsg({ ok: true, text: `Wolt avtomatik import tamamlandı — ${total} filial əlavə edildi` });
-    load();
   };
 
   const searchWolt = async (query?: string, sid?: string) => {
