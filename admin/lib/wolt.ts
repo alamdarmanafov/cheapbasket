@@ -323,7 +323,12 @@ export function buildMatcher(list: MatchableProduct[]): (it: { name: string; bar
   };
 }
 
-export interface WoltVenue { slug: string; name: string; address: string | null; lat: number | null; lng: number | null; url: string; online?: boolean }
+export interface WoltVenue {
+  slug: string; name: string; address: string | null;
+  lat: number | null; lng: number | null;
+  url: string; online?: boolean;
+  open_from: string | null; open_until: string | null;
+}
 
 /** Walk any Wolt JSON and pick venue-like objects (slug + name + coordinates). */
 function collectVenues(payload: unknown): WoltVenue[] {
@@ -345,7 +350,7 @@ function collectVenues(payload: unknown): WoltVenue[] {
     if (slug && name && (o.address != null || o.location != null || o.coordinates != null) && !/^[0-9a-f]{24}$/.test(slug)) {
       const c = coords(o);
       const addr = str(o.address) ?? str(obj(o.address)?.formatted) ?? str(o.short_description);
-      if (!out.has(slug)) out.set(slug, { slug, name, address: addr, lat: c?.lat ?? null, lng: c?.lng ?? null, url: `https://wolt.com/az/aze/baku/venue/${slug}`, online: typeof o.online === 'boolean' ? o.online : undefined });
+      if (!out.has(slug)) out.set(slug, { slug, name, address: addr, lat: c?.lat ?? null, lng: c?.lng ?? null, url: `https://wolt.com/az/aze/baku/venue/${slug}`, online: typeof o.online === 'boolean' ? o.online : undefined, open_from: null, open_until: null });
     }
     Object.values(o).forEach((x) => walk(x, depth + 1));
   };
@@ -386,12 +391,61 @@ export async function searchWoltVenues(q: string, lat = 40.4093, lon = 49.8671):
   throw new Error(`Wolt axtarışı nəticə vermədi. ${errors.join(' | ')}`);
 }
 
-/** Venue details (address + coordinates) for a slug, used when search results lack them. */
+/** Extract open_from / open_until from a Wolt v3 venue API response.
+ *  The response has `opening_times` with OPEN type entries containing time values. */
+function extractWoltHours(payload: unknown): { open_from: string | null; open_until: string | null } {
+  const fmt = (h: unknown, m: unknown) => {
+    const hh = typeof h === 'number' ? h : (typeof h === 'string' ? parseInt(h, 10) : NaN);
+    const mm = typeof m === 'number' ? m : (typeof m === 'string' ? parseInt(m, 10) : 0);
+    if (Number.isNaN(hh)) return null;
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+  };
+  const fmtFormatted = (v: unknown): string | null => {
+    if (typeof v === 'string' && /^\d{2}:\d{2}$/.test(v)) return v;
+    const o = obj(v);
+    if (!o) return null;
+    const ft = str(o.formatted_time) ?? str(o.formatted);
+    if (ft && /^\d{2}:\d{2}$/.test(ft)) return ft;
+    return fmt(o.hours ?? o.hour, o.minutes ?? o.minute);
+  };
+
+  // Walk all arrays that look like opening_times entries
+  const collect = (v: unknown, depth: number): Array<{ type: string; time: string }> => {
+    if (depth > 6 || !v || typeof v !== 'object') return [];
+    const results: Array<{ type: string; time: string }> = [];
+    const o = obj(v);
+    if (o) {
+      const type = str(o.type);
+      if (type === 'OPEN' || type === 'CLOSE') {
+        const t = fmtFormatted(o.value);
+        if (t) results.push({ type, time: t });
+      }
+      for (const val of Object.values(o)) results.push(...collect(val, depth + 1));
+    }
+    if (Array.isArray(v)) for (const x of v) results.push(...collect(x, depth + 1));
+    return results;
+  };
+
+  const entries = collect(payload, 0);
+  const opens = entries.filter((e) => e.type === 'OPEN').map((e) => e.time);
+  const closes = entries.filter((e) => e.type === 'CLOSE').map((e) => e.time);
+  if (!opens.length && !closes.length) return { open_from: null, open_until: null };
+  opens.sort();
+  closes.sort();
+  return {
+    open_from: opens[0] ?? null,
+    open_until: closes[closes.length - 1] ?? null,
+  };
+}
+
+/** Venue details (address + coordinates + hours) for a slug. */
 export async function fetchWoltVenueInfo(slug: string): Promise<WoltVenue | null> {
   try {
     const j = await getJson(`https://restaurant-api.wolt.com/v3/venues/slug/${encodeURIComponent(slug)}`);
     const v = collectVenues(j).find((x) => x.slug === slug) ?? collectVenues(j)[0];
-    return v ?? null;
+    if (!v) return null;
+    const hours = extractWoltHours(j);
+    return { ...v, ...hours };
   } catch {
     return null;
   }

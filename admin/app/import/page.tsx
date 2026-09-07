@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import * as XLSX from 'xlsx';
 import { Download, Search, Tags, Upload } from 'lucide-react';
 import { Shell } from '@/components/Shell';
 import { PriceRow, Product, Store, db, slugify, useCategories } from '@/lib/supabase';
@@ -327,14 +328,23 @@ export default function ImportPage() {
     setCsvHeaders([]);
     setCsvMapping({});
     setCsvMsg(null);
+    let all: string[][];
+    let sourceLabel: string;
     if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-      setCsvMsg({ ok: false, text: 'Excel faylı: Microsoft Excel-də File → Save As → CSV (Comma delimited) seçin, sonra CSV faylı yükləyin.' });
-      return;
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      all = (XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as unknown[][]).map((row) =>
+        (row as unknown[]).map((cell) => (cell == null ? '' : String(cell).trim()))
+      );
+      sourceLabel = `Excel vərəqi: ${wb.SheetNames[0]}`;
+    } else {
+      const text = await file.text();
+      const delim = detectDelimiter(text);
+      all = parseCSV(text, delim);
+      sourceLabel = `ayırıcı: "${delim}"`;
     }
-    const text = await file.text();
-    const delim = detectDelimiter(text);
-    const all = parseCSV(text, delim);
-    if (all.length < 2) { setCsvMsg({ ok: false, text: 'CSV oxunmadı. Fayl boş və ya düzgün formatda deyil.' }); return; }
+    if (all.length < 2) { setCsvMsg({ ok: false, text: 'Fayl oxunmadı. Boş və ya düzgün formatda deyil.' }); return; }
     const headers = all[0].map((h) => h.trim());
     const dataRows = all.slice(1);
     setCsvHeaders(headers);
@@ -356,7 +366,7 @@ export default function ImportPage() {
       if (idx >= 0) autoMap[field] = String(idx);
     }
     setCsvMapping(autoMap);
-    setCsvMsg({ ok: true, text: `${dataRows.length} sətir oxundu (ayırıcı: "${delim}"). Sütunları uyğunlaşdır, sonra "Import et" düyməsinə bas.` });
+    setCsvMsg({ ok: true, text: `${dataRows.length} sətir oxundu (${sourceLabel}). Sütunları uyğunlaşdır, sonra "Import et" düyməsinə bas.` });
   };
 
   const getCsvField = (row: string[], field: string): string => {
@@ -422,7 +432,7 @@ export default function ImportPage() {
       {/* Tab switcher */}
       <div style={{ display: 'flex', gap: 0, marginBottom: 16, background: '#F3F4F6', borderRadius: 10, padding: 4, width: 'fit-content' }}>
         <button className={`btn ${tab === 'wolt' ? '' : 'ghost'}`} style={{ borderRadius: 8 }} onClick={() => setTab('wolt')}>🌐 Wolt / sayt</button>
-        <button className={`btn ${tab === 'csv' ? '' : 'ghost'}`} style={{ borderRadius: 8 }} onClick={() => setTab('csv')}><Upload size={14} /> CSV / Excel</button>
+        <button className={`btn ${tab === 'csv' ? '' : 'ghost'}`} style={{ borderRadius: 8 }} onClick={() => setTab('csv')}><Upload size={14} /> CSV / Excel (.xlsx)</button>
       </div>
 
       {/* ====== WOLT TAB ====== */}
@@ -542,7 +552,7 @@ export default function ImportPage() {
       {/* ====== CSV TAB ====== */}
       {tab === 'csv' && (
         <div className="card">
-          <h2><Upload size={18} style={{ verticalAlign: -3 }} /> CSV import</h2>
+          <h2><Upload size={18} style={{ verticalAlign: -3 }} /> CSV / Excel import</h2>
           {csvMsg && <div className={`alert ${csvMsg.ok ? 'ok' : 'err'}`}>{csvMsg.text}</div>}
 
           <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 14 }}>
@@ -561,7 +571,7 @@ export default function ImportPage() {
           <div className="note" style={{ marginBottom: 14 }}>
             <b>CSV formatı:</b> <code>barkod,ad,brend,ölçü,kateqoriya,qiymət,endirim_qiyməti</code><br />
             Vergül (<code>,</code>) və ya nöqtəli vergül (<code>;</code>) ayırıcı kimi istifadə oluna bilər. Birinci sətir başlıq olmalıdır.<br />
-            <b>Excel:</b> Faylı CSV kimi ixrac edin: File → Save As → CSV (Comma delimited).
+            <b>Excel (.xlsx / .xls):</b> Birbaşa Excel faylını seçin — SheetJS ilə birinci vərəq avtomatik oxunur.
           </div>
 
           {csvHeaders.length > 0 && (
