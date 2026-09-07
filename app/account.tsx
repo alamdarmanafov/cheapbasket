@@ -7,6 +7,7 @@ import { colors, fonts, radius, space } from '@/theme';
 import { useRefresh } from '@/lib/useRefresh';
 import { Btn, Card, Row, Txt } from '@/components/ui';
 import { ScreenHeader } from '@/components/ScreenHeader';
+import { PlusTag } from '@/components/PlusLock';
 import { useAuth } from '@/store/auth';
 import { supabase } from '@/lib/supabase';
 import { confirmAsync } from '@/lib/confirm';
@@ -114,12 +115,19 @@ export default function Account() {
         <Card style={{ marginTop: space.lg }}>
           <Row style={{ justifyContent: 'space-between' }}>
             <View style={{ flex: 1, marginRight: space.md }}>
-              <Txt v="bodyStrong">AI endirim xəbəri</Txt>
+              <Row gap={6}>
+                <Txt v="bodyStrong">AI endirim xəbəri</Txt>
+                {auth.profile?.plan !== 'plus' && <PlusTag />}
+              </Row>
               <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>
-                {auth.profile?.plan === 'plus' ? 'Hər gün səhər ucuzlaşan məhsullar.' : 'Ayda 3 dəfə ucuzlaşan məhsullar. Plus ilə hər gün.'}
+                {auth.profile?.plan === 'plus' ? 'Hər gün səhər ucuzlaşan məhsullar və səbətindəki qiymət düşüşləri.' : 'Plus abunəçiləri hər gün səhər ucuzlaşan məhsulları və səbətindəki qiymət düşüşlərini alır.'}
               </Txt>
             </View>
-            <Switch value={digest} onValueChange={toggleDigest} trackColor={{ true: colors.primary, false: colors.line }} thumbColor={colors.white} />
+            {auth.profile?.plan === 'plus' ? (
+              <Switch value={digest} onValueChange={toggleDigest} trackColor={{ true: colors.primary, false: colors.line }} thumbColor={colors.white} />
+            ) : (
+              <Btn title="Plus-a keç" size="md" full={false} icon="star" onPress={() => router.push('/plus')} />
+            )}
           </Row>
         </Card>
 

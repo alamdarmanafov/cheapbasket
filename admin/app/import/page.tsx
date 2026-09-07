@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Download, Search, Tags } from 'lucide-react';
 import { Shell } from '@/components/Shell';
 import { Product, Store, db, slugify, useCategories } from '@/lib/supabase';
-import { mapCategory, splitName, type WoltItem, type WoltResult } from '@/lib/wolt';
+import { buildMatcher, mapCategory, splitName, type WoltItem, type WoltResult } from '@/lib/wolt';
 
 interface Row extends WoltItem {
   key: string;
@@ -43,21 +43,7 @@ export default function ImportPage() {
     db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category' }).then(setExisting).catch(() => {});
   }, []);
 
-  /** Existing product lookup: barcode → id, and normalised full name → id (for venues without barcodes). */
-  const matcher = (list: Product[]) => {
-    const byBarcode = new Map(list.filter((p) => p.barcode).map((p) => [p.barcode as string, p.id]));
-    const byName = new Map<string, string>();
-    for (const p of list) {
-      byName.set(slugify(`${p.brand} ${p.name} ${p.size}`), p.id);
-      byName.set(slugify(`${p.brand} ${p.name}`), p.id);
-      if (p.id.startsWith('wolt-')) byName.set(p.id.slice(5), p.id);
-    }
-    return (it: WoltItem): string | null => {
-      if (it.barcode && byBarcode.has(it.barcode)) return byBarcode.get(it.barcode) ?? null;
-      const sp = splitName(it.name);
-      return byName.get(slugify(it.name)) ?? byName.get(slugify(`${sp.brand} ${sp.name} ${sp.size}`)) ?? byName.get(slugify(`${sp.brand} ${sp.name}`)) ?? null;
-    };
-  };
+  const matcher = (list: Product[]) => buildMatcher(list.map((p) => ({ id: p.id, barcode: p.barcode, brand: p.brand, name: p.name, size: p.size })));
 
   const load = async () => {
     setLoading(true);
@@ -186,7 +172,12 @@ export default function ImportPage() {
       for (let i = 0; i < products.length; i += 200) await db.upsert('products', products.slice(i, i + 200), 'id');
       for (let i = 0; i < infoUpdates.length; i += 200) await db.upsert('products', infoUpdates.slice(i, i + 200), 'id');
       for (let i = 0; i < prices.length; i += 200) await db.upsert('prices', prices.slice(i, i + 200), 'product_id,store_id');
-      setMsg({ ok: true, text: `${prices.length} qiymət yazıldı → ${storeName}: ${products.length} yeni məhsul, ${updated - infoUpdates.length} mövcud məhsul yalnız qiymətlə, ${infoUpdates.length} mövcud məhsul məlumatı ilə birlikdə yeniləndi.` });
+      // Instant "basket item got cheaper" pushes for any drop this import produced.
+      const alertRes = await fetch('/api/alerts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ since: new Date(Date.now() - 5 * 60000).toISOString() }) }).then((r) => r.json()).catch(() => null);
+      setMsg({ ok: true, text: `${prices.length} qiymət yazıldı → ${storeName}: ${products.length} yeni məhsul, ${updated - infoUpdates.length} mövcud məhsul yalnız qiymətlə, ${infoUpdates.length} mövcud məhsul məlumatı ilə birlikdə yeniləndi.${alertRes?.users ? ` ${alertRes.users} istifadəçiyə qiymət düşüşü bildirişi getdi.` : ''}` });
+      if (confirm(`Bu Wolt səhifəsi "${storeName}" üçün mənbə kimi yadda saxlansın? Sonra "Avtomatik yeniləmə" səhifəsində bir kliklə (və hər həftə avtomatik) qiymətlər yenilənir.`)) {
+        await fetch('/api/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'add', store_id: storeId, url }) }).catch(() => null);
+      }
       const ex = await db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category' });
       setExisting(ex);
       const rematch = matcher(ex);

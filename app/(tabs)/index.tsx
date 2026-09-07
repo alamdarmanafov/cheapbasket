@@ -221,7 +221,7 @@ export default function Home() {
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Txt v="bodyStrong">Endirimlər</Txt>
             <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>
-              Ucuzlaşan məhsullar · AI xəbəri {basket.isPlus ? 'hər gün' : 'ayda 3 dəfə'}
+              Ucuzlaşan məhsullar · AI xəbəri {basket.isPlus ? 'hər gün' : 'Plus ilə hər gün'}
             </Txt>
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.grayLight} />

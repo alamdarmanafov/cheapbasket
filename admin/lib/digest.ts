@@ -2,9 +2,9 @@ import Anthropic from '@anthropic-ai/sdk';
 import { adminDb } from './server';
 
 export interface Drop { product_id: string; store_id: string; new_price: number; old_price: number; drop_amount: number; drop_percent: number; changed_at: string; name: string; brand: string; size: string; emoji: string | null; store_name: string }
-export interface DigestSettings { enabled: boolean; free_days: number[]; hour_baku: number; max_items: number; lookback_free_days: number; /** write the text with AI (costs tokens per user); off = free template */ use_ai: boolean }
+export interface DigestSettings { enabled: boolean; free_days: number[]; hour_baku: number; max_items: number; lookback_free_days: number; /** write the text with AI (costs tokens per user); off = free template */ use_ai: boolean; /** only Plus subscribers receive the digest */ plus_only: boolean }
 
-const DEFAULTS: DigestSettings = { enabled: true, free_days: [1, 11, 21], hour_baku: 9, max_items: 5, lookback_free_days: 10, use_ai: false };
+const DEFAULTS: DigestSettings = { enabled: true, free_days: [1, 11, 21], hour_baku: 9, max_items: 5, lookback_free_days: 10, use_ai: false, plus_only: true };
 
 export async function getSettings(): Promise<DigestSettings> {
   const { data } = await adminDb().from('app_settings').select('value').eq('key', 'digest').maybeSingle();
@@ -115,6 +115,7 @@ export async function runDigest(opts: { force?: boolean; dryRun?: boolean; onlyU
     const p = (profiles ?? []).find((x) => x.user_id === uid) ?? {};
     if ((p as { blocked?: boolean }).blocked || (p as { digest_enabled?: boolean }).digest_enabled === false) continue;
     const plus = isPlus(p as { plan?: string; plan_expires_at?: string });
+    if (settings.plus_only && !plus) continue;
     if (!opts.force && (!isDue(plus, settings) || doneToday.has(uid))) continue;
 
     const lookbackMs = (plus ? 1 : settings.lookback_free_days) * 86400000;

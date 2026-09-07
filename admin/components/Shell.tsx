@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Bell, Download, Image as ImageIcon, MessageSquare, Tags, LayoutDashboard, LogOut, MapPin, Package, Store, Users } from 'lucide-react';
+import { Bell, Download, Image as ImageIcon, MessageSquare, RefreshCw, Tags, LayoutDashboard, LogOut, MapPin, Package, Store, Users } from 'lucide-react';
 
 const NAV = [
   ['/', 'Panel', LayoutDashboard],
@@ -9,6 +9,7 @@ const NAV = [
   ['/products', 'Məhsullar və qiymətlər', Package],
   ['/categories', 'Kateqoriyalar', Tags],
   ['/import', 'Wolt-dan import', Download],
+  ['/sync', 'Avtomatik yeniləmə', RefreshCw],
   ['/branches', 'Filiallar', MapPin],
   ['/banners', 'Bannerlər', ImageIcon],
   ['/users', 'İstifadəçilər', Users],

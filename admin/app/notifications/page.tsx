@@ -4,7 +4,7 @@ import { Send, Sparkles } from 'lucide-react';
 import { Shell } from '@/components/Shell';
 import { db } from '@/lib/supabase';
 
-interface Settings { enabled: boolean; free_days: number[]; hour_baku: number; max_items: number; lookback_free_days: number; use_ai?: boolean }
+interface Settings { enabled: boolean; free_days: number[]; hour_baku: number; max_items: number; lookback_free_days: number; use_ai?: boolean; plus_only?: boolean }
 interface Info { settings: Settings; last: Array<{ sent_at: string; title: string; body: string }>; drops: Array<{ brand: string; name: string; size: string; store_name: string; old_price: number; new_price: number; drop_percent: number; changed_at: string }>; ai: 'openai' | 'claude' | 'template'; cron: boolean }
 
 export default function Notifications() {
@@ -61,7 +61,7 @@ export default function Notifications() {
       <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', alignItems: 'start' }}>
         <div className="card">
           <h2><Sparkles size={18} style={{ verticalAlign: -3 }} /> AI endirim xəbəri</h2>
-          <p className="muted" style={{ marginTop: 0 }}>Ucuzlaşan məhsullardan avtomatik push. <b>Plus</b>: hər gün. <b>Free</b>: ayın seçilmiş günlərində. Səbətindəki məhsullar birinci gəlir.</p>
+          <p className="muted" style={{ marginTop: 0 }}>Ucuzlaşan məhsullardan avtomatik push. <b>Plus</b>: hər gün. Free istifadəçilər yalnız "Yalnız Plus" söndürüləndə (ayın seçilmiş günlərində) alır. Səbətindəki məhsullar birinci gəlir.</p>
           {!info ? <p className="muted">Yüklənir…</p> : (
             <>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
@@ -74,12 +74,19 @@ export default function Notifications() {
                   <label style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }} title="Söndürüləndə mətn hazır şablonla yazılır və AI-a pul getmir">
                     <input type="checkbox" checked={!!s.use_ai} disabled={info.ai === 'template'} onChange={(e) => setS({ ...s, use_ai: e.target.checked })} /> Mətni AI yazsın {info.ai === 'template' ? '(OPENAI_API_KEY yoxdur)' : '(hər istifadəçi üçün ≈ 0.0001 $)'}
                   </label>
-                  <label style={{ marginTop: 10 }}>Free istifadəçilər üçün günlər (ayın günü)</label>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
-                    {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
-                      <button key={d} className={`btn ${s.free_days.includes(d) ? '' : 'secondary'}`} style={{ padding: '4px 8px', fontSize: 12 }} onClick={() => toggleDay(d)}>{d}</button>
-                    ))}
-                  </div>
+                  <label style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }} title="Söndürsən Free istifadəçilər də ayın seçilmiş günlərində alır">
+                    <input type="checkbox" checked={s.plus_only !== false} onChange={(e) => setS({ ...s, plus_only: e.target.checked })} /> Yalnız Plus abunəçilərə (Premium funksiya)
+                  </label>
+                  {s.plus_only === false && (
+                    <>
+                      <label style={{ marginTop: 10 }}>Free istifadəçilər üçün günlər (ayın günü)</label>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                        {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                          <button key={d} className={`btn ${s.free_days.includes(d) ? '' : 'secondary'}`} style={{ padding: '4px 8px', fontSize: 12 }} onClick={() => toggleDay(d)}>{d}</button>
+                        ))}
+                      </div>
+                    </>
+                  )}
                   <div className="form-grid" style={{ marginTop: 10 }}>
                     <label>Maks. məhsul sayı<input type="number" min={1} max={10} value={s.max_items} onChange={(e) => setS({ ...s, max_items: Number(e.target.value) })} /></label>
                     <label>Free üçün son N gün<input type="number" min={1} max={31} value={s.lookback_free_days} onChange={(e) => setS({ ...s, lookback_free_days: Number(e.target.value) })} /></label>
