@@ -160,6 +160,25 @@ export default function Home() {
           <Txt style={{ fontSize: 48, lineHeight: 56 }}>🛒</Txt>
         </Pressable>
 
+        {/* Stores (live from admin) */}
+        {cat.stores.length > 0 && (
+          <>
+            <Txt v="bodyStrong" style={{ marginTop: 19, marginBottom: 9 }}>
+              Marketlər
+            </Txt>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              {cat.stores.map((s) => (
+                <Pressable key={s.id} onPress={() => router.push(`/map?store=${s.id}`)} style={({ pressed }) => [styles.storeChip, pressed && { backgroundColor: colors.primarySoft }]}>
+                  <StoreAvatar store={s} size={22} />
+                  <Txt v="captionStrong" style={{ fontSize: 12, marginLeft: 6 }}>
+                    {s.name}
+                  </Txt>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </>
+        )}
+
         {/* Categories (from the live catalog) */}
         {categories.length > 0 && (
           <>
@@ -283,6 +302,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...shadow.card,
   },
+  storeChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 13, paddingVertical: 8, paddingHorizontal: 10 },
   category: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 13, paddingVertical: 10, paddingHorizontal: 11 },
   aiBanner: { marginTop: 14, borderRadius: 17, backgroundColor: '#FFF0F0', padding: 14, flexDirection: 'row', alignItems: 'center' },
   aiArrow: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
