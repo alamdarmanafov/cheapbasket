@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, shadow, space } from '@/theme';
+import { useRefresh } from '@/lib/useRefresh';
 import { Btn, Card, Divider, Pill, Price, Row, Txt } from '@/components/ui';
 import { ProductArt, StoreAvatar } from '@/components/product';
 import { StateView } from '@/components/states';
@@ -16,6 +17,7 @@ import { useBasket } from '@/store/basket';
  * the user can decide for themselves, and the nearest branch on a map.
  */
 export default function Markets() {
+  const refresh = useRefresh();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -42,7 +44,7 @@ export default function Markets() {
   const maxTotal = Math.max(...o.ranked.map((r) => r.total));
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingTop: insets.top + space.md, padding: space.lg, paddingBottom: space.xxl }}>
+    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingTop: insets.top + space.md, padding: space.lg, paddingBottom: space.xxl }} refreshControl={refresh.control}>
       <Txt v="title">Ən sərfəli market</Txt>
       <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>
         {count} məhsullu səbətin · 4 market müqayisə edildi

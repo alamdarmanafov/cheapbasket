@@ -51,14 +51,44 @@ function money(v: unknown): number | null {
   return Number.isInteger(v) ? v / 100 : Math.round(v * 100) / 100;
 }
 
+const isHttp = (v: unknown): v is string => typeof v === 'string' && /^https?:\/\//.test(v);
+
+/** Finds a product photo wherever Wolt puts it: images[].url, image, image_url, imageUrl, photo, media[].url, thumbnail… */
 function firstImage(it: Obj): string | null {
-  const imgs = arr(it.images);
-  for (const i of imgs) {
-    const o = obj(i);
-    const u = o ? str(o.url) ?? str(o.src) : str(i);
-    if (u) return u;
+  const direct = [it.image_url, it.imageUrl, it.image, it.photo, it.thumbnail, it.picture].find(isHttp);
+  if (direct) return direct;
+  const lists = [it.images, it.media, it.photos, it.image, it.thumbnail];
+  for (const l of lists) {
+    for (const i of Array.isArray(l) ? l : [l]) {
+      if (isHttp(i)) return i;
+      const o = obj(i);
+      const u = o && [o.url, o.src, o.image_url, o.original, o.large, o.medium].find(isHttp);
+      if (u) return u;
+    }
   }
-  return str(it.image) ?? str(it.image_url) ?? (obj(it.image) ? str((obj(it.image) as Obj).url) : null);
+  // last resort: any http string under a key that mentions image/photo (2 levels deep)
+  const walk = (o: Obj, depth: number): string | null => {
+    for (const [k, v] of Object.entries(o)) {
+      if (/image|photo|picture|thumb|media/i.test(k)) {
+        if (isHttp(v)) return v;
+        const vo = obj(v);
+        const u = vo && Object.values(vo).find(isHttp);
+        if (u) return u;
+        for (const x of arr(v)) {
+          if (isHttp(x)) return x;
+          const xo = obj(x);
+          const xu = xo && Object.values(xo).find(isHttp);
+          if (xu) return xu;
+        }
+      }
+      if (depth > 0 && obj(v)) {
+        const r = walk(obj(v) as Obj, depth - 1);
+        if (r) return r;
+      }
+    }
+    return null;
+  };
+  return walk(it, 1);
 }
 
 function normalise(it: Obj, categoryOf: (it: Obj) => string | null): WoltItem | null {

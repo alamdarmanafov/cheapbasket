@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors, radius, shadow, space } from '@/theme';
@@ -10,6 +10,7 @@ import { getProduct, getStore } from '@/data/products';
 import { supabase } from '@/lib/supabase';
 import { useBasket } from '@/store/basket';
 import { useAuth } from '@/store/auth';
+import { useRefresh } from '@/lib/useRefresh';
 
 interface Drop { product_id: string; store_id: string; new_price: number; old_price: number; drop_amount: number; drop_percent: number; changed_at: string; name: string; brand: string; size: string; emoji: string | null; store_name: string }
 
@@ -21,18 +22,16 @@ export default function Deals() {
   const [drops, setDrops] = useState<Drop[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!supabase) return;
-    supabase
-      .from('price_drops')
-      .select('*')
-      .order('changed_at', { ascending: false })
-      .limit(100)
-      .then(({ data, error }) => {
-        if (error) setError(error.message);
-        setDrops((data ?? []) as Drop[]);
-      });
+    const { data, error } = await supabase.from('price_drops').select('*').order('changed_at', { ascending: false }).limit(100);
+    if (error) setError(error.message);
+    setDrops((data ?? []) as Drop[]);
   }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+  const refresh = useRefresh(load);
 
   const inBasket = new Set(lines.map((l) => l.product.id));
   const mine = (drops ?? []).filter((d) => inBasket.has(d.product_id));
@@ -85,7 +84,7 @@ export default function Deals() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScreenHeader title="Endirimlər" />
-      <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxxl }}>
+      <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxxl }} refreshControl={refresh.control}>
         <View style={styles.banner}>
           <Txt style={{ fontSize: 26, lineHeight: 32 }}>🔻</Txt>
           <View style={{ flex: 1, marginLeft: space.md }}>

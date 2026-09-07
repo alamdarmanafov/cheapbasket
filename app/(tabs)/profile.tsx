@@ -9,6 +9,7 @@ import { LogoMark } from '@/components/Logo';
 import { PlusTag } from '@/components/PlusLock';
 import { useBasket } from '@/store/basket';
 import { useCatalog } from '@/store/catalog';
+import { useRefresh } from '@/lib/useRefresh';
 import { useAuth } from '@/store/auth';
 import { registerForPush, unregisterPush } from '@/lib/notifications';
 import { notify } from '@/lib/confirm';
@@ -30,6 +31,7 @@ export default function Profile() {
   const { isPlus, optimization: o } = useBasket();
   const cat = useCatalog();
   const auth = useAuth();
+  const refresh = useRefresh();
   const [notif, setNotif] = useState(false);
   const [notifBusy, setNotifBusy] = useState(false);
   const displayName = auth.profile?.display_name || auth.user?.user_metadata?.display_name || auth.user?.user_metadata?.full_name || auth.user?.email?.split('@')[0] || 'Qonaq';
@@ -49,7 +51,7 @@ export default function Profile() {
     setNotifBusy(false);
   };
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingTop: insets.top + space.md, padding: space.lg, paddingBottom: space.xxl }}>
+    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingTop: insets.top + space.md, padding: space.lg, paddingBottom: space.xxl }} refreshControl={refresh.control}>
       <Row style={{ justifyContent: 'space-between' }}>
         <Txt v="title">Profil</Txt>
         <IconBtn name="settings-outline" bg={colors.white} label="Tənzimləmələr" />

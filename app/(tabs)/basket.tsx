@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, shadow, space } from '@/theme';
+import { useRefresh } from '@/lib/useRefresh';
 import { Btn, Divider, IconBtn, Pill, Price, Row, Txt } from '@/components/ui';
 import { ProductArt } from '@/components/product';
 import { StateView } from '@/components/states';
@@ -12,6 +13,7 @@ import { cheapest } from '@/data/products';
 import { useBasket } from '@/store/basket';
 
 export default function Basket() {
+  const refresh = useRefresh();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ compare?: string }>();
@@ -52,7 +54,7 @@ export default function Basket() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <ScrollView contentContainerStyle={{ paddingTop: insets.top + space.md, paddingHorizontal: space.lg, paddingBottom: 180 }}>
+      <ScrollView contentContainerStyle={{ paddingTop: insets.top + space.md, paddingHorizontal: space.lg, paddingBottom: 180 }} refreshControl={refresh.control}>
         <Row style={{ justifyContent: 'space-between' }}>
           <Txt v="title">Səbətim</Txt>
           <IconBtn name="trash-outline" bg={colors.white} onPress={clear} label="Səbəti təmizlə" />

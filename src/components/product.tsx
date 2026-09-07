@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Product, Store, cheapest, StorePrice } from '@/data/products';
@@ -21,7 +21,11 @@ export function ProductArt({ product, size = 56, emojiScale = 0.5 }: { product: 
         justifyContent: 'center',
       }}
     >
-      <Txt style={{ fontSize: size * emojiScale, lineHeight: size * emojiScale * 1.25 }}>{product.emoji}</Txt>
+      {product.imageUrl ? (
+        <Image source={{ uri: product.imageUrl }} style={{ width: size, height: size, borderRadius: size >= 120 ? radius.xl : radius.md }} resizeMode="cover" accessibilityIgnoresInvertColors />
+      ) : (
+        <Txt style={{ fontSize: size * emojiScale, lineHeight: size * emojiScale * 1.25 }}>{product.emoji}</Txt>
+      )}
     </View>
   );
 }
