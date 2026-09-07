@@ -2,9 +2,9 @@ import Anthropic from '@anthropic-ai/sdk';
 import { adminDb } from './server';
 
 export interface Drop { product_id: string; store_id: string; new_price: number; old_price: number; drop_amount: number; drop_percent: number; changed_at: string; name: string; brand: string; size: string; emoji: string | null; store_name: string }
-export interface DigestSettings { enabled: boolean; free_days: number[]; hour_baku: number; max_items: number; lookback_free_days: number }
+export interface DigestSettings { enabled: boolean; free_days: number[]; hour_baku: number; max_items: number; lookback_free_days: number; /** write the text with AI (costs tokens per user); off = free template */ use_ai: boolean }
 
-const DEFAULTS: DigestSettings = { enabled: true, free_days: [1, 11, 21], hour_baku: 9, max_items: 5, lookback_free_days: 10 };
+const DEFAULTS: DigestSettings = { enabled: true, free_days: [1, 11, 21], hour_baku: 9, max_items: 5, lookback_free_days: 10, use_ai: false };
 
 export async function getSettings(): Promise<DigestSettings> {
   const { data } = await adminDb().from('app_settings').select('value').eq('key', 'digest').maybeSingle();
@@ -50,14 +50,14 @@ async function composeWithOpenAI(user: string, fallback: { title: string; body: 
 export const aiProvider = () => (process.env.OPENAI_API_KEY ? 'openai' : process.env.ANTHROPIC_API_KEY ? 'claude' : 'template');
 
 /** Write the message with the configured AI provider; a plain template otherwise. */
-export async function composeMessage(drops: Drop[], plus: boolean, personal: boolean): Promise<{ title: string; body: string }> {
+export async function composeMessage(drops: Drop[], plus: boolean, personal: boolean, useAi = false): Promise<{ title: string; body: string }> {
   const lines = drops.map((d) => `${d.emoji ?? ''} ${d.brand} ${d.name} ${d.size}: ${d.store_name}-da ${d.old_price.toFixed(2)} → ${d.new_price.toFixed(2)} ₼ (−${d.drop_percent}%)`);
   const fallback = {
     title: personal ? `Səbətindəki ${drops.length} məhsul ucuzlaşdı 🔻` : `Bu gün ${drops.length} məhsul ucuzlaşdı 🔻`,
     body: lines.slice(0, 3).join('\n') + (drops.length > 3 ? `\n+${drops.length - 3} məhsul daha` : ''),
   };
   const user = `${plus ? 'Plus istifadəçi (gündəlik xəbər)' : 'Free istifadəçi (aylıq xəbər)'}${personal ? ', səbətindəki məhsullar' : ', ümumi endirimlər'}:\n${lines.join('\n')}`;
-  const provider = aiProvider();
+  const provider = useAi ? aiProvider() : 'template';
   if (provider === 'template') return fallback;
   try {
     if (provider === 'openai') return await composeWithOpenAI(user, fallback);
@@ -124,7 +124,7 @@ export async function runDigest(opts: { force?: boolean; dryRun?: boolean; onlyU
     const pick = (personal.length ? [...personal, ...recent.filter((d) => !mine?.has(d.product_id))] : recent).slice(0, settings.max_items);
     if (!pick.length) continue;
 
-    const msg = await composeMessage(pick, plus, personal.length > 0);
+    const msg = await composeMessage(pick, plus, personal.length > 0, settings.use_ai);
     preview.push({ user_id: uid, ...msg });
     logs.push({ user_id: uid, ...msg });
     for (const to of byUser.get(uid) ?? []) messages.push({ to, ...msg, data: { url: '/deals' } });
