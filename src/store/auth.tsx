@@ -5,6 +5,7 @@ import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import * as Crypto from 'expo-crypto';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, hasSupabase } from '@/lib/supabase';
 import { PlanId } from '@/data/plans';
 
@@ -77,6 +78,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       city: data.city,
     });
     if (data.blocked) await supabase.auth.signOut();
+  }, []);
+
+  // Guest choice survives reloads (web) and restarts (native); signing in or out clears it.
+  useEffect(() => {
+    AsyncStorage.getItem('cb_guest').then((v) => v === '1' && setGuest(true)).catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -185,10 +191,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       async signOut() {
         await supabase?.auth.signOut();
         setProfile(null);
+        setGuest(false);
+        AsyncStorage.removeItem('cb_guest').catch(() => undefined);
       },
       refreshProfile: () => loadProfile(session?.user.id),
       guest,
-      continueAsGuest: () => setGuest(true),
+      continueAsGuest: () => {
+        setGuest(true);
+        AsyncStorage.setItem('cb_guest', '1').catch(() => undefined);
+      },
       lastError,
     }),
     [loading, session, profile, loadProfile, guest, lastError], // eslint-disable-line react-hooks/exhaustive-deps

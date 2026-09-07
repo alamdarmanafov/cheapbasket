@@ -4,6 +4,7 @@ import * as Location from 'expo-location';
 import { Product, Branch, Banner, Category, Store, LatLng, DEFAULT_LOCATION, catalog, withDistances } from '@/data/products';
 import { fetchBanners, fetchBranches, fetchCategories, fetchProducts, fetchStores } from '@/lib/catalog';
 import { hasSupabase, supabase } from '@/lib/supabase';
+import { notify } from '@/lib/confirm';
 
 interface CatalogState {
   stores: Store[];
@@ -17,7 +18,8 @@ interface CatalogState {
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
-  requestLocation: () => Promise<void>;
+  /** `interactive` = the user tapped; explains a denied permission instead of staying silent. */
+  requestLocation: (opts?: { interactive?: boolean }) => Promise<void>;
 }
 
 const Ctx = createContext<CatalogState | null>(null);
@@ -59,13 +61,14 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const requestLocation = useCallback(async () => {
+  const requestLocation = useCallback(async (opts: { interactive?: boolean } = {}) => {
     try {
       const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync();
       setLocationGranted(status === 'granted');
       if (status !== 'granted') {
         // Permanently denied → the only way to enable it is the OS settings.
         if (!canAskAgain && Platform.OS !== 'web') Linking.openSettings().catch(() => undefined);
+        else if (opts.interactive) notify('Lokasiya bağlıdır', 'Brauzerin ünvan sətrindəki kilid ikonundan lokasiyaya icazə ver, sonra yenidən bas.');
         return;
       }
       const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });

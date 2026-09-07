@@ -26,6 +26,10 @@ export default function MapScreen() {
   useEffect(() => {
     if (params.store && storeIds().includes(params.store as StoreId)) setStoreId(params.store as StoreId);
   }, [params.store]);
+  // Opened before the catalogue loaded → pick the best/first store once stores exist.
+  useEffect(() => {
+    if (!ids.includes(storeId)) setStoreId((bestStore && ids.includes(bestStore) ? bestStore : ids[0] ?? '') as StoreId);
+  }, [ids.join(','), bestStore]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const branch = nearestBranch(storeId);
   useEffect(() => {

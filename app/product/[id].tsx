@@ -198,7 +198,7 @@ export default function ProductScreen() {
       <View style={[styles.sticky, { paddingBottom: insets.bottom + space.lg }]}>
         {inBasket ? (
           <Row gap={space.sm}>
-            <Btn title="Səbətdədir" variant="secondary" icon="checkmark" style={{ flex: 1 }} onPress={() => basket.add(product)} />
+            <Btn title={`Səbətdədir · ${basket.lines.find((l) => l.product.id === product.id)?.qty ?? 1} ədəd`} variant="secondary" icon="add" style={{ flex: 1 }} onPress={() => basket.add(product)} />
             <Btn title="Səbətə bax" variant="dark" style={{ flex: 1 }} onPress={() => router.push('/basket')} />
           </Row>
         ) : (

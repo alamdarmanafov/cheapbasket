@@ -8,6 +8,8 @@ import { API_URL } from '@/lib/plusStore';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/track';
 import { useAuth } from '@/store/auth';
+import { useCatalog } from '@/store/catalog';
+import { notify } from '@/lib/confirm';
 import { PlusTag } from '@/components/PlusLock';
 import { colors, fonts, radius, shadow, space } from '@/theme';
 import { Btn, Divider, IconBtn, Pill, Price, Row, Txt } from '@/components/ui';
@@ -29,6 +31,7 @@ export default function Scan() {
   const mode = params.mode === 'photo' ? 'photo' : 'barcode';
   const basket = useBasket();
   const auth = useAuth();
+  const cat = useCatalog();
   const [permission, requestPermission] = useCameraPermissions();
   const [phase, setPhase] = useState<Phase>('scanning');
   const [product, setProduct] = useState<Product | null>(null);
@@ -40,7 +43,7 @@ export default function Scan() {
   const camRef = useRef<CameraView>(null);
 
   // Which store is the user standing in? Defaults to the AI's best store for their basket.
-  const hereId = ((params.store as StoreId) || basket.optimization.best?.store.id || catalog.stores[0]?.id || '') as StoreId;
+  const hereId = ((params.store as StoreId) || basket.optimization.best?.store.id || cat.stores[0]?.id || '') as StoreId;
   const here = getStore(hereId);
 
   useEffect(() => {
@@ -147,7 +150,7 @@ export default function Scan() {
             {here.name}-dasan
           </Txt>
         </View>
-        <IconBtn name={torch ? 'flashlight' : 'flashlight-outline'} bg={torch ? colors.primary : 'rgba(255,255,255,0.15)'} color={colors.white} label="Fənər" onPress={() => (canUseCamera ? setTorch((t) => !t) : undefined)} />
+        <IconBtn name={torch ? 'flashlight' : 'flashlight-outline'} bg={torch ? colors.primary : 'rgba(255,255,255,0.15)'} color={colors.white} label="Fənər" onPress={() => (canUseCamera ? setTorch((t) => !t) : notify('Fənər', 'Fənər yalnız telefon tətbiqində, kamera açıq olanda işləyir.'))} />
       </Row>
 
       {phase === 'scanning' && (
@@ -214,7 +217,7 @@ export default function Scan() {
             Məhsul axtarılır…
           </Txt>
           <Txt v="caption" color="rgba(255,255,255,0.7)" center style={{ marginTop: 4 }}>
-            {catalog.stores.length} marketdə qiymətlər yoxlanılır
+            {cat.stores.length} marketdə qiymətlər yoxlanılır
           </Txt>
         </View>
       )}

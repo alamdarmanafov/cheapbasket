@@ -22,7 +22,7 @@ export function TopBar() {
         <Txt style={{ fontFamily: fonts.extrabold, fontSize: 12, lineHeight: 13, color: colors.primary }}>Basket</Txt>
       </View>
       <View style={{ flex: 1 }} />
-      <Pressable onPress={cat.requestLocation} style={styles.location} accessibilityRole="button">
+      <Pressable onPress={() => cat.requestLocation({ interactive: true })} style={styles.location} accessibilityRole="button">
         <Ionicons name="location-outline" size={14} color={colors.dark} />
         <Txt v="captionStrong" style={{ fontSize: 11, marginLeft: 4 }} numberOfLines={1}>
           {label}

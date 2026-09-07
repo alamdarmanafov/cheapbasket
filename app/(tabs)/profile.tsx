@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, shadow, space } from '@/theme';
-import { IconBtn, Price, Row, Txt } from '@/components/ui';
+import { Price, Row, Txt } from '@/components/ui';
 import { LogoMark } from '@/components/Logo';
 import { PlusTag } from '@/components/PlusLock';
 import { useBasket } from '@/store/basket';
@@ -54,7 +54,7 @@ export default function Profile() {
   };
   const onRow = async (r: RowDef) => {
     if (r.route) return router.push(r.route as never);
-    if (r.action === 'location') return cat.requestLocation();
+    if (r.action === 'location') return cat.requestLocation({ interactive: true });
     if (r.action === 'rate') {
       if (Platform.OS !== 'web' && (await StoreReview.hasAction().catch(() => false))) return StoreReview.requestReview();
       return notify('Təşəkkürlər ⭐', 'Qiymətləndirmə App Store / Google Play-də tətbiq yayımlanandan sonra açılacaq.');
@@ -63,10 +63,7 @@ export default function Profile() {
   const rowValue = (r: RowDef) => (r.action === 'location' ? cat.place ?? (cat.locationGranted === false ? 'Bağlıdır' : 'Açıqdır') : r.value);
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingTop: insets.top + space.md, padding: space.lg, paddingBottom: space.xxl }} refreshControl={refresh.control}>
-      <Row style={{ justifyContent: 'space-between' }}>
-        <Txt v="title">Profil</Txt>
-        <IconBtn name="settings-outline" bg={colors.white} label="Tənzimləmələr" onPress={() => router.push(auth.user ? '/account' : '/auth')} />
-      </Row>
+      <Txt v="title">Profil</Txt>
 
       <Pressable onPress={() => router.push(auth.user ? '/account' : '/auth')} style={({ pressed }) => [styles.card, pressed && { opacity: 0.9 }]}>
         <Row gap={12}>
