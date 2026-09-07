@@ -55,7 +55,8 @@ export async function fetchStores(): Promise<Store[]> {
 export async function fetchProducts(): Promise<Product[]> {
   const { data, error } = await need().from('product_prices').select('*').order('name');
   if (error) throw error;
-  return ((data ?? []) as ProductPriceRow[]).map((r) => rowToProduct(r));
+  // Products without a single price are kept in the admin catalogue but hidden from shoppers.
+  return ((data ?? []) as ProductPriceRow[]).map((r) => rowToProduct(r)).filter((p) => Object.values(p.prices).some((v) => v != null));
 }
 
 export async function fetchProduct(id: string): Promise<Product | undefined> {

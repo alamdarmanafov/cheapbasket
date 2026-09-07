@@ -18,6 +18,7 @@ export default function Products() {
   const [prices, setPrices] = useState<PriceMap>({});
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('');
+  const [priceFilter, setPriceFilter] = useState<'' | 'none' | 'partial'>('');
   const [edit, setEdit] = useState<{ product: Product; cells: Record<string, Cell>; isNew: boolean } | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -42,8 +43,27 @@ export default function Products() {
 
   const filtered = useMemo(() => {
     const n = q.trim().toLowerCase();
-    return products.filter((p) => (!cat || p.category === cat) && (!n || `${p.brand} ${p.name} ${p.barcode ?? ''} ${p.category}`.toLowerCase().includes(n)));
-  }, [products, q, cat]);
+    const priced = (p: Product) => stores.filter((s) => num(prices[p.id]?.[s.id]?.price ?? '') != null).length;
+    return products.filter(
+      (p) =>
+        (!cat || p.category === cat) &&
+        (!n || `${p.brand} ${p.name} ${p.barcode ?? ''} ${p.category}`.toLowerCase().includes(n)) &&
+        (!priceFilter || (priceFilter === 'none' ? priced(p) === 0 : priced(p) > 0 && priced(p) < stores.length)),
+    );
+  }, [products, q, cat, priceFilter, prices, stores]);
+
+  const noPriceCount = useMemo(() => products.filter((p) => !stores.some((s) => num(prices[p.id]?.[s.id]?.price ?? '') != null)).length, [products, prices, stores]);
+
+  const removeFiltered = async () => {
+    if (!filtered.length) return;
+    if (!confirm(`Filtrdəki ${filtered.length} məhsul silinsin? (Tətbiqdə onsuz da görünmürlər)`)) return;
+    setBusy(true);
+    let err: string | null = null;
+    for (const p of filtered) await db.delete('products', { id: p.id }).catch((e: Error) => { err = e.message; });
+    setBusy(false);
+    setMsg({ ok: !err, text: err ?? `${filtered.length} məhsul silindi` });
+    load();
+  };
 
   const open = (p: Product) => {
     const cells: Record<string, Cell> = {};
@@ -128,6 +148,12 @@ export default function Products() {
           <option value="">Bütün kateqoriyalar</option>
           {catNames.map((c) => <option key={c}>{c}</option>)}
         </select>
+        <select value={priceFilter} onChange={(e) => setPriceFilter(e.target.value as '' | 'none' | 'partial')} title="Qiymət vəziyyəti">
+          <option value="">Bütün məhsullar</option>
+          <option value="none">Heç bir marketdə qiyməti yoxdur ({noPriceCount})</option>
+          <option value="partial">Bəzi marketlərdə qiyməti yoxdur</option>
+        </select>
+        {priceFilter === 'none' && filtered.length > 0 && <button className="btn danger" disabled={busy} onClick={removeFiltered}><Trash2 size={14} /> Filtrdəkiləri sil ({filtered.length})</button>}
         <button className="btn" onClick={() => open({ ...EMPTY, category: catNames[0] ?? CATEGORIES[0] })}><Plus size={14} /> Yeni məhsul</button>
       </div>
       {stores.length === 0 && <div className="alert err">Əvvəlcə "Marketlər" səhifəsində ən azı bir market əlavə et.</div>}
@@ -177,7 +203,7 @@ export default function Products() {
           {filtered.length === 0 && <tr><td colSpan={5} className="muted" style={{ textAlign: 'center', padding: 30 }}>Məhsul yoxdur — "Yeni məhsul" ilə və ya "Wolt-dan import" ilə əlavə et.</td></tr>}
         </tbody>
       </table>
-      <p className="note">Məhsula klik et: bir pəncərədə məlumatları və hər market üçün adi / endirimli qiyməti yaz. Yaşıl çip endirimin olduğunu göstərir. Hər dəyişiklik qiymət tarixçəsinə avtomatik yazılır.</p>
+      <p className="note">Məhsula klik et: bir pəncərədə məlumatları və hər market üçün adi / endirimli qiyməti yaz. Yaşıl çip endirimin olduğunu göstərir. Hər dəyişiklik qiymət tarixçəsinə avtomatik yazılır. <b>Heç bir marketdə qiyməti olmayan məhsul tətbiqdə görünmür</b>; digər marketlərin qiymətini "Avtomatik yeniləmə"də həmin marketin Wolt mənbəsi ilə doldur.</p>
 
       {edit && (
         <div className="modal-bg" onClick={() => setEdit(null)}>
