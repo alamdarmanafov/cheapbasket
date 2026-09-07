@@ -7,6 +7,7 @@ import { Btn, Card, Divider, Pill, Price, Row, Txt } from '@/components/ui';
 import { ProductRow, StoreAvatar } from '@/components/product';
 import { ProductRowSkeleton } from '@/components/states';
 import { TopBar } from '@/components/TopBar';
+import { BannerSlider } from '@/components/BannerSlider';
 import { PlusTag } from '@/components/PlusLock';
 import { Product, catalogCategories, searchProducts } from '@/data/products';
 import { useCatalog } from '@/store/catalog';
@@ -128,6 +129,9 @@ export default function Home() {
           <QuickTile icon="camera-outline" label="Məhsulun şəklini çək" onPress={() => router.push('/scan?mode=photo')} />
           <QuickTile icon="list-outline" label="Siyahını əlavə et" onPress={() => router.push('/search')} />
         </Row>
+
+        {/* Promo banners (admin-managed slider) */}
+        <BannerSlider banners={cat.banners} />
 
         {/* Basket summary */}
         <Pressable onPress={() => router.push('/basket')} style={({ pressed }) => [styles.summary, pressed && { opacity: 0.9 }]}>

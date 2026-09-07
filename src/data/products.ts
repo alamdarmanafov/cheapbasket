@@ -57,6 +57,17 @@ export interface LatLng {
 export const DEFAULT_LOCATION: LatLng = { lat: 40.4093, lng: 49.8671 };
 
 /** Runtime registry, filled by CatalogProvider. */
+export interface Banner {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  imageUrl: string | null;
+  bgColor: string;
+  textColor: string;
+  /** In-app route (starts with '/') or an https:// link. */
+  link: string | null;
+}
+
 export const catalog = {
   stores: [] as Store[],
   products: [] as Product[],
