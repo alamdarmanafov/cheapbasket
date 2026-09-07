@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Platform } from 'react-native';
+import { AppState, Linking, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { Product, Branch, Banner, Category, Store, LatLng, DEFAULT_LOCATION, catalog, withDistances } from '@/data/products';
 import { fetchBanners, fetchBranches, fetchCategories, fetchProducts, fetchStores } from '@/lib/catalog';
@@ -61,9 +61,13 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
 
   const requestLocation = useCallback(async () => {
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync();
       setLocationGranted(status === 'granted');
-      if (status !== 'granted') return;
+      if (status !== 'granted') {
+        // Permanently denied → the only way to enable it is the OS settings.
+        if (!canAskAgain && Platform.OS !== 'web') Linking.openSettings().catch(() => undefined);
+        return;
+      }
       const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       catalog.location = loc;
