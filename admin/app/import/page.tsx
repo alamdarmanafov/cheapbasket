@@ -122,7 +122,12 @@ export default function ImportPage() {
     setBusy(true);
     try {
       let sort = ourCategories.length;
-      await db.upsert('categories', fresh.map((name) => ({ id: slugify(name) || `cat-${sort}`, name, emoji: null, sort: sort++ })), 'id');
+      const byId = new Map<string, Record<string, unknown>>();
+      for (const name of fresh) {
+        const id = slugify(name) || `cat-${sort}`;
+        if (!byId.has(id)) byId.set(id, { id, name, emoji: null, sort: sort++ });
+      }
+      await db.upsert('categories', [...byId.values()], 'id');
       await reloadCategories();
       setRows(rows.map((r) => (r.category && !r.existingId ? { ...r, appCategory: r.category } : r)));
       setMsg({ ok: true, text: `${fresh.length} kateqoriya əlavə olundu ("Kateqoriyalar" səhifəsində emoji və sıra verə bilərsən). Sətirlər Wolt kateqoriyasına uyğunlaşdırıldı.` });
@@ -159,7 +164,7 @@ export default function ImportPage() {
       const idByBarcode = new Map<string, string>(); // barcode → product id inside this batch
       let updated = 0;
       for (const r of selected) {
-        const known = r.existingId ?? match(r) ?? (r.barcode ? idByBarcode.get(r.barcode) : undefined) ?? null;
+        const known = r.existingId ?? match(r) ?? (r.barcode ? idByBarcode.get(r.barcode) : undefined) ?? (usedIds.has(r.barcode ?? `wolt-${slugify(r.name)}`) ? (r.barcode ?? `wolt-${slugify(r.name)}`) : null);
         let id = known ?? r.barcode ?? `wolt-${slugify(r.name)}`;
         if (!known && usedIds.has(id)) id = `${id}-${r.ext_id.slice(-4)}`;
         usedIds.add(id);
@@ -168,7 +173,8 @@ export default function ImportPage() {
           products.push({ id, barcode: r.barcode, name: r.title.trim(), brand: r.brand.trim(), size: r.size.trim() || '—', category: r.appCategory, emoji: '🛒', tint: '#F3F4F6', image_url: r.image_url });
         } else {
           updated++;
-          if (r.updateInfo) infoUpdates.push({ id, name: r.title.trim(), brand: r.brand.trim(), size: r.size.trim() || '—', category: r.appCategory, image_url: r.image_url });
+          // several Wolt rows can map to one product (same barcode / name) → keep a single info update per id
+          if (r.updateInfo && !infoUpdates.some((u) => u.id === id)) infoUpdates.push({ id, name: r.title.trim(), brand: r.brand.trim(), size: r.size.trim() || '—', category: r.appCategory, image_url: r.image_url });
         }
         // one price row per product (a duplicate barcode in the venue keeps the first / cheaper price)
         const prev = priceById.get(id);

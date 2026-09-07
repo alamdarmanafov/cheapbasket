@@ -27,7 +27,9 @@ export default function Categories() {
     if (!err && oldName && oldName !== c.name && counts[oldName]) {
       // rename: move products to the new name
       const prods = await db.select<Product>('products', { eq: { category: oldName } }).catch(() => [] as Product[]);
-      if (prods.length) await db.upsert('products', prods.map((p) => ({ ...p, category: c.name })), 'id').catch((e: Error) => setMsg({ ok: false, text: e.message }));
+      const seen = new Set<string>();
+      const uniq = prods.filter((p) => (seen.has(p.id) ? false : (seen.add(p.id), true)));
+      if (uniq.length) await db.upsert('products', uniq.map((p) => ({ ...p, category: c.name })), 'id').catch((e: Error) => setMsg({ ok: false, text: e.message }));
     }
     setMsg({ ok: !err, text: err ?? `${c.name} yadda saxlanıldı` });
     load();
