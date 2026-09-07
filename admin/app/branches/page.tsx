@@ -1,11 +1,20 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { MapPin, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Clock, Map, MapPin, Plus, RefreshCw, Search, Table, Trash2, X } from 'lucide-react';
 import { Shell } from '@/components/Shell';
 import { Branch, Store, db, slugify } from '@/lib/supabase';
 import type { WoltVenue } from '@/lib/wolt';
 
+declare global {
+  interface Window {
+    __branchEdit?: (id: string) => void;
+    __branchDel?: (id: string) => void;
+    __branchMapClick?: (lat: number, lng: number) => void;
+  }
+}
+
 type BulkStatus = { storeId: string; name: string; status: 'pending' | 'loading' | 'done' | 'error'; count?: number; error?: string };
+type ViewMode = 'table' | 'map';
 
 export default function Branches() {
   const [stores, setStores] = useState<Store[]>([]);
@@ -14,6 +23,14 @@ export default function Branches() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [link, setLink] = useState('');
   const [resolving, setResolving] = useState(false);
+
+  // View toggle
+  const [view, setView] = useState<ViewMode>('table');
+
+  // Leaflet map state
+  const [leafletReady, setLeafletReady] = useState(false);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<unknown>(null);
 
   // Wolt import panel
   const [woltOpen, setWoltOpen] = useState(false);
@@ -28,6 +45,144 @@ export default function Branches() {
   const [woltSelected, setWoltSelected] = useState<Set<string>>(new Set());
   const [woltError, setWoltError] = useState('');
   const [woltImporting, setWoltImporting] = useState(false);
+
+  // Bulk hours
+  const [bulkHoursOpen, setBulkHoursOpen] = useState(false);
+  const [bulkHoursStoreId, setBulkHoursStoreId] = useState('');
+  const [bulkHoursFrom, setBulkHoursFrom] = useState('08:00');
+  const [bulkHoursUntil, setBulkHoursUntil] = useState('23:00');
+  const [bulkHoursAlways, setBulkHoursAlways] = useState(false);
+  const [bulkHoursApplying, setBulkHoursApplying] = useState(false);
+
+  // Wolt name autosuggest (in edit form)
+  const [woltSuggestVenues, setWoltSuggestVenues] = useState<WoltVenue[]>([]);
+  const [woltSuggestLoading, setWoltSuggestLoading] = useState(false);
+  const woltSuggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Google Maps quick-parse in form
+  const [gmapsLink, setGmapsLink] = useState('');
+  const [gmapsFetching, setGmapsFetching] = useState(false);
+
+  // ── Leaflet loading ──────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((window as any).L) { setLeafletReady(true); return; }
+    if (!document.getElementById('leaflet-css')) {
+      const link = document.createElement('link');
+      link.id = 'leaflet-css';
+      link.rel = 'stylesheet';
+      link.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
+      document.head.appendChild(link);
+    }
+    if (!document.getElementById('leaflet-js')) {
+      const script = document.createElement('script');
+      script.id = 'leaflet-js';
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+      script.onload = () => setLeafletReady(true);
+      document.head.appendChild(script);
+    } else {
+      // script tag already exists (e.g. HMR), wait for load
+      const existing = document.getElementById('leaflet-js') as HTMLScriptElement;
+      if (existing.dataset.loaded === '1') setLeafletReady(true);
+      else existing.addEventListener('load', () => setLeafletReady(true), { once: true });
+    }
+  }, []);
+
+  // ── Leaflet map init/update ──────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!leafletReady || view !== 'map' || !mapContainerRef.current) return;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const L = (window as any).L as any;
+
+    // Destroy existing instance before re-creating
+    if (mapInstanceRef.current) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (mapInstanceRef.current as any).remove();
+      mapInstanceRef.current = null;
+    }
+
+    const map = L.map(mapContainerRef.current).setView([40.4093, 49.8671], 12);
+    mapInstanceRef.current = map;
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19,
+    }).addTo(map);
+
+    rows.forEach((b) => {
+      const store = stores.find((s) => s.id === b.store_id);
+      const color = store?.color ?? '#64748B';
+      const marker = L.circleMarker([b.lat, b.lng], {
+        radius: 9,
+        fillColor: color,
+        color: '#fff',
+        weight: 2,
+        opacity: 1,
+        fillOpacity: 0.9,
+      });
+      const hours = b.always_open ? '24 saat' : (b.open_from || b.open_until) ? `${b.open_from ?? '…'}–${b.open_until ?? '…'}` : '—';
+      const popup = L.popup({ minWidth: 200 }).setContent(`
+        <div style="font-family:system-ui,sans-serif;font-size:13px;line-height:1.5">
+          <div style="font-weight:700;margin-bottom:2px">${escHtml(b.name)}</div>
+          <div style="color:#64748B;font-size:12px;margin-bottom:2px">${escHtml(b.address)}</div>
+          ${b.phone ? `<div style="font-size:12px">${escHtml(b.phone)}</div>` : ''}
+          <div style="font-size:12px;color:#475569">${escHtml(hours)}</div>
+          <div style="margin-top:8px;display:flex;gap:6px">
+            <button data-edit="${b.id}" style="font-size:12px;padding:3px 10px;cursor:pointer;border:1px solid #CBD5E1;border-radius:5px;background:#fff">Düzəlt</button>
+            <button data-del="${b.id}" style="font-size:12px;padding:3px 10px;cursor:pointer;border:1px solid #FCA5A5;border-radius:5px;background:#FEF2F2;color:#DC2626">Sil</button>
+          </div>
+        </div>
+      `);
+      popup.on('add', () => {
+        const el = popup.getElement();
+        if (!el) return;
+        el.querySelector('[data-edit]')?.addEventListener('click', () => {
+          map.closePopup();
+          window.__branchEdit?.(b.id);
+        });
+        el.querySelector('[data-del]')?.addEventListener('click', () => {
+          map.closePopup();
+          window.__branchDel?.(b.id);
+        });
+      });
+      marker.bindPopup(popup).addTo(map);
+    });
+
+    // Click on empty map to pre-fill coords for a new branch
+    map.on('click', (e: { latlng: { lat: number; lng: number } }) => {
+      window.__branchMapClick?.(e.latlng.lat, e.latlng.lng);
+    });
+
+    return () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (map as any).remove();
+      mapInstanceRef.current = null;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leafletReady, view, rows, stores]);
+
+  // ── Register global map callbacks (updated every render so they close over fresh state) ──
+
+  useEffect(() => {
+    window.__branchEdit = (id: string) => {
+      const b = rows.find((r) => r.id === id);
+      if (b) { setLink(''); setGmapsLink(''); setWoltSuggestVenues([]); setEdit(b); }
+    };
+    window.__branchDel = (id: string) => {
+      const b = rows.find((r) => r.id === id);
+      if (b) remove(b);
+    };
+    window.__branchMapClick = (lat: number, lng: number) => {
+      setLink(''); setGmapsLink(''); setWoltSuggestVenues([]);
+      setEdit({ id: '', store_id: stores[0]?.id ?? '', name: '', address: '', lat, lng, open_until: '23:00', open_from: '08:00', always_open: false, maps_url: '', phone: '' });
+    };
+  });
+
+  // ── Data helpers ─────────────────────────────────────────────────────────────
 
   const fetchVenues = async (q: string): Promise<WoltVenue[]> => {
     const res = await fetch(`/api/import/wolt/venues?q=${encodeURIComponent(q)}`);
@@ -107,7 +262,7 @@ export default function Branches() {
     load();
   };
 
-  /** Paste a Google Maps link / address → fill name, address and coordinates. */
+  /** Resolve existing "Ünvan / link" field via /api/geo/resolve. */
   const resolve = async () => {
     if (!edit || !link.trim()) return;
     setResolving(true);
@@ -124,8 +279,28 @@ export default function Branches() {
     }
   };
 
+  /** Parse a Google Maps URL via /api/branches/gmaps → fill form fields. */
+  const fetchGmaps = async () => {
+    if (!edit || !gmapsLink.trim()) return;
+    setGmapsFetching(true);
+    try {
+      const res = await fetch(`/api/branches/gmaps?url=${encodeURIComponent(gmapsLink.trim())}`);
+      const j = (await res.json()) as { lat: number; lng: number; name?: string; address?: string; error?: string };
+      if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`);
+      setEdit({ ...edit, lat: j.lat, lng: j.lng, name: edit.name || j.name || '', address: edit.address || j.address || '', maps_url: gmapsLink.trim() });
+      setMsg({ ok: true, text: `Koordinat tapıldı: ${j.lat.toFixed(5)}, ${j.lng.toFixed(5)}` });
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error).message });
+    } finally {
+      setGmapsFetching(false);
+    }
+  };
+
   const load = async () => {
-    const [s, b] = await Promise.all([db.select<Store>('stores', { order: 'name' }), db.select<Branch>('branches', { order: 'name' })]).catch((e: Error) => { setMsg({ ok: false, text: e.message }); return [[], []] as [Store[], Branch[]]; });
+    const [s, b] = await Promise.all([
+      db.select<Store>('stores', { order: 'name' }),
+      db.select<Branch>('branches', { order: 'name' }),
+    ]).catch((e: Error) => { setMsg({ ok: false, text: e.message }); return [[], []] as [Store[], Branch[]]; });
     setStores(s);
     setRows(b);
   };
@@ -145,22 +320,127 @@ export default function Branches() {
   };
   const storeOf = (id: string) => stores.find((s) => s.id === id);
 
+  /** Apply bulk hours to all branches of a given store (or all stores if storeId is ''). */
+  const applyBulkHours = async () => {
+    const targets = bulkHoursStoreId ? rows.filter((r) => r.store_id === bulkHoursStoreId) : rows;
+    if (!targets.length) { setMsg({ ok: false, text: 'Tətbiq ediləcək filial yoxdur' }); return; }
+    setBulkHoursApplying(true);
+    try {
+      const updated: Record<string, unknown>[] = targets.map((r) => ({
+        ...r,
+        open_from: bulkHoursAlways ? null : (bulkHoursFrom || null),
+        open_until: bulkHoursAlways ? null : (bulkHoursUntil || null),
+        always_open: bulkHoursAlways,
+      }));
+      await db.upsert('branches', updated, 'id');
+      setMsg({ ok: true, text: `${updated.length} filiala iş saatları tətbiq edildi` });
+      setBulkHoursOpen(false);
+      load();
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error).message });
+    } finally {
+      setBulkHoursApplying(false);
+    }
+  };
+
+  /** Trigger Wolt autosuggest after 400 ms debounce. */
+  const onNameChange = (value: string) => {
+    if (!edit) return;
+    setEdit({ ...edit, name: value });
+    if (woltSuggestTimer.current) clearTimeout(woltSuggestTimer.current);
+    if (value.trim().length >= 2) {
+      woltSuggestTimer.current = setTimeout(async () => {
+        setWoltSuggestLoading(true);
+        try {
+          const venues = await fetchVenues(value.trim());
+          setWoltSuggestVenues(venues.slice(0, 6));
+        } catch { setWoltSuggestVenues([]); }
+        finally { setWoltSuggestLoading(false); }
+      }, 400);
+    } else {
+      setWoltSuggestVenues([]);
+    }
+  };
+
   return (
     <Shell title="Filiallar">
       {msg && <div className={`alert ${msg.ok ? 'ok' : 'err'}`}>{msg.text}</div>}
+
+      {/* ── Toolbar ──────────────────────────────────────────────────────────── */}
       <div className="toolbar">
-        <span className="muted">Google Maps-də filialı tap → "Paylaş" → linki kopyala → "Yeni filial"də yapışdır. Ad, ünvan və koordinat avtomatik doldurulur.</span>
-        <button className="btn secondary" style={{ marginLeft: 'auto' }} disabled={!stores.length} onClick={() => { setWoltOpen((o) => !o); setBulk([]); setWoltVenues([]); setWoltSelected(new Set()); setWoltError(''); setWoltStoreId(stores[0]?.id ?? ''); setWoltQuery(stores[0]?.name ?? ''); }}>
-          <Search size={14} /> Wolt-dan çək
-        </button>
-        <button className="btn" disabled={!stores.length} onClick={() => { setLink(''); setEdit({ id: '', store_id: stores[0]?.id ?? '', name: '', address: '', lat: 40.4093, lng: 49.8671, open_until: '23:00', open_from: '08:00', always_open: false, maps_url: '', phone: '' }); }}>
-          <Plus size={14} /> Yeni filial
-        </button>
+        <span className="muted">Google Maps-də filialı tap → "Paylaş" → linki kopyala → "Yeni filial"də yapışdır.</span>
+        <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
+          {/* View toggle */}
+          <div style={{ display: 'flex', border: '1px solid #E2E8F0', borderRadius: 8, overflow: 'hidden' }}>
+            <button
+              className={`btn ghost${view === 'table' ? ' active' : ''}`}
+              style={{ borderRadius: 0, gap: 4, borderRight: '1px solid #E2E8F0', background: view === 'table' ? '#F1F5F9' : undefined }}
+              onClick={() => setView('table')}
+            >
+              <Table size={14} /> Cədvəl
+            </button>
+            <button
+              className={`btn ghost${view === 'map' ? ' active' : ''}`}
+              style={{ borderRadius: 0, gap: 4, background: view === 'map' ? '#F1F5F9' : undefined }}
+              onClick={() => setView('map')}
+            >
+              <Map size={14} /> Xəritə
+            </button>
+          </div>
+          <button className="btn secondary" style={{ gap: 4 }} onClick={() => setBulkHoursOpen((o) => !o)}>
+            <Clock size={14} /> Toplu iş saatları
+          </button>
+          <button className="btn secondary" disabled={!stores.length} onClick={() => { setWoltOpen((o) => !o); setBulk([]); setWoltVenues([]); setWoltSelected(new Set()); setWoltError(''); setWoltStoreId(stores[0]?.id ?? ''); setWoltQuery(stores[0]?.name ?? ''); }}>
+            <Search size={14} /> Wolt-dan çək
+          </button>
+          <button className="btn" disabled={!stores.length} onClick={() => { setLink(''); setGmapsLink(''); setWoltSuggestVenues([]); setEdit({ id: '', store_id: stores[0]?.id ?? '', name: '', address: '', lat: 40.4093, lng: 49.8671, open_until: '23:00', open_from: '08:00', always_open: false, maps_url: '', phone: '' }); }}>
+            <Plus size={14} /> Yeni filial
+          </button>
+        </div>
       </div>
 
+      {/* ── Bulk hours panel ─────────────────────────────────────────────────── */}
+      {bulkHoursOpen && (
+        <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <b style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Clock size={15} /> Toplu iş saatları</b>
+            <button className="btn ghost" onClick={() => setBulkHoursOpen(false)}><X size={14} /></button>
+          </div>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#6B7280' }}>
+              Market
+              <select value={bulkHoursStoreId} onChange={(e) => setBulkHoursStoreId(e.target.value)} style={{ minWidth: 130 }}>
+                <option value="">Hamısı</option>
+                {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#6B7280' }}>
+              Açılış
+              <input value={bulkHoursFrom} onChange={(e) => setBulkHoursFrom(e.target.value)} placeholder="08:00" disabled={bulkHoursAlways} style={{ width: 90 }} />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#6B7280' }}>
+              Bağlanış
+              <input value={bulkHoursUntil} onChange={(e) => setBulkHoursUntil(e.target.value)} placeholder="23:00" disabled={bulkHoursAlways} style={{ width: 90 }} />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, fontSize: 13 }}>
+              <input type="checkbox" checked={bulkHoursAlways} onChange={(e) => setBulkHoursAlways(e.target.checked)} style={{ width: 'auto' }} />
+              24 saat açıqdır
+            </label>
+            <button className="btn" disabled={bulkHoursApplying} onClick={applyBulkHours} style={{ alignSelf: 'flex-end' }}>
+              {bulkHoursApplying ? 'Tətbiq edilir…' : 'Bu markete aid bütün filiallara tətbiq et'}
+            </button>
+          </div>
+          <div style={{ fontSize: 12, color: '#92400E', marginTop: 10 }}>
+            {bulkHoursStoreId
+              ? `"${stores.find((s) => s.id === bulkHoursStoreId)?.name ?? ''}" marketinin ${rows.filter((r) => r.store_id === bulkHoursStoreId).length} filialına tətbiq ediləcək`
+              : `Bütün marketlərin ${rows.length} filialına tətbiq ediləcək`}
+          </div>
+        </div>
+      )}
+
+      {/* ── Wolt import panel ────────────────────────────────────────────────── */}
       {woltOpen && (
         <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 12, padding: 16, marginBottom: 16 }}>
-          {/* Auto import all stores */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
             <button className="btn" disabled={bulkRunning} onClick={importAll} style={{ gap: 6 }}>
               <RefreshCw size={14} style={bulkRunning ? { animation: 'spin 1s linear infinite' } : {}} />
@@ -178,7 +458,7 @@ export default function Branches() {
                   <span style={{ flex: 1, fontWeight: 500 }}>{b.name}</span>
                   {b.status === 'loading' && <span className="muted">axtarılır…</span>}
                   {b.status === 'done' && <span style={{ color: '#16A34A' }}>{b.count} filial</span>}
-                  {b.status === 'error' && <span style={{ color: '#DC2626', fontSize: 12 }} title={b.error}>xəta</span>}
+                  {b.status === 'error' && <span style={{ color: '#DC2626', fontSize: 11 }}>xəta: {b.error?.slice(0, 120)}</span>}
                 </div>
               ))}
             </div>
@@ -240,44 +520,114 @@ export default function Branches() {
         </div>
       )}
 
-      <table>
-        <thead><tr><th>Market</th><th>Filial</th><th>Ünvan</th><th>Koordinat</th><th>Açıq</th><th></th></tr></thead>
-        <tbody>
-          {rows.map((b) => (
-            <tr key={b.id}>
-              <td><span className="avatar" style={{ background: storeOf(b.store_id)?.color ?? '#999' }}>{storeOf(b.store_id)?.initial}</span>{storeOf(b.store_id)?.name ?? b.store_id}</td>
-              <td><b>{b.name}</b></td>
-              <td className="muted">{b.address}</td>
-              <td className="muted" style={{ fontFamily: 'monospace', fontSize: 12 }}><a href={b.maps_url || `https://www.google.com/maps?q=${b.lat},${b.lng}`} target="_blank" rel="noreferrer"><MapPin size={12} style={{ verticalAlign: -2 }} /> {Number(b.lat).toFixed(5)}, {Number(b.lng).toFixed(5)}</a></td>
-              <td className="muted">{b.always_open ? '24 saat' : b.open_from || b.open_until ? `${b.open_from ?? '…'}–${b.open_until ?? '…'}` : '—'}</td>
-              <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
-                <button className="btn ghost" onClick={() => setEdit(b)}>Düzəlt</button>
-                <button className="btn ghost" onClick={() => remove(b)}><Trash2 size={14} /></button>
-              </td>
-            </tr>
-          ))}
-          {rows.length === 0 && <tr><td colSpan={6} className="muted" style={{ textAlign: 'center', padding: 30 }}>Filial yoxdur. Tətbiqdə xəritə və "ən yaxın filial" buradan gəlir.</td></tr>}
-        </tbody>
-      </table>
+      {/* ── Table view ───────────────────────────────────────────────────────── */}
+      {view === 'table' && (
+        <table>
+          <thead><tr><th>Market</th><th>Filial</th><th>Ünvan</th><th>Koordinat</th><th>Açıq</th><th></th></tr></thead>
+          <tbody>
+            {rows.map((b) => (
+              <tr key={b.id}>
+                <td><span className="avatar" style={{ background: storeOf(b.store_id)?.color ?? '#999' }}>{storeOf(b.store_id)?.initial}</span>{storeOf(b.store_id)?.name ?? b.store_id}</td>
+                <td><b>{b.name}</b></td>
+                <td className="muted">{b.address}</td>
+                <td className="muted" style={{ fontFamily: 'monospace', fontSize: 12 }}><a href={b.maps_url || `https://www.google.com/maps?q=${b.lat},${b.lng}`} target="_blank" rel="noreferrer"><MapPin size={12} style={{ verticalAlign: -2 }} /> {Number(b.lat).toFixed(5)}, {Number(b.lng).toFixed(5)}</a></td>
+                <td className="muted">{b.always_open ? '24 saat' : b.open_from || b.open_until ? `${b.open_from ?? '…'}–${b.open_until ?? '…'}` : '—'}</td>
+                <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
+                  <button className="btn ghost" onClick={() => { setLink(''); setGmapsLink(''); setWoltSuggestVenues([]); setEdit(b); }}>Düzəlt</button>
+                  <button className="btn ghost" onClick={() => remove(b)}><Trash2 size={14} /></button>
+                </td>
+              </tr>
+            ))}
+            {rows.length === 0 && <tr><td colSpan={6} className="muted" style={{ textAlign: 'center', padding: 30 }}>Filial yoxdur. Tətbiqdə xəritə və "ən yaxın filial" buradan gəlir.</td></tr>}
+          </tbody>
+        </table>
+      )}
 
+      {/* ── Map view ─────────────────────────────────────────────────────────── */}
+      {view === 'map' && (
+        <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #E2E8F0', position: 'relative' }}>
+          {!leafletReady && (
+            <div style={{ height: 520, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6B7280', fontSize: 14 }}>
+              Xəritə yüklənir…
+            </div>
+          )}
+          <div
+            ref={mapContainerRef}
+            style={{ height: 520, display: leafletReady ? 'block' : 'none' }}
+          />
+          <div style={{ position: 'absolute', bottom: 12, left: 12, background: 'rgba(255,255,255,0.92)', borderRadius: 8, padding: '6px 10px', fontSize: 12, color: '#475569', pointerEvents: 'none', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
+            Xəritəyə klikləyin → yeni filial koordinatı
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit / New branch modal ───────────────────────────────────────────── */}
       {edit && (
-        <div className="modal-bg" onClick={() => setEdit(null)}>
+        <div className="modal-bg" onClick={() => { setEdit(null); setWoltSuggestVenues([]); }}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ margin: 0 }}>{edit.id ? 'Filialı düzəlt' : 'Yeni filial'}</h2>
-              <button className="btn ghost" onClick={() => setEdit(null)}><X size={18} /></button>
+              <button className="btn ghost" onClick={() => { setEdit(null); setWoltSuggestVenues([]); }}><X size={18} /></button>
             </div>
+
+            {/* Google Maps link → auto-fill coords */}
             <div style={{ marginTop: 14, padding: 12, background: '#FAFAFA', borderRadius: 12 }}>
               <label style={{ fontSize: 12, color: '#6B7280' }}>Google Maps linki, "lat, lng" və ya ünvan</label>
               <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
                 <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://maps.app.goo.gl/… və ya Nərimanov, Ə. Ələkbərov 12" style={{ flex: 1 }} onKeyDown={(e) => e.key === 'Enter' && resolve()} />
                 <button className="btn secondary" disabled={resolving || !link.trim()} onClick={resolve}><MapPin size={14} /> {resolving ? 'Axtarılır…' : 'Tap'}</button>
               </div>
+
+              {/* NEW: Google Maps URL quick-parse */}
+              <div style={{ marginTop: 10 }}>
+                <label style={{ fontSize: 12, color: '#6B7280' }}>Google Maps linkindən çək</label>
+                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                  <input value={gmapsLink} onChange={(e) => setGmapsLink(e.target.value)} placeholder="https://www.google.com/maps/place/… və ya maps.app.goo.gl/…" style={{ flex: 1 }} onKeyDown={(e) => e.key === 'Enter' && fetchGmaps()} />
+                  <button className="btn secondary" disabled={gmapsFetching || !gmapsLink.trim()} onClick={fetchGmaps}>
+                    <MapPin size={14} /> {gmapsFetching ? 'Çəkilir…' : 'Çək'}
+                  </button>
+                </div>
+              </div>
+
               <iframe title="map" src={`https://www.google.com/maps?q=${edit.lat},${edit.lng}&z=16&output=embed`} style={{ width: '100%', height: 180, border: 0, borderRadius: 10, marginTop: 10 }} loading="lazy" />
             </div>
+
             <div className="form-grid" style={{ marginTop: 14 }}>
               <label>Market<select value={edit.store_id} onChange={(e) => setEdit({ ...edit, store_id: e.target.value })}>{stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
-              <label>Filial adı<input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} placeholder="Araz Market Nərimanov" /></label>
+
+              {/* Branch name with Wolt autosuggest */}
+              <label style={{ position: 'relative' }}>
+                Filial adı {woltSuggestLoading && <span style={{ fontSize: 11, color: '#6B7280', fontWeight: 400 }}>(Wolt-da axtarılır…)</span>}
+                <input
+                  value={edit.name}
+                  onChange={(e) => onNameChange(e.target.value)}
+                  onBlur={() => setTimeout(() => setWoltSuggestVenues([]), 200)}
+                  placeholder="Araz Market Nərimanov"
+                  autoComplete="off"
+                />
+                {woltSuggestVenues.length > 0 && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #E2E8F0', borderRadius: 8, zIndex: 200, boxShadow: '0 4px 16px rgba(0,0,0,0.10)', maxHeight: 220, overflowY: 'auto' }}>
+                    <div style={{ padding: '6px 10px', fontSize: 11, color: '#6B7280', borderBottom: '1px solid #F1F5F9' }}>Wolt-dan tap — birini seçin</div>
+                    {woltSuggestVenues.map((v) => (
+                      <div
+                        key={v.slug}
+                        onMouseDown={() => {
+                          setEdit({ ...edit, name: v.name, address: v.address ?? edit.address, lat: v.lat ?? edit.lat, lng: v.lng ?? edit.lng, maps_url: v.url ?? edit.maps_url });
+                          setWoltSuggestVenues([]);
+                        }}
+                        style={{ padding: '8px 10px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid #F8FAFC' }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = '#F0F9FF')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = '')}
+                      >
+                        <div style={{ fontWeight: 600 }}>{v.name}</div>
+                        {v.address && <div style={{ color: '#6B7280', fontSize: 11, marginTop: 2 }}>{v.address}</div>}
+                        {v.lat != null && <div style={{ color: '#94A3B8', fontSize: 11, fontFamily: 'monospace' }}>{v.lat.toFixed(4)}, {v.lng!.toFixed(4)}</div>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </label>
+
               <label className="full">Ünvan<input value={edit.address} onChange={(e) => setEdit({ ...edit, address: e.target.value })} placeholder="Ə. Ələkbərov küç. 12, Nərimanov" /></label>
               <label>Lat<input type="number" step="any" value={edit.lat} onChange={(e) => setEdit({ ...edit, lat: Number(e.target.value) })} /></label>
               <label>Lng<input type="number" step="any" value={edit.lng} onChange={(e) => setEdit({ ...edit, lng: Number(e.target.value) })} /></label>
@@ -288,7 +638,7 @@ export default function Branches() {
               <label className="full">Google Maps linki (tətbiqdə "Google Maps-də aç")<input value={edit.maps_url ?? ''} onChange={(e) => setEdit({ ...edit, maps_url: e.target.value })} placeholder="https://maps.app.goo.gl/…" /></label>
             </div>
             <div className="actions">
-              <button className="btn secondary" onClick={() => setEdit(null)}>Ləğv et</button>
+              <button className="btn secondary" onClick={() => { setEdit(null); setWoltSuggestVenues([]); }}>Ləğv et</button>
               <button className="btn" disabled={!edit.name || !edit.address} onClick={() => save(edit)}>Saxla</button>
             </div>
           </div>
@@ -296,4 +646,9 @@ export default function Branches() {
       )}
     </Shell>
   );
+}
+
+/** Escape HTML for safe insertion into Leaflet popup content strings. */
+function escHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

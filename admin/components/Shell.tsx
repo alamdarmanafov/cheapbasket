@@ -1,12 +1,13 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Bell, Download, Image as ImageIcon, MessageSquare, RefreshCw, Tags, Ticket, LayoutDashboard, LogOut, MapPin, Package, Store, Users } from 'lucide-react';
+import { Bell, Download, DollarSign, Image as ImageIcon, MessageSquare, RefreshCw, Tags, Ticket, LayoutDashboard, LogOut, MapPin, Package, Store, Users } from 'lucide-react';
 
 const NAV = [
   ['/', 'Panel', LayoutDashboard],
   ['/stores', 'Marketlər', Store],
   ['/products', 'Məhsullar və qiymətlər', Package],
+  ['/prices', 'Qiymət müqayisəsi', DollarSign],
   ['/categories', 'Kateqoriyalar', Tags],
   ['/import', 'Saytdan import', Download],
   ['/sync', 'Avtomatik yeniləmə', RefreshCw],

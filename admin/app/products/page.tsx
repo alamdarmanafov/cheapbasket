@@ -1,6 +1,8 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
-import { Plus, Search, Trash2, X } from 'lucide-react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
+import { Camera, ChevronLeft, ChevronRight, Copy, Plus, Search, Trash2, X } from 'lucide-react';
+
+const PAGE_SIZE = 50;
 import { Shell } from '@/components/Shell';
 import { CATEGORIES, PriceRow, Product, Store, db, slugify, useCategories } from '@/lib/supabase';
 
@@ -12,17 +14,81 @@ const fmt = (v: number | null) => (v == null ? '' : String(v));
 
 const EMPTY: Product = { id: '', barcode: '', name: '', brand: '', size: '', category: CATEGORIES[0], emoji: '🛒', tint: '#F3F4F6', image_url: null, rating: null };
 
+// ── Duplicate detection ───────────────────────────────────────────────────────
+type DupGroup = { key: string; kind: 'barcode' | 'name'; products: Product[] };
+
+const normSlug = (s: string) =>
+  s.toLowerCase()
+    .replace(/ə/g, 'e').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ü/g, 'u')
+    .replace(/ş/g, 's').replace(/ç/g, 'c').replace(/ğ/g, 'g')
+    .replace(/[^a-z0-9]+/g, ' ').trim()
+    .split(/\s+/).sort().join(' ');
+
+function findDuplicates(products: Product[]): DupGroup[] {
+  const groups: DupGroup[] = [];
+
+  // By barcode
+  const byBarcode = new Map<string, Product[]>();
+  for (const p of products) {
+    if (p.barcode) {
+      const arr = byBarcode.get(p.barcode) ?? [];
+      arr.push(p);
+      byBarcode.set(p.barcode, arr);
+    }
+  }
+  for (const [bc, ps] of byBarcode) {
+    if (ps.length > 1) groups.push({ key: `Barkod: ${bc}`, kind: 'barcode', products: ps });
+  }
+
+  // By normalised name (excluding ones already caught by barcode)
+  const barcodeProductIds = new Set(groups.flatMap((g) => g.products.map((p) => p.id)));
+  const byName = new Map<string, Product[]>();
+  for (const p of products) {
+    if (barcodeProductIds.has(p.id)) continue;
+    const key = normSlug(`${p.brand} ${p.name} ${p.size}`);
+    const arr = byName.get(key) ?? [];
+    arr.push(p);
+    byName.set(key, arr);
+  }
+  for (const [key, ps] of byName) {
+    if (ps.length > 1) groups.push({ key: `Ad: ${key}`, kind: 'name', products: ps });
+  }
+
+  return groups;
+}
+
+// ── Image preview modal ───────────────────────────────────────────────────────
+type ImagePreview = { productId: string; image_url: string; item_name: string; venue: string } | null;
+
 export default function Products() {
   const [stores, setStores] = useState<Store[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [prices, setPrices] = useState<PriceMap>({});
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('');
+  const [brand, setBrand] = useState('');
   const [priceFilter, setPriceFilter] = useState<'' | 'none' | 'partial'>('');
+  const [noImageFilter, setNoImageFilter] = useState(false);
+  const [page, setPage] = useState(1);
   const [edit, setEdit] = useState<{ product: Product; cells: Record<string, Cell>; isNew: boolean } | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const { names: catNames } = useCategories();
+
+  // Bulk edit state
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkCat, setBulkCat] = useState('');
+  const [bulkEmoji, setBulkEmoji] = useState('');
+  const [bulkBusy, setBulkBusy] = useState(false);
+
+  // Duplicate detection state
+  const [dupGroups, setDupGroups] = useState<DupGroup[] | null>(null);
+  const [dupBusy, setDupBusy] = useState(false);
+  const [dupKeep, setDupKeep] = useState<Record<string, string>>({}); // groupKey → product id to keep
+
+  // Image fetch state
+  const [imageFetch, setImageFetch] = useState<Record<string, 'loading' | 'error'>>({});
+  const [imagePreview, setImagePreview] = useState<ImagePreview>(null);
 
   const load = async () => {
     const [s, p, pr] = await Promise.all([
@@ -38,21 +104,32 @@ export default function Products() {
       map[r.product_id][r.store_id] = { price: fmt(r.price), discount: fmt(r.discount_price) };
     });
     setPrices(map);
+    setSelected(new Set());
   };
   useEffect(() => { load(); }, []);
 
+  const brands = useMemo(() => [...new Set(products.map((p) => p.brand).filter(Boolean))].sort(), [products]);
+
   const filtered = useMemo(() => {
+    setPage(1);
     const n = q.trim().toLowerCase();
     const priced = (p: Product) => stores.filter((s) => num(prices[p.id]?.[s.id]?.price ?? '') != null).length;
     return products.filter(
       (p) =>
         (!cat || p.category === cat) &&
-        (!n || `${p.brand} ${p.name} ${p.barcode ?? ''} ${p.category}`.toLowerCase().includes(n)) &&
-        (!priceFilter || (priceFilter === 'none' ? priced(p) === 0 : priced(p) > 0 && priced(p) < stores.length)),
+        (!brand || p.brand === brand) &&
+        (!n || `${p.brand} ${p.name} ${p.barcode ?? ''} ${p.category} ${p.size}`.toLowerCase().includes(n)) &&
+        (!priceFilter || (priceFilter === 'none' ? priced(p) === 0 : priced(p) > 0 && priced(p) < stores.length)) &&
+        (!noImageFilter || !p.image_url),
     );
-  }, [products, q, cat, priceFilter, prices, stores]);
+  }, [products, q, cat, brand, priceFilter, noImageFilter, prices, stores]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paged = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const noPriceCount = useMemo(() => products.filter((p) => !stores.some((s) => num(prices[p.id]?.[s.id]?.price ?? '') != null)).length, [products, prices, stores]);
+  const noImageCount = useMemo(() => products.filter((p) => !p.image_url).length, [products]);
 
   const removeFiltered = async () => {
     if (!filtered.length) return;
@@ -138,12 +215,171 @@ export default function Products() {
     return best;
   };
 
+  // ── Bulk edit helpers ────────────────────────────────────────────────────────
+  const allFilteredSelected = filtered.length > 0 && filtered.every((p) => selected.has(p.id));
+
+  const toggleAll = () => {
+    if (allFilteredSelected) {
+      setSelected((prev) => { const next = new Set(prev); filtered.forEach((p) => next.delete(p.id)); return next; });
+    } else {
+      setSelected((prev) => { const next = new Set(prev); filtered.forEach((p) => next.add(p.id)); return next; });
+    }
+  };
+
+  const toggleOne = (id: string) => {
+    setSelected((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  };
+
+  const bulkApplyCategory = async () => {
+    if (!bulkCat || !selected.size) return;
+    setBulkBusy(true);
+    const rows = [...selected]
+      .map((id) => products.find((x) => x.id === id))
+      .filter((p): p is Product => p !== undefined)
+      .map((p) => ({ ...p, category: bulkCat }));
+    try {
+      await db.upsert('products', rows as unknown as Record<string, unknown>[], 'id');
+      setMsg({ ok: true, text: `${rows.length} məhsulun kateqoriyası dəyişdirildi` });
+      load();
+    } catch (e) { setMsg({ ok: false, text: (e as Error).message }); }
+    finally { setBulkBusy(false); }
+  };
+
+  const bulkApplyEmoji = async () => {
+    if (!bulkEmoji || !selected.size) return;
+    setBulkBusy(true);
+    const rows = [...selected]
+      .map((id) => products.find((x) => x.id === id))
+      .filter((p): p is Product => p !== undefined)
+      .map((p) => ({ ...p, emoji: bulkEmoji }));
+    try {
+      await db.upsert('products', rows as unknown as Record<string, unknown>[], 'id');
+      setMsg({ ok: true, text: `${rows.length} məhsulun emojisi dəyişdirildi` });
+      load();
+    } catch (e) { setMsg({ ok: false, text: (e as Error).message }); }
+    finally { setBulkBusy(false); }
+  };
+
+  const bulkDelete = async () => {
+    if (!selected.size) return;
+    if (!confirm(`${selected.size} seçilmiş məhsul silinsin?`)) return;
+    setBulkBusy(true);
+    let err: string | null = null;
+    for (const id of selected) await db.delete('products', { id }).catch((e: Error) => { err = e.message; });
+    setBulkBusy(false);
+    setMsg({ ok: !err, text: err ?? `${selected.size} məhsul silindi` });
+    setSelected(new Set());
+    load();
+  };
+
+  const bulkFetchImages = async () => {
+    if (!selected.size) return;
+    const noImage = [...selected].map((id) => products.find((p) => p.id === id)).filter((p): p is Product => !!p && !p.image_url);
+    if (!noImage.length) { setMsg({ ok: false, text: 'Seçilmiş məhsulların hamısında şəkil var' }); return; }
+    setMsg({ ok: true, text: `${noImage.length} məhsul üçün şəkil axtarılır…` });
+    let found = 0;
+    for (const p of noImage) {
+      setImageFetch((prev) => ({ ...prev, [p.id]: 'loading' }));
+      try {
+        const r = await fetch(`/api/products/image?q=${encodeURIComponent(`${p.brand} ${p.name} ${p.size}`)}`).then((x) => x.json());
+        if (r.image_url) {
+          await db.upsert('products', [{ ...p, image_url: r.image_url }], 'id');
+          found++;
+          setImageFetch((prev) => { const next = { ...prev }; delete next[p.id]; return next; });
+        } else {
+          setImageFetch((prev) => ({ ...prev, [p.id]: 'error' }));
+        }
+      } catch {
+        setImageFetch((prev) => ({ ...prev, [p.id]: 'error' }));
+      }
+    }
+    setMsg({ ok: true, text: `${found}/${noImage.length} məhsul üçün şəkil tapıldı` });
+    load();
+  };
+
+  // ── Duplicate detection ──────────────────────────────────────────────────────
+  const findDups = useCallback(async () => {
+    setDupBusy(true);
+    try {
+      const all = await db.select<Product>('products', { columns: 'id,barcode,name,brand,size,category,image_url' });
+      const groups = findDuplicates(all);
+      setDupGroups(groups);
+      // Default: keep first in each group
+      const defaults: Record<string, string> = {};
+      for (const g of groups) defaults[g.key] = g.products[0].id;
+      setDupKeep(defaults);
+    } catch (e) { setMsg({ ok: false, text: (e as Error).message }); }
+    finally { setDupBusy(false); }
+  }, []);
+
+  const mergeDupGroup = async (group: DupGroup) => {
+    const keepId = dupKeep[group.key];
+    if (!keepId) return;
+    const toDelete = group.products.filter((p) => p.id !== keepId);
+    if (!confirm(`"${group.key}" qrupunda ${toDelete.length} dublikat silinsin?`)) return;
+    setBusy(true);
+    try {
+      // Move all price rows from deleted products to the kept one
+      for (const p of toDelete) {
+        const pPrices = await db.select<PriceRow>('prices', { eq: { product_id: p.id }, columns: 'product_id,store_id,price,discount_price,updated_at' });
+        if (pPrices.length) {
+          const moved = pPrices.map((r) => ({ ...r, product_id: keepId }));
+          await db.upsert('prices', moved as unknown as Record<string, unknown>[], 'product_id,store_id');
+        }
+        await db.delete('products', { id: p.id });
+      }
+      setMsg({ ok: true, text: `${toDelete.length} dublikat silindi, qiymətlər birləşdirildi` });
+      // Refresh groups
+      const all = await db.select<Product>('products', { columns: 'id,barcode,name,brand,size,category,image_url' });
+      const groups = findDuplicates(all);
+      setDupGroups(groups);
+      load();
+    } catch (e) { setMsg({ ok: false, text: (e as Error).message }); }
+    finally { setBusy(false); }
+  };
+
+  // ── Auto image fetch ─────────────────────────────────────────────────────────
+  const fetchImage = async (p: Product) => {
+    setImageFetch((prev) => ({ ...prev, [p.id]: 'loading' }));
+    try {
+      const r = await fetch(`/api/products/image?q=${encodeURIComponent(`${p.brand} ${p.name} ${p.size}`)}`).then((x) => x.json());
+      if (r.image_url) {
+        setImagePreview({ productId: p.id, image_url: r.image_url, item_name: r.item_name ?? '', venue: r.venue ?? '' });
+        setImageFetch((prev) => { const next = { ...prev }; delete next[p.id]; return next; });
+      } else {
+        setImageFetch((prev) => ({ ...prev, [p.id]: 'error' }));
+      }
+    } catch {
+      setImageFetch((prev) => ({ ...prev, [p.id]: 'error' }));
+    }
+  };
+
+  const saveImagePreview = async () => {
+    if (!imagePreview) return;
+    const p = products.find((x) => x.id === imagePreview.productId);
+    if (!p) return;
+    setBusy(true);
+    try {
+      await db.upsert('products', [{ ...p, image_url: imagePreview.image_url }], 'id');
+      setMsg({ ok: true, text: 'Şəkil saxlanıldı' });
+      setImagePreview(null);
+      load();
+    } catch (e) { setMsg({ ok: false, text: (e as Error).message }); }
+    finally { setBusy(false); }
+  };
+
   return (
     <Shell title="Məhsullar və qiymətlər">
       {msg && <div className={`alert ${msg.ok ? 'ok' : 'err'}`}>{msg.text}</div>}
+
+      {/* ── Main toolbar ── */}
       <div className="toolbar">
         <Search size={16} className="muted" />
         <input placeholder="Ad, brend, barkod…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <select value={brand} onChange={(e) => setBrand(e.target.value)}>
+          <option value="">Bütün brendlər</option>
+          {brands.map((b) => <option key={b}>{b}</option>)}
+        </select>
         <select value={cat} onChange={(e) => setCat(e.target.value)}>
           <option value="">Bütün kateqoriyalar</option>
           {catNames.map((c) => <option key={c}>{c}</option>)}
@@ -153,24 +389,115 @@ export default function Products() {
           <option value="none">Heç bir marketdə qiyməti yoxdur ({noPriceCount})</option>
           <option value="partial">Bəzi marketlərdə qiyməti yoxdur</option>
         </select>
+        <button
+          className={`btn ghost${noImageFilter ? ' active' : ''}`}
+          onClick={() => setNoImageFilter((v) => !v)}
+          title="Yalnız şəkilsiz məhsullar"
+        >
+          <Camera size={14} /> Şəkilsiz ({noImageCount})
+        </button>
         {priceFilter === 'none' && filtered.length > 0 && <button className="btn danger" disabled={busy} onClick={removeFiltered}><Trash2 size={14} /> Filtrdəkiləri sil ({filtered.length})</button>}
+        <button className="btn ghost" disabled={dupBusy} onClick={findDups}><Copy size={14} /> Dublikatları tap</button>
         <button className="btn" onClick={() => open({ ...EMPTY, category: catNames[0] ?? CATEGORIES[0] })}><Plus size={14} /> Yeni məhsul</button>
       </div>
+
       {stores.length === 0 && <div className="alert err">Əvvəlcə "Marketlər" səhifəsində ən azı bir market əlavə et.</div>}
+
+      {/* ── Bulk toolbar (visible when items selected) ── */}
+      {selected.size > 0 && (
+        <div className="toolbar" style={{ background: 'var(--accent-bg, #EFF6FF)', borderRadius: 8, padding: '8px 12px', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+          <span style={{ fontWeight: 600 }}>{selected.size} seçilib</span>
+          <span style={{ color: 'var(--muted)', fontSize: 12 }}>—</span>
+
+          {/* Category bulk */}
+          <select value={bulkCat} onChange={(e) => setBulkCat(e.target.value)} style={{ minWidth: 160 }}>
+            <option value="">Kateqoriya seç…</option>
+            {catNames.map((c) => <option key={c}>{c}</option>)}
+          </select>
+          <button className="btn" disabled={!bulkCat || bulkBusy} onClick={bulkApplyCategory}>Tətbiq et</button>
+
+          <span style={{ color: 'var(--muted)', fontSize: 12 }}>|</span>
+
+          {/* Emoji bulk */}
+          <input
+            value={bulkEmoji}
+            onChange={(e) => setBulkEmoji(e.target.value)}
+            placeholder="Emoji…"
+            style={{ width: 80 }}
+          />
+          <button className="btn" disabled={!bulkEmoji || bulkBusy} onClick={bulkApplyEmoji}>Emoji tətbiq et</button>
+
+          <span style={{ color: 'var(--muted)', fontSize: 12 }}>|</span>
+
+          {/* Fetch images for selected */}
+          <button className="btn ghost" disabled={bulkBusy} onClick={bulkFetchImages}><Camera size={14} /> Şəkilsizlərə Wolt şəkli tap</button>
+
+          {/* Bulk delete */}
+          <button className="btn danger" disabled={bulkBusy} onClick={bulkDelete}><Trash2 size={14} /> Sil</button>
+
+          <button className="btn ghost" onClick={() => setSelected(new Set())} title="Seçimi ləğv et"><X size={14} /></button>
+        </div>
+      )}
+
+      {/* ── Products table ── */}
       <table>
         <thead>
-          <tr><th>Məhsul</th><th>Kateqoriya</th><th>Qiymətlər (market · qiymət)</th><th>Ən ucuz</th><th></th></tr>
+          <tr>
+            <th style={{ width: 36 }}>
+              <input
+                type="checkbox"
+                checked={allFilteredSelected}
+                ref={(el) => { if (el) el.indeterminate = selected.size > 0 && !allFilteredSelected; }}
+                onChange={toggleAll}
+                title="Hamısını seç / seçimi götür"
+              />
+            </th>
+            <th>Məhsul</th>
+            <th>Kateqoriya</th>
+            <th>Qiymətlər (market · qiymət)</th>
+            <th>Ən ucuz</th>
+            <th></th>
+          </tr>
         </thead>
         <tbody>
-          {filtered.map((p) => {
+          {paged.map((p) => {
             const best = cheapestStore(p.id);
+            const fetchState = imageFetch[p.id];
             return (
-              <tr key={p.id} onClick={() => open(p)} style={{ cursor: 'pointer' }}>
+              <tr key={p.id} style={{ cursor: 'pointer' }} onClick={() => open(p)}>
+                <td onClick={(e) => e.stopPropagation()} style={{ textAlign: 'center' }}>
+                  <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggleOne(p.id)} />
+                </td>
                 <td>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {p.image_url ? <img src={p.image_url} alt="" width={34} height={34} style={{ borderRadius: 8, objectFit: 'cover' }} /> : <span style={{ fontSize: 22, width: 34, textAlign: 'center' }}>{p.emoji}</span>}
+                    {/* Image / emoji + fetch button */}
+                    <div style={{ position: 'relative', flexShrink: 0 }}>
+                      {p.image_url
+                        ? <img src={p.image_url} alt="" width={34} height={34} style={{ borderRadius: 8, objectFit: 'cover', display: 'block' }} />
+                        : <span style={{ fontSize: 22, width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{p.emoji}</span>}
+                      {!p.image_url && (
+                        <button
+                          className="btn ghost"
+                          style={{ position: 'absolute', inset: 0, padding: 0, opacity: fetchState === 'loading' ? 1 : 0, background: 'rgba(0,0,0,.45)', borderRadius: 8, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'opacity .15s' }}
+                          title="Wolt-dan şəkil tap"
+                          onClick={(e) => { e.stopPropagation(); fetchImage(p); }}
+                        >
+                          {fetchState === 'loading' ? '…' : fetchState === 'error' ? '✗' : <Camera size={14} />}
+                        </button>
+                      )}
+                    </div>
                     <div>
                       <b>{p.brand}</b> {p.name} <span className="muted">{p.size}</span>
+                      {!p.image_url && fetchState !== 'loading' && (
+                        <button
+                          className="btn ghost"
+                          style={{ fontSize: 11, padding: '1px 6px', marginLeft: 6, verticalAlign: 'middle', color: fetchState === 'error' ? '#EF4444' : undefined }}
+                          title="Wolt-dan şəkil tap"
+                          onClick={(e) => { e.stopPropagation(); fetchImage(p); }}
+                        >
+                          {fetchState === 'error' ? 'tapılmadı' : <><Camera size={11} /> Şəkil tap</>}
+                        </button>
+                      )}
                       <div className="muted" style={{ fontFamily: 'monospace', fontSize: 11 }}>{p.barcode ?? 'barkod yoxdur'}</div>
                     </div>
                   </div>
@@ -200,11 +527,127 @@ export default function Products() {
               </tr>
             );
           })}
-          {filtered.length === 0 && <tr><td colSpan={5} className="muted" style={{ textAlign: 'center', padding: 30 }}>Məhsul yoxdur — "Yeni məhsul" ilə və ya "Wolt-dan import" ilə əlavə et.</td></tr>}
+          {paged.length === 0 && <tr><td colSpan={6} className="muted" style={{ textAlign: 'center', padding: 30 }}>Məhsul yoxdur — "Yeni məhsul" ilə və ya "Wolt-dan import" ilə əlavə et.</td></tr>}
         </tbody>
       </table>
+
+      {/* ── Pagination ── */}
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 0', flexWrap: 'wrap' }}>
+          <button className="btn ghost" disabled={safePage <= 1} onClick={() => setPage(1)} title="İlk səhifə">«</button>
+          <button className="btn ghost" disabled={safePage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}><ChevronLeft size={15} /></button>
+          {Array.from({ length: totalPages }, (_, i) => i + 1)
+            .filter((p) => p === 1 || p === totalPages || Math.abs(p - safePage) <= 2)
+            .reduce<(number | '…')[]>((acc, p, i, arr) => {
+              if (i > 0 && (p as number) - (arr[i - 1] as number) > 1) acc.push('…');
+              acc.push(p);
+              return acc;
+            }, [])
+            .map((p, i) =>
+              p === '…'
+                ? <span key={`e${i}`} style={{ padding: '0 4px', color: 'var(--muted)' }}>…</span>
+                : <button key={p} className={`btn${safePage === p ? '' : ' ghost'}`} onClick={() => setPage(p as number)} style={{ minWidth: 34 }}>{p}</button>
+            )}
+          <button className="btn ghost" disabled={safePage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}><ChevronRight size={15} /></button>
+          <button className="btn ghost" disabled={safePage >= totalPages} onClick={() => setPage(totalPages)} title="Son səhifə">»</button>
+          <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>
+            {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filtered.length)} / {filtered.length} məhsul
+          </span>
+          <span className="muted" style={{ fontSize: 12 }}>· Səhifə:</span>
+          <input
+            type="number"
+            min={1}
+            max={totalPages}
+            value={safePage}
+            onChange={(e) => { const v = Number(e.target.value); if (v >= 1 && v <= totalPages) setPage(v); }}
+            style={{ width: 56, textAlign: 'center' }}
+          />
+          <span className="muted" style={{ fontSize: 12 }}>/ {totalPages}</span>
+        </div>
+      )}
+      {totalPages <= 1 && filtered.length > 0 && (
+        <p className="muted" style={{ textAlign: 'center', fontSize: 12, padding: '8px 0' }}>{filtered.length} məhsul</p>
+      )}
+
       <p className="note">Məhsula klik et: bir pəncərədə məlumatları və hər market üçün adi / endirimli qiyməti yaz. Yaşıl çip endirimin olduğunu göstərir. Hər dəyişiklik qiymət tarixçəsinə avtomatik yazılır. <b>Heç bir marketdə qiyməti olmayan məhsul tətbiqdə görünmür</b>; digər marketlərin qiymətini "Avtomatik yeniləmə"də həmin marketin Wolt mənbəsi ilə doldur.</p>
 
+      {/* ── Image preview modal ── */}
+      {imagePreview && (
+        <div className="modal-bg" onClick={() => setImagePreview(null)}>
+          <div className="modal" style={{ width: 'min(480px,100%)' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ margin: 0 }}>Tapılan şəkil</h2>
+              <button className="btn ghost" onClick={() => setImagePreview(null)}><X size={18} /></button>
+            </div>
+            <p className="muted" style={{ margin: '8px 0' }}>{imagePreview.venue} → {imagePreview.item_name}</p>
+            <img src={imagePreview.image_url} alt="" style={{ width: '100%', maxHeight: 300, objectFit: 'contain', borderRadius: 12, border: '1px solid var(--border)' }} />
+            <div className="actions" style={{ marginTop: 16 }}>
+              <button className="btn secondary" onClick={() => setImagePreview(null)}>Ləğv et</button>
+              <button className="btn" disabled={busy} onClick={saveImagePreview}>Saxla</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Duplicate detection modal ── */}
+      {dupGroups !== null && (
+        <div className="modal-bg" onClick={() => setDupGroups(null)}>
+          <div className="modal" style={{ width: 'min(860px,100%)', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ margin: 0 }}>Dublikat məhsullar</h2>
+              <button className="btn ghost" onClick={() => setDupGroups(null)}><X size={18} /></button>
+            </div>
+            {dupGroups.length === 0
+              ? <p className="muted" style={{ textAlign: 'center', padding: 30 }}>Dublikat tapılmadı.</p>
+              : dupGroups.map((group) => (
+                <div key={group.key} style={{ marginTop: 20, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+                  <div style={{ background: 'var(--accent-bg, #F0F9FF)', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between' }}>
+                    <b style={{ fontSize: 13 }}>{group.key}</b>
+                    <button className="btn danger" disabled={busy} onClick={() => mergeDupGroup(group)}>
+                      İdleri birləşdir və dublikatları sil
+                    </button>
+                  </div>
+                  <table style={{ margin: 0 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: 36 }}>Saxla</th>
+                        <th>Məhsul</th>
+                        <th>Kateqoriya</th>
+                        <th>Şəkil</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.products.map((p) => (
+                        <tr key={p.id} style={{ background: dupKeep[group.key] === p.id ? 'var(--accent-bg, #F0FDF4)' : undefined }}>
+                          <td style={{ textAlign: 'center' }}>
+                            <input
+                              type="radio"
+                              name={`keep-${group.key}`}
+                              checked={dupKeep[group.key] === p.id}
+                              onChange={() => setDupKeep((prev) => ({ ...prev, [group.key]: p.id }))}
+                            />
+                          </td>
+                          <td>
+                            <b>{p.brand}</b> {p.name} <span className="muted">{p.size}</span>
+                            <div className="muted" style={{ fontSize: 11, fontFamily: 'monospace' }}>{p.id}</div>
+                          </td>
+                          <td className="muted">{p.category}</td>
+                          <td>
+                            {p.image_url
+                              ? <img src={p.image_url} alt="" width={34} height={34} style={{ borderRadius: 6, objectFit: 'cover' }} />
+                              : <span className="muted" style={{ fontSize: 11 }}>yoxdur</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit / new product modal ── */}
       {edit && (
         <div className="modal-bg" onClick={() => setEdit(null)}>
           <div className="modal" style={{ width: 'min(760px,100%)' }} onClick={(e) => e.stopPropagation()}>

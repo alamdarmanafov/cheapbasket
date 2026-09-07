@@ -1,11 +1,18 @@
 import { adminDb } from './server';
-import { buildMatcher, fetchAnySource } from './wolt';
+import { buildMatcher, fetchAnySource, WoltItem } from './wolt';
 import { notifyRecentDrops } from './alerts';
+import { slugify } from './supabase';
 
 export interface SyncSource { id: string; store_id: string; url: string; name: string | null; enabled: boolean; last_run_at: string | null; last_result: SyncResult | null }
-export interface SyncResult { ok: boolean; venue?: string; found: number; matched: number; updated: number; unchanged: number; removed: number; photos?: number; error?: string; at: string }
+export interface SyncResult { ok: boolean; venue?: string; found: number; matched: number; created: number; updated: number; unchanged: number; removed: number; photos?: number; error?: string; at: string }
 
-/** Re-read one Wolt venue and update prices of products we already have (never creates products). */
+function itemToProduct(it: WoltItem, brand: string) {
+  const base = slugify(it.name);
+  const id = base || 'product-' + it.ext_id;
+  return { id, name: it.name, brand, barcode: it.barcode ?? null, size: '', image_url: it.image_url ?? null };
+}
+
+/** Re-read one Wolt venue, create any new products, and upsert all prices. */
 export async function syncSource(src: { id: string; store_id: string; url: string }): Promise<SyncResult> {
   const db = adminDb();
   const at = new Date().toISOString();
@@ -20,17 +27,33 @@ export async function syncSource(src: { id: string; store_id: string; url: strin
     const next = new Map<string, { price: number; discount: number | null }>();
     const noPhoto = new Set((products ?? []).filter((p) => !p.image_url).map((p) => p.id));
     const photos = new Map<string, string>();
+    const newProducts: Record<string, unknown>[] = [];
+    const brand = venue.venue || '';
     let matched = 0;
     for (const it of venue.items) {
       if (it.price == null) continue;
-      const id = match(it);
-      if (!id) continue;
-      matched++;
+      let id = match(it);
+      if (!id) {
+        // Create product from Wolt item
+        const np = itemToProduct(it, brand);
+        id = np.id;
+        newProducts.push(np);
+        noPhoto.add(id);
+      } else {
+        matched++;
+      }
       if (it.image_url && noPhoto.has(id) && !photos.has(id)) photos.set(id, it.image_url);
       const cand = { price: it.regular_price ?? it.price, discount: it.regular_price != null ? it.price : null };
       const prev = next.get(id);
       const eff = (x: { price: number; discount: number | null }) => x.discount ?? x.price;
       if (!prev || eff(cand) < eff(prev)) next.set(id, cand);
+    }
+    // Insert new products in batches
+    let created = 0;
+    for (let i = 0; i < newProducts.length; i += 200) {
+      const { error } = await db.from('products').upsert(newProducts.slice(i, i + 200), { onConflict: 'id', ignoreDuplicates: true });
+      if (error) throw error;
+      created += newProducts.slice(i, i + 200).length;
     }
     const rows: Record<string, unknown>[] = [];
     let unchanged = 0;
@@ -43,13 +66,13 @@ export async function syncSource(src: { id: string; store_id: string; url: strin
       const { error } = await db.from('prices').upsert(rows.slice(i, i + 200), { onConflict: 'product_id,store_id' });
       if (error) throw error;
     }
-    // Products without a photo get the Wolt photo (existing photos are never replaced).
-    for (const [id, image_url] of photos) await db.from('products').update({ image_url }).eq('id', id);
-    const result: SyncResult = { ok: true, venue: venue.venue, found: venue.items.length, matched, updated: rows.length, unchanged, removed: 0, photos: photos.size, at };
+    // Fill photos for products that had none
+    for (const [id, image_url] of photos) await db.from('products').update({ image_url }).eq('id', id).is('image_url', null);
+    const result: SyncResult = { ok: true, venue: venue.venue, found: venue.items.length, matched, created, updated: rows.length, unchanged, removed: 0, photos: photos.size, at };
     await db.from('import_sources').update({ last_run_at: at, last_result: result, name: venue.venue || null }).eq('id', src.id);
     return result;
   } catch (e) {
-    const result: SyncResult = { ok: false, found: 0, matched: 0, updated: 0, unchanged: 0, removed: 0, error: e instanceof Error ? e.message : String(e), at };
+    const result: SyncResult = { ok: false, found: 0, matched: 0, created: 0, updated: 0, unchanged: 0, removed: 0, error: e instanceof Error ? e.message : String(e), at };
     await db.from('import_sources').update({ last_run_at: at, last_result: result }).eq('id', src.id);
     return result;
   }
