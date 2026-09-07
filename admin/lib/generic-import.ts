@@ -218,13 +218,60 @@ const MAX_PAGES = 60;
 const TIME_BUDGET_MS = 45_000; // the API route allows 60 s
 
 async function fetchHtml(url: URL): Promise<string> {
-  const res = await fetch(url.toString(), { headers: { 'User-Agent': UA, Accept: 'text/html,application/xhtml+xml', 'Accept-Language': 'az,ru,en' }, redirect: 'follow' });
+  const res = await fetch(url.toString(), {
+    headers: { 'User-Agent': UA, Accept: 'text/html,application/xhtml+xml,application/json', 'Accept-Language': 'az,ru,en' },
+    redirect: 'follow',
+  });
   if (!res.ok) throw new Error(`Səhifə açılmadı: ${res.status} ${url.hostname}`);
   return res.text();
 }
 
-/** Products of one page: embedded-JSON → JSON-LD → microdata → OpenGraph → AI over the text. */
+/**
+ * If the URL returns raw JSON (a REST/GraphQL product API), parse it directly
+ * without going through HTML extraction. Handles paginated APIs that return
+ * { items: [...], data: [...], products: [...], results: [...] } or a bare array.
+ */
+function fromJsonApi(body: string, base: URL): WoltItem[] {
+  const trimmed = body.trimStart();
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return [];
+  let root: unknown;
+  try { root = JSON.parse(body); } catch { return []; }
+  // Unwrap common API envelope shapes to find an array of products
+  const candidates: unknown[] = [];
+  if (Array.isArray(root)) {
+    candidates.push(root);
+  } else {
+    const o = root as Record<string, unknown>;
+    for (const key of ['items', 'data', 'products', 'results', 'goods', 'catalog', 'list', 'entities', 'rows', 'content']) {
+      if (Array.isArray(o[key])) { candidates.push(o[key]); break; }
+    }
+    // Also try one level deeper (e.g. { data: { products: [...] } })
+    if (!candidates.length) {
+      for (const v of Object.values(o)) {
+        if (v && typeof v === 'object' && !Array.isArray(v)) {
+          const inner = v as Record<string, unknown>;
+          for (const key of ['items', 'data', 'products', 'results', 'goods']) {
+            if (Array.isArray(inner[key])) { candidates.push(inner[key]); break; }
+          }
+          if (candidates.length) break;
+        }
+      }
+    }
+  }
+  if (!candidates.length) return [];
+  const list = candidates[0] as unknown[];
+  if (!list.length || typeof list[0] !== 'object') return [];
+  // Reuse the embedded-JSON item extractor by wrapping in an object
+  const fakeHtml = `<script id="__NEXT_DATA__">${JSON.stringify({ pageProps: { products: list } })}</script>`;
+  return fromEmbeddedJson(fakeHtml, base);
+}
+
+/** Products of one page: json-api → embedded-JSON → JSON-LD → microdata → OpenGraph → AI over the text. */
 async function parsePage(html: string, base: URL, allowAI: boolean): Promise<{ items: WoltItem[]; source: string }> {
+  // 0. Raw JSON API response (user pasted a direct REST endpoint URL)
+  const api = fromJsonApi(html, base);
+  if (api.length >= 1) return { items: api, source: 'json-api' };
+
   // 1. Embedded SSR JSON blobs (__NEXT_DATA__, window.__INITIAL_STATE__, etc.)
   const embedded = fromEmbeddedJson(html, base);
   if (embedded.length >= 3) return { items: embedded, source: 'embedded-json' };
@@ -244,7 +291,10 @@ async function parsePage(html: string, base: URL, allowAI: boolean): Promise<{ i
   // 5. AI over the visible text (first page only)
   if (allowAI) {
     const text = htmlToText(html);
-    if (text.length < 200) throw new Error('Səhifə boş gəldi: məhsullar JavaScript ilə yüklənir, serverdən oxumaq mümkün deyil. Saytın kateqoriya səhifəsini və ya JSON API linkini sına.');
+    if (text.length < 200) throw new Error(
+      'Səhifə boş gəldi — məhsullar JavaScript ilə yüklənir, server HTML-ə vermır.\n' +
+      'Həll: brauzerdə F12 → Network → Fetch/XHR → saytı yenilə → "products", "catalog", "items" adlı sorğunun URL-ini kopyala → admin import-a yapışdır.'
+    );
     const ai = await fromAI(text, base);
     if (ai.length) return { items: ai, source: 'ai' };
   }
