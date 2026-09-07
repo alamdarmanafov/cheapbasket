@@ -16,7 +16,7 @@ import { hasSupabase } from '@/lib/supabase';
 import { useBasket } from '@/store/basket';
 import { useRefresh } from '@/lib/useRefresh';
 import { notify } from '@/lib/confirm';
-import { WEB_APP_URL } from '@/lib/links';
+import { SITE_URL } from '@/lib/links';
 
 /** Product comparison + detail: one screen, price first. */
 export default function ProductScreen() {
@@ -61,7 +61,7 @@ export default function ProductScreen() {
 
   /** System share sheet: cheapest price + link to the web version of this product. */
   const share = async () => {
-    const url = `${WEB_APP_URL}/product/${product.id}`;
+    const url = SITE_URL;
     const message = c.price != null ? `${product.brand} ${product.name} ${product.size} — ən ucuz ${c.store.name}-da ${c.price.toFixed(2)} ₼. Cheap Basket ilə müqayisə et: ${url}` : `${product.brand} ${product.name} ${product.size} — Cheap Basket: ${url}`;
     try {
       if (Platform.OS === 'web' && typeof navigator !== 'undefined' && (navigator as Navigator & { share?: (d: { title: string; text: string; url: string }) => Promise<void> }).share) {

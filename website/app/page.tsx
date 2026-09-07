@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowRight, Check, ChevronDown, Clock, ExternalLink, MapPin, ScanLine, Search, ShoppingBasket } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, Clock, MapPin, ScanLine, Search, ShoppingBasket } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { StoreBadges } from '@/components/StoreBadges';
 import { CONTENT, LINKS, PRICING, Lang } from '@/components/content';
@@ -192,9 +192,6 @@ export default function Page() {
           <div>
             <h2>{t.download.h2}</h2>
             <p>{t.download.p}</p>
-            <a className="web-link" href={LINKS.webApp} target="_blank" rel="noreferrer">
-              {t.download.web} <ExternalLink size={13} />
-            </a>
           </div>
           <StoreBadges appStore={LINKS.appStore} googlePlay={LINKS.googlePlay} />
         </div>
