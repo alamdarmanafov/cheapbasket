@@ -68,7 +68,14 @@ export interface Banner {
   link: string | null;
 }
 
+export interface Category {
+  id: string;
+  name: string;
+  emoji: string | null;
+}
+
 export const catalog = {
+  categories: [] as Category[],
   stores: [] as Store[],
   products: [] as Product[],
   branches: [] as Branch[],
@@ -106,9 +113,17 @@ export function searchProducts(query: string): Product[] {
   return catalog.products.filter((p) => norm(`${p.brand} ${p.name} ${p.category}`).includes(q));
 }
 
-/** Category names present in the current catalog (for chips). */
+/** Category names present in the current catalog, in admin order (for chips). */
 export function catalogCategories(): string[] {
-  return [...new Set(catalog.products.map((p) => p.category))];
+  const present = new Set(catalog.products.map((p) => p.category));
+  const ordered = catalog.categories.map((c) => c.name).filter((n) => present.has(n));
+  const rest = [...present].filter((n) => !ordered.includes(n)).sort((a, b) => a.localeCompare(b));
+  return [...ordered, ...rest];
+}
+
+/** Emoji for a category name, when the admin set one. */
+export function categoryEmoji(name: string): string | null {
+  return catalog.categories.find((c) => c.name === name)?.emoji ?? null;
 }
 
 export interface StorePrice {

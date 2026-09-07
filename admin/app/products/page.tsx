@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Plus, Search, Trash2, X } from 'lucide-react';
 import { Shell } from '@/components/Shell';
-import { CATEGORIES, PriceRow, Product, Store, db, slugify } from '@/lib/supabase';
+import { CATEGORIES, PriceRow, Product, Store, db, slugify, useCategories } from '@/lib/supabase';
 
 type Cell = { price: string; discount: string };
 type PriceMap = Record<string, Record<string, Cell>>; // product → store → cell
@@ -21,6 +21,7 @@ export default function Products() {
   const [edit, setEdit] = useState<{ product: Product; cells: Record<string, Cell>; isNew: boolean } | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const { names: catNames } = useCategories();
 
   const load = async () => {
     const [s, p, pr] = await Promise.all([
@@ -120,9 +121,9 @@ export default function Products() {
         <input placeholder="Ad, brend, barkod…" value={q} onChange={(e) => setQ(e.target.value)} />
         <select value={cat} onChange={(e) => setCat(e.target.value)}>
           <option value="">Bütün kateqoriyalar</option>
-          {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+          {catNames.map((c) => <option key={c}>{c}</option>)}
         </select>
-        <button className="btn" onClick={() => open({ ...EMPTY })}><Plus size={14} /> Yeni məhsul</button>
+        <button className="btn" onClick={() => open({ ...EMPTY, category: catNames[0] ?? CATEGORIES[0] })}><Plus size={14} /> Yeni məhsul</button>
       </div>
       {stores.length === 0 && <div className="alert err">Əvvəlcə "Marketlər" səhifəsində ən azı bir market əlavə et.</div>}
       <table>
@@ -184,7 +185,7 @@ export default function Products() {
               <label>Brend<input value={edit.product.brand} onChange={(e) => setP({ brand: e.target.value })} placeholder="Sütaş" /></label>
               <label>Ad<input value={edit.product.name} onChange={(e) => setP({ name: e.target.value })} placeholder="Süd 3.5%" /></label>
               <label>Ölçü<input value={edit.product.size} onChange={(e) => setP({ size: e.target.value })} placeholder="1 L" /></label>
-              <label>Kateqoriya<select value={edit.product.category} onChange={(e) => setP({ category: e.target.value })}>{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></label>
+              <label>Kateqoriya<select value={edit.product.category} onChange={(e) => setP({ category: e.target.value })}>{[...new Set([...catNames, edit.product.category].filter(Boolean))].map((c) => <option key={c}>{c}</option>)}</select></label>
               <label>Barkod (EAN-13)<input value={edit.product.barcode ?? ''} onChange={(e) => setP({ barcode: e.target.value })} placeholder="8690767010012" inputMode="numeric" /></label>
               <label>Emoji<input value={edit.product.emoji ?? ''} onChange={(e) => setP({ emoji: e.target.value })} placeholder="🥛" /></label>
               <label>Fon rəngi<input type="color" value={edit.product.tint ?? '#F3F4F6'} onChange={(e) => setP({ tint: e.target.value })} /></label>

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { adminDb, errText, requireAdmin } from '@/lib/server';
 
-const TABLES = new Set(['stores', 'products', 'prices', 'price_history', 'branches', 'profiles', 'push_tokens', 'baskets', 'admin_users', 'banners']);
+const TABLES = new Set(['stores', 'products', 'prices', 'price_history', 'branches', 'profiles', 'push_tokens', 'baskets', 'admin_users', 'banners', 'categories']);
 
 type Op =
   | { op: 'select'; table: string; columns?: string; order?: string; eq?: Record<string, unknown>; limit?: number }

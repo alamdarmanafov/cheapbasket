@@ -9,7 +9,7 @@ import { ProductRowSkeleton } from '@/components/states';
 import { TopBar } from '@/components/TopBar';
 import { BannerSlider } from '@/components/BannerSlider';
 import { PlusTag } from '@/components/PlusLock';
-import { Product, catalogCategories, searchProducts } from '@/data/products';
+import { Product, catalogCategories, categoryEmoji, searchProducts } from '@/data/products';
 import { useCatalog } from '@/store/catalog';
 import { useBasket } from '@/store/basket';
 
@@ -193,6 +193,7 @@ export default function Home() {
               {categories.map((c) => (
                 <Pressable key={c} onPress={() => setQ(c)} style={({ pressed }) => [styles.category, pressed && { backgroundColor: colors.primarySoft }]}>
                   <Txt v="captionStrong" style={{ fontSize: 12 }}>
+                    {categoryEmoji(c) ? `${categoryEmoji(c)} ` : ''}
                     {c}
                   </Txt>
                 </Pressable>
