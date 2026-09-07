@@ -1,14 +1,15 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 import * as Location from 'expo-location';
-import { Product, Branch, Store, LatLng, DEFAULT_LOCATION, catalog, withDistances } from '@/data/products';
-import { fetchBranches, fetchProducts, fetchStores } from '@/lib/catalog';
+import { Product, Branch, Banner, Store, LatLng, DEFAULT_LOCATION, catalog, withDistances } from '@/data/products';
+import { fetchBanners, fetchBranches, fetchProducts, fetchStores } from '@/lib/catalog';
 import { hasSupabase, supabase } from '@/lib/supabase';
 
 interface CatalogState {
   stores: Store[];
   products: Product[];
   branches: Branch[];
+  banners: Banner[];
   location: LatLng;
   /** Human-readable place for the header (city / district), when known. */
   place: string | null;
@@ -26,6 +27,7 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
   const [stores, setStores] = useState<Store[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [banners, setBanners] = useState<Banner[]>([]);
   const [location, setLocation] = useState<LatLng>(DEFAULT_LOCATION);
   const [place, setPlace] = useState<string | null>(null);
   const [locationGranted, setLocationGranted] = useState<boolean | null>(null);
@@ -38,13 +40,17 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     try {
       const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Şəbəkə cavab vermir')), 10000));
-      const [s, p, b] = await Promise.race([Promise.all([fetchStores(), fetchProducts(), fetchBranches(catalog.location)]), timeout]);
+      const [s, p, b, bn] = await Promise.race([
+        Promise.all([fetchStores(), fetchProducts(), fetchBranches(catalog.location), fetchBanners().catch(() => [] as Banner[])]),
+        timeout,
+      ]);
       catalog.stores = s;
       catalog.products = p;
       catalog.branches = b;
       setStores(s);
       setProducts(p);
       setBranches(b);
+      setBanners(bn);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -94,6 +100,7 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, scheduleRefresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'prices' }, scheduleRefresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'branches' }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'banners' }, scheduleRefresh)
       .subscribe();
 
     // 2) Coming back to the app refreshes too (covers devices without a live socket).
@@ -113,8 +120,8 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
   }, [refresh, requestLocation, scheduleRefresh]);
 
   const value = useMemo(
-    () => ({ stores, products, branches, location, place, locationGranted, loading, error, refresh, requestLocation }),
-    [stores, products, branches, location, place, locationGranted, loading, error, refresh, requestLocation],
+    () => ({ stores, products, branches, banners, location, place, locationGranted, loading, error, refresh, requestLocation }),
+    [stores, products, branches, banners, location, place, locationGranted, loading, error, refresh, requestLocation],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

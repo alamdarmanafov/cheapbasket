@@ -1,4 +1,4 @@
-import { Product, Branch, Store, StoreId, LatLng, withDistances } from '@/data/products';
+import { Product, Branch, Banner, Store, StoreId, LatLng, withDistances } from '@/data/products';
 import { supabase } from './supabase';
 
 interface ProductPriceRow {
@@ -93,4 +93,19 @@ export async function fetchBranches(from: LatLng): Promise<Branch[]> {
     walkMinutes: 0,
   }));
   return withDistances(raw, from);
+}
+
+/** Active promo banners for the home slider (RLS already filters by active + dates). */
+export async function fetchBanners(): Promise<Banner[]> {
+  const { data, error } = await need().from('banners').select('id, title, subtitle, image_url, bg_color, text_color, link').order('sort');
+  if (error) throw error;
+  return (data ?? []).map((b) => ({
+    id: b.id,
+    title: b.title,
+    subtitle: b.subtitle ?? null,
+    imageUrl: b.image_url ?? null,
+    bgColor: b.bg_color ?? '#E53935',
+    textColor: b.text_color ?? '#FFFFFF',
+    link: b.link ?? null,
+  }));
 }
