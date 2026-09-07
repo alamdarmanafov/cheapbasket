@@ -231,6 +231,14 @@ async function restaurantApi(slug: string): Promise<WoltResult | null> {
   return extract(await getJson(url), url);
 }
 
+/** Any shop link: Wolt venues use the Wolt API, everything else goes through the generic page importer. */
+export async function fetchAnySource(input: string): Promise<WoltResult> {
+  const s = input.trim();
+  if (/wolt\.com|wolt\.page\.link|maps\.app\.goo/i.test(s) || !/^https?:\/\//i.test(s)) return fetchWoltVenue(s);
+  const { fetchGenericPage } = await import('./generic-import');
+  return fetchGenericPage(s);
+}
+
 export async function fetchWoltVenue(input: string): Promise<WoltResult> {
   const slug = await resolveVenueSlug(input);
   const errors: string[] = [];

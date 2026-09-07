@@ -1,5 +1,5 @@
 import { adminDb } from './server';
-import { buildMatcher, fetchWoltVenue } from './wolt';
+import { buildMatcher, fetchAnySource } from './wolt';
 import { notifyRecentDrops } from './alerts';
 
 export interface SyncSource { id: string; store_id: string; url: string; name: string | null; enabled: boolean; last_run_at: string | null; last_result: SyncResult | null }
@@ -10,7 +10,7 @@ export async function syncSource(src: { id: string; store_id: string; url: strin
   const db = adminDb();
   const at = new Date().toISOString();
   try {
-    const venue = await fetchWoltVenue(src.url);
+    const venue = await fetchAnySource(src.url);
     const [{ data: products }, { data: prices }] = await Promise.all([
       db.from('products').select('id, barcode, brand, name, size, image_url'),
       db.from('prices').select('product_id, price, discount_price').eq('store_id', src.store_id),
