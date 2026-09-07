@@ -102,6 +102,40 @@ function fromEmbeddedJson(html: string, base: URL): WoltItem[] {
   return out;
 }
 
+/**
+ * Schema.org microdata (itemprop attributes) — used by older / PHP-based shop platforms
+ * that don't emit JSON-LD.  Finds every [itemtype*="Product"] block and reads
+ * itemprop="name", "price", "image", "sku", "description".
+ */
+function fromMicrodata(html: string, base: URL): WoltItem[] {
+  const out: WoltItem[] = [];
+  // Split on itemtype containing "Product"
+  const blocks = html.split(/<[^>]+itemtype=["'][^"']*Product[^"']*["'][^>]*>/i).slice(1);
+  for (const block of blocks) {
+    // Read up to the end of this product block (next itemtype or 3000 chars)
+    const chunk = block.slice(0, 3000);
+    const iProp = (p: string) =>
+      chunk.match(new RegExp(`itemprop=["']${p}["'][^>]+content=["']([^"']+)["']`, 'i'))?.[1] ??
+      chunk.match(new RegExp(`itemprop=["']${p}["'][^>]*>([^<]{1,120})<`, 'i'))?.[1]?.trim() ??
+      null;
+    const name = iProp('name');
+    const price = parsePrice(iProp('price'));
+    if (!name || price == null) continue;
+    const img = iProp('image') ?? chunk.match(/itemprop=["']image["'][^>]+src=["']([^"']+)["']/i)?.[1] ?? null;
+    out.push({
+      ext_id: iProp('sku') ?? iProp('productID') ?? `${base.hostname}-${name}`,
+      name,
+      description: iProp('description'),
+      price,
+      regular_price: null,
+      barcode: null,
+      image_url: img ? (() => { try { return new URL(img, base).toString(); } catch { return null; } })() : null,
+      category: null,
+    });
+  }
+  return out;
+}
+
 /** Products from schema.org JSON-LD blocks. */
 function fromJsonLd(html: string, base: URL): WoltItem[] {
   const out: WoltItem[] = [];
@@ -189,29 +223,32 @@ async function fetchHtml(url: URL): Promise<string> {
   return res.text();
 }
 
-/** Products of one page: embedded-JSON → JSON-LD → OpenGraph → AI over the text. */
+/** Products of one page: embedded-JSON → JSON-LD → microdata → OpenGraph → AI over the text. */
 async function parsePage(html: string, base: URL, allowAI: boolean): Promise<{ items: WoltItem[]; source: string }> {
   // 1. Embedded SSR JSON blobs (__NEXT_DATA__, window.__INITIAL_STATE__, etc.)
   const embedded = fromEmbeddedJson(html, base);
   if (embedded.length >= 3) return { items: embedded, source: 'embedded-json' };
 
   // 2. schema.org JSON-LD
-  let items = fromJsonLd(html, base);
-  let source = 'json-ld';
-  if (items.length < 3) {
-    const og = fromOpenGraph(html, base);
-    if (og.length) { items = [...items, ...og]; source = items.length > og.length ? 'json-ld+og' : 'og'; }
-  }
-  if (items.length >= 3) return { items, source };
+  const jld = fromJsonLd(html, base);
+  if (jld.length >= 3) return { items: jld, source: 'json-ld' };
 
-  // 3. AI over the visible text (first page only)
+  // 3. schema.org microdata (itemprop) — common on older PHP / OpenCart / Magento shops
+  const micro = fromMicrodata(html, base);
+  if (micro.length >= 3) return { items: micro, source: 'microdata' };
+
+  // 4. OpenGraph single-product tags
+  const og = fromOpenGraph(html, base);
+  if (og.length) return { items: [...jld, ...micro, ...og], source: 'og' };
+
+  // 5. AI over the visible text (first page only)
   if (allowAI) {
     const text = htmlToText(html);
     if (text.length < 200) throw new Error('Səhifə boş gəldi: məhsullar JavaScript ilə yüklənir, serverdən oxumaq mümkün deyil. Saytın kateqoriya səhifəsini və ya JSON API linkini sına.');
     const ai = await fromAI(text, base);
-    if (ai.length) { items = ai; source = 'ai'; }
+    if (ai.length) return { items: ai, source: 'ai' };
   }
-  return { items: items.length ? items : embedded.length ? embedded : [], source };
+  return { items: [...jld, ...micro, ...og, ...embedded], source: 'partial' };
 }
 
 /**
