@@ -4,7 +4,7 @@ import { Send, Sparkles } from 'lucide-react';
 import { Shell } from '@/components/Shell';
 import { db } from '@/lib/supabase';
 
-interface Settings { enabled: boolean; free_days: number[]; hour_baku: number; max_items: number; lookback_free_days: number }
+interface Settings { enabled: boolean; free_days: number[]; hour_baku: number; max_items: number; lookback_free_days: number; use_ai?: boolean }
 interface Info { settings: Settings; last: Array<{ sent_at: string; title: string; body: string }>; drops: Array<{ brand: string; name: string; size: string; store_name: string; old_price: number; new_price: number; drop_percent: number; changed_at: string }>; ai: 'openai' | 'claude' | 'template'; cron: boolean }
 
 export default function Notifications() {
@@ -66,11 +66,14 @@ export default function Notifications() {
             <>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
                 <span className={`pill ${info.cron ? 'green' : 'red'}`}>{info.cron ? 'Cron aktiv' : 'CRON_SECRET yoxdur'}</span>
-                <span className={`pill ${info.ai !== 'template' ? 'green' : 'gray'}`}>{info.ai === 'openai' ? 'Mətn: ChatGPT' : info.ai === 'claude' ? 'Mətn: Claude' : 'Mətn: şablon (OPENAI_API_KEY yoxdur)'}</span>
+                <span className={`pill ${s?.use_ai && info.ai !== 'template' ? 'green' : 'gray'}`}>{!s?.use_ai ? 'Mətn: şablon (pulsuz)' : info.ai === 'openai' ? 'Mətn: ChatGPT' : info.ai === 'claude' ? 'Mətn: Claude' : 'Mətn: şablon (OPENAI_API_KEY yoxdur)'}</span>
               </div>
               {s && (
                 <>
                   <label style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={s.enabled} onChange={(e) => setS({ ...s, enabled: e.target.checked })} /> Aktiv</label>
+                  <label style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }} title="Söndürüləndə mətn hazır şablonla yazılır və AI-a pul getmir">
+                    <input type="checkbox" checked={!!s.use_ai} disabled={info.ai === 'template'} onChange={(e) => setS({ ...s, use_ai: e.target.checked })} /> Mətni AI yazsın {info.ai === 'template' ? '(OPENAI_API_KEY yoxdur)' : '(hər istifadəçi üçün ≈ 0.0001 $)'}
+                  </label>
                   <label style={{ marginTop: 10 }}>Free istifadəçilər üçün günlər (ayın günü)</label>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
                     {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
