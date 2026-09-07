@@ -1,23 +1,36 @@
 import { NextResponse } from 'next/server';
-import { adminDb, errText, requireAdmin } from '@/lib/server';
+import { errText, requireAdmin } from '@/lib/server';
+import { segmentTokens, type Segment } from '@/lib/segments';
 
-/** Sends a push to every registered device via Expo Push Service. */
+/** GET ?segment=&city= → how many devices/users the segment has. */
+export async function GET(req: Request) {
+  if (!(await requireAdmin(req))) return NextResponse.json({ error: 'Giriş tələb olunur' }, { status: 401 });
+  const u = new URL(req.url);
+  try {
+    const r = await segmentTokens((u.searchParams.get('segment') as Segment) || 'all', u.searchParams.get('city') ?? undefined);
+    return NextResponse.json({ devices: r.tokens.length, users: r.users });
+  } catch (e) {
+    return NextResponse.json({ error: errText(e) }, { status: 500 });
+  }
+}
+
+/** POST { title, body, segment?, city?, url? } → Expo push to the segment. */
 export async function POST(req: Request) {
   if (!(await requireAdmin(req))) return NextResponse.json({ error: 'Giriş tələb olunur' }, { status: 401 });
-  const { title, body } = (await req.json()) as { title?: string; body?: string };
+  const { title, body, segment, city, url } = (await req.json()) as { title?: string; body?: string; segment?: Segment; city?: string; url?: string };
   if (!body?.trim()) return NextResponse.json({ error: 'Mətn boşdur' }, { status: 400 });
-
-  const { data: tokens, error } = await adminDb().from('push_tokens').select('token');
-  if (error) return NextResponse.json({ error: errText(error) }, { status: 500 });
-
-  let sent = 0;
-  let errors = 0;
-  const list = (tokens ?? []).map((t) => t.token as string);
-  for (let i = 0; i < list.length; i += 100) {
-    const chunk = list.slice(i, i + 100).map((to) => ({ to, title: title || 'Cheap Basket', body, sound: 'default', channelId: 'price-drops' }));
-    const res = await fetch('https://exp.host/--/api/v2/push/send', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(chunk) });
-    const j = (await res.json()) as { data?: Array<{ status: string }> };
-    for (const t of j.data ?? []) t.status === 'ok' ? sent++ : errors++;
+  try {
+    const { tokens } = await segmentTokens(segment ?? 'all', city);
+    let sent = 0;
+    let errors = 0;
+    for (let i = 0; i < tokens.length; i += 100) {
+      const chunk = tokens.slice(i, i + 100).map((to) => ({ to, title: title || 'Cheap Basket', body, sound: 'default', channelId: 'price-drops', data: url ? { url } : undefined }));
+      const res = await fetch('https://exp.host/--/api/v2/push/send', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(chunk) });
+      const j = (await res.json()) as { data?: Array<{ status: string }> };
+      for (const t of j.data ?? []) t.status === 'ok' ? sent++ : errors++;
+    }
+    return NextResponse.json({ sent, errors, devices: tokens.length });
+  } catch (e) {
+    return NextResponse.json({ error: errText(e) }, { status: 500 });
   }
-  return NextResponse.json({ sent, errors });
 }

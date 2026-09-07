@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, radius, shadow, space } from '@/theme';
+import { colors, fonts, radius, shadow, space } from '@/theme';
 import { useRefresh } from '@/lib/useRefresh';
 import { Btn, Pill, Row, Txt } from '@/components/ui';
 import { ScreenHeader } from '@/components/ScreenHeader';
@@ -11,6 +11,9 @@ import { PLUS_PRICING } from '@/data/plans';
 import { useBasket } from '@/store/basket';
 import { useAuth } from '@/store/auth';
 import { usePlusStore } from '@/lib/iap';
+import { supabase } from '@/lib/supabase';
+import { notify } from '@/lib/confirm';
+import { track } from '@/lib/track';
 
 /** Feature × plan matrix: [label, free, plus] — text means a limited free tier. */
 const FEATURES: Array<[string, string | boolean, string | boolean]> = [
@@ -38,6 +41,27 @@ export default function Plus() {
   const daysLeft = expires ? Math.max(0, Math.ceil((expires.getTime() - Date.now()) / 86400000)) : null;
 
   const store = usePlusStore();
+  const [promoOpen, setPromoOpen] = useState(false);
+  const [promo, setPromo] = useState('');
+  const [promoBusy, setPromoBusy] = useState(false);
+  useEffect(() => {
+    track('plus_view');
+  }, []);
+
+  const redeem = async () => {
+    if (!auth.user) return router.push('/auth');
+    if (!supabase || promo.trim().length < 3) return;
+    setPromoBusy(true);
+    const { data, error } = await supabase.rpc('redeem_promo', { p_code: promo.trim() });
+    setPromoBusy(false);
+    if (error) return notify('Kod qəbul olunmadı', error.message.replace(/^.*?: /, ''));
+    const r = data as { days: number; expires_at: string };
+    track('promo', { code: promo.trim().toUpperCase(), days: r.days });
+    await auth.refreshProfile();
+    setPromo('');
+    setPromoOpen(false);
+    notify('Plus aktivdir 🎉', `${r.days} gün Plus əlavə olundu. Bitmə: ${new Date(r.expires_at).toLocaleDateString('az-AZ')}`);
+  };
   const priceLabel = (p: 'monthly' | 'yearly') => {
     const fromStore = store.prices[p];
     if (fromStore) return p === 'yearly' ? `${fromStore} / il` : `${fromStore} / ay`;
@@ -130,11 +154,34 @@ export default function Plus() {
             <Txt v="caption" color={colors.grayLight} center style={{ marginTop: space.md, fontSize: 11 }}>
               İstənilən vaxt ləğv edə bilərsən. Ödəniş App Store / Google Play hesabından çıxılır və avtomatik yenilənir.
             </Txt>
-            <Pressable onPress={store.restore} disabled={store.busy} accessibilityRole="button" style={{ alignSelf: 'center', marginTop: space.sm, padding: 6 }}>
-              <Txt v="captionStrong" color={colors.gray}>
-                Alışları bərpa et
-              </Txt>
-            </Pressable>
+            <Row gap={space.lg} style={{ justifyContent: 'center', marginTop: space.sm }}>
+              <Pressable onPress={store.restore} disabled={store.busy} accessibilityRole="button" style={{ padding: 6 }}>
+                <Txt v="captionStrong" color={colors.gray}>
+                  Alışları bərpa et
+                </Txt>
+              </Pressable>
+              <Pressable onPress={() => setPromoOpen((v) => !v)} accessibilityRole="button" style={{ padding: 6 }}>
+                <Txt v="captionStrong" color={colors.primary}>
+                  Promo kodum var
+                </Txt>
+              </Pressable>
+            </Row>
+            {promoOpen && (
+              <Row gap={space.sm} style={{ marginTop: space.sm }}>
+                <TextInput
+                  value={promo}
+                  onChangeText={(t) => setPromo(t.toUpperCase())}
+                  placeholder="PROMO KOD"
+                  placeholderTextColor={colors.grayLight}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  returnKeyType="done"
+                  onSubmitEditing={redeem}
+                  style={styles.promoInput}
+                />
+                <Btn title="Tətbiq et" size="md" full={false} loading={promoBusy} onPress={redeem} disabled={promo.trim().length < 3} />
+              </Row>
+            )}
           </View>
         )}
       </ScrollView>
@@ -167,6 +214,7 @@ function Cell({ v, plus }: { v: string | boolean; plus?: boolean }) {
 }
 
 const styles = StyleSheet.create({
+  promoInput: { flex: 1, backgroundColor: colors.white, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: 14, height: 48, fontFamily: fonts.semibold, fontSize: 16, letterSpacing: 1.5, color: colors.dark },
   star: { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.warningSoft, alignItems: 'center', justifyContent: 'center' },
   table: { marginTop: space.xl, backgroundColor: colors.white, borderRadius: radius.lg, overflow: 'hidden', ...shadow.card },
   tr: { paddingVertical: 12, paddingHorizontal: space.md },

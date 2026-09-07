@@ -11,6 +11,7 @@ import { StateView } from '@/components/states';
 import { ResultSheet } from '@/components/ResultSheet';
 import { cheapest } from '@/data/products';
 import { useBasket } from '@/store/basket';
+import { track } from '@/lib/track';
 
 export default function Basket() {
   const refresh = useRefresh();
@@ -27,6 +28,7 @@ export default function Basket() {
   }, [params.compare, lines.length]);
 
   const compare = () => {
+    track('compare', { store_id: o.best?.store.id ?? null, items: lines.length, total: o.best?.total ?? null, saving: o.saving });
     setChosenStore(null);
     setShowResult(true);
   };

@@ -9,6 +9,7 @@ import { RealMap } from '@/components/RealMap';
 import { StoreId, catalog, getStore, nearestBranch, storeIds } from '@/data/products';
 import { Ionicons } from '@expo/vector-icons';
 import { useBasket } from '@/store/basket';
+import { track } from '@/lib/track';
 
 /** Full-screen map: the user, the nearest branch of the chosen store, and directions. */
 export default function MapScreen() {
@@ -27,6 +28,9 @@ export default function MapScreen() {
   }, [params.store]);
 
   const branch = nearestBranch(storeId);
+  useEffect(() => {
+    track('map_open', { store_id: storeId });
+  }, [storeId]);
   const total = useMemo(() => lines.reduce((a, l) => a + (l.product.prices[storeId] ?? 0) * l.qty, 0), [lines, storeId]);
   const missing = lines.filter((l) => l.product.prices[storeId] == null).length;
   const mapW = Math.min(width, 430);

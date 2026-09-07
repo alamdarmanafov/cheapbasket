@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Send, Sparkles } from 'lucide-react';
 import { Shell } from '@/components/Shell';
+import { SEGMENTS } from '@/lib/segments.shared';
 import { db } from '@/lib/supabase';
 
 interface Settings { enabled: boolean; free_days: number[]; hour_baku: number; max_items: number; lookback_free_days: number; use_ai?: boolean; plus_only?: boolean }
@@ -9,6 +10,15 @@ interface Info { settings: Settings; last: Array<{ sent_at: string; title: strin
 
 export default function Notifications() {
   const [count, setCount] = useState<number | null>(null);
+  const [segment, setSegment] = useState('all');
+  const [city, setCity] = useState('');
+  const [url, setUrl] = useState('');
+  const [segCount, setSegCount] = useState<{ devices: number; users: number } | null>(null);
+  useEffect(() => {
+    setSegCount(null);
+    const t = setTimeout(() => fetch(`/api/push?segment=${segment}&city=${encodeURIComponent(city)}`).then((r) => r.json()).then((j) => setSegCount(j.error ? null : j)).catch(() => setSegCount(null)), 300);
+    return () => clearTimeout(t);
+  }, [segment, city]);
   const [title, setTitle] = useState('Cheap Basket');
   const [body, setBody] = useState('');
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
@@ -30,7 +40,7 @@ export default function Notifications() {
   const send = async () => {
     setBusy(true);
     setResult(null);
-    const res = await fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, body }) });
+    const res = await fetch('/api/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, body, segment, city, url: url.trim() || undefined }) });
     const j = await res.json();
     setBusy(false);
     setResult({ ok: res.ok, text: res.ok ? `${j.sent} cihaza göndərildi${j.errors ? `, ${j.errors} xəta` : ''}` : j.error ?? 'Xəta' });
@@ -124,10 +134,18 @@ export default function Notifications() {
         <div className="card">
           <h2>Əl ilə göndəriş</h2>
           <p className="muted" style={{ marginTop: 0 }}>Qeydiyyatlı cihaz: <b>{count ?? '…'}</b></p>
-          <label>Başlıq<input value={title} onChange={(e) => setTitle(e.target.value)} /></label>
+          <label>Kimə
+            <select value={segment} onChange={(e) => setSegment(e.target.value)}>
+              {SEGMENTS.map((sg) => <option key={sg.id} value={sg.id}>{sg.label}</option>)}
+            </select>
+          </label>
+          {segment === 'city' && <label style={{ marginTop: 10 }}>Şəhər<input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Bakı" /></label>}
+          <p className="note">Seçilən seqment: <b>{segCount ? `${segCount.users} istifadəçi · ${segCount.devices} cihaz` : '…'}</b></p>
+          <label style={{ marginTop: 10 }}>Başlıq<input value={title} onChange={(e) => setTitle(e.target.value)} /></label>
           <label style={{ marginTop: 10 }}>Mətn<textarea rows={3} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Bu həftə sonu Araz-da süd məhsulları 15% endirimlə 🎉" /></label>
+          <label style={{ marginTop: 10 }}>Açılacaq səhifə (istəyə görə)<input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="/deals, /plus, /product/ID" /></label>
           <div className="actions">
-            <button className="btn" disabled={!body.trim() || busy || !count} onClick={send}><Send size={14} /> {busy ? 'Göndərilir…' : 'Hamısına göndər'}</button>
+            <button className="btn" disabled={!body.trim() || busy || !segCount?.devices} onClick={() => { if (confirm(`${segCount?.users ?? 0} istifadəçiyə (${segCount?.devices ?? 0} cihaz) göndərilsin?`)) send(); }}><Send size={14} /> {busy ? 'Göndərilir…' : 'Göndər'}</button>
           </div>
         </div>
       </div>

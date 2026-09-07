@@ -10,6 +10,7 @@ import { ProductRowSkeleton, StateView } from '@/components/states';
 import { Product, catalogCategories, categoryEmoji, searchProducts } from '@/data/products';
 import { useCatalog } from '@/store/catalog';
 import { useRefresh } from '@/lib/useRefresh';
+import { track } from '@/lib/track';
 import { useBasket } from '@/store/basket';
 
 
@@ -32,8 +33,10 @@ export default function Search() {
     }
     setLoading(true);
     const t = setTimeout(() => {
-      setResults(searchProducts(q));
+      const r = searchProducts(q);
+      setResults(r);
       setLoading(false);
+      if (q.trim().length >= 3) track('search', { q: q.trim().slice(0, 40), results: r.length });
     }, 350);
     return () => clearTimeout(t);
   }, [q]);
