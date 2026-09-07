@@ -10,13 +10,21 @@ import { Txt } from './ui';
 const iosGoogleKey = (Constants.expoConfig?.ios?.config as { googleMapsApiKey?: string } | undefined)?.googleMapsApiKey;
 const PROVIDER = Platform.OS === 'android' || iosGoogleKey ? PROVIDER_GOOGLE : PROVIDER_DEFAULT;
 
-/** Native map: user, the selected branch and the store's other branches. */
-export function RealMap({ width, height, branch, others = [], interactive = true, radius = 0 }: { width: number; height: number; branch: Branch; others?: Branch[]; interactive?: boolean; radius?: number }) {
+/** Native map: user, the selected branch, same-store others, and optionally every branch of every store. */
+export function RealMap({
+  width, height, branch, others = [], allBranches = [],
+  interactive = true, radius = 0,
+  onBranchPress,
+}: {
+  width: number; height: number; branch: Branch;
+  others?: Branch[]; allBranches?: Branch[];
+  interactive?: boolean; radius?: number;
+  onBranchPress?: (b: Branch) => void;
+}) {
   const me = catalog.location;
   const ref = useRef<MapView>(null);
   const store = getStore(branch.storeId);
 
-  // Fit user + selected branch whenever the target changes.
   useEffect(() => {
     const t = setTimeout(() => {
       ref.current?.fitToCoordinates(
@@ -29,6 +37,8 @@ export function RealMap({ width, height, branch, others = [], interactive = true
     }, 300);
     return () => clearTimeout(t);
   }, [branch.id, branch.lat, branch.lng, me.lat, me.lng, interactive]);
+
+  const othersSet = new Set(others.map((b) => b.id));
 
   return (
     <View style={{ width, height, borderRadius: radius, overflow: 'hidden' }} pointerEvents={interactive ? 'auto' : 'none'}>
@@ -46,15 +56,33 @@ export function RealMap({ width, height, branch, others = [], interactive = true
         toolbarEnabled={false}
       >
         <Polyline coordinates={[{ latitude: me.lat, longitude: me.lng }, { latitude: branch.lat, longitude: branch.lng }]} strokeColor={colors.primary} strokeWidth={3} lineDashPattern={[8, 6]} />
+
+        {/* All other stores' branches — small branded circles, tappable */}
+        {allBranches
+          .filter((b) => b.id !== branch.id && !othersSet.has(b.id))
+          .map((b) => {
+            const s = getStore(b.storeId);
+            return (
+              <Marker key={b.id} coordinate={{ latitude: b.lat, longitude: b.lng }} title={b.name} description={s.name} opacity={0.8} anchor={{ x: 0.5, y: 0.5 }} onPress={() => onBranchPress?.(b)}>
+                <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: s.color, borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
+                  <Txt style={{ color: '#fff', fontSize: 10, lineHeight: 12, fontWeight: '700' }}>{s.initial}</Txt>
+                </View>
+              </Marker>
+            );
+          })}
+
+        {/* Same-store other branches — slightly dimmed */}
         {others
           .filter((b) => b.id !== branch.id)
           .map((b) => (
-            <Marker key={b.id} coordinate={{ latitude: b.lat, longitude: b.lng }} title={b.name} description={b.address} opacity={0.75} anchor={{ x: 0.5, y: 0.5 }}>
+            <Marker key={b.id} coordinate={{ latitude: b.lat, longitude: b.lng }} title={b.name} description={b.address} opacity={0.75} anchor={{ x: 0.5, y: 0.5 }} onPress={() => onBranchPress?.(b)}>
               <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: getStore(b.storeId).color, borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
                 <Txt style={{ color: '#fff', fontSize: 9, lineHeight: 11, fontWeight: '700' }}>{getStore(b.storeId).initial}</Txt>
               </View>
             </Marker>
           ))}
+
+        {/* Selected branch — prominent pin */}
         <Marker coordinate={{ latitude: branch.lat, longitude: branch.lng }} title={branch.name} description={branch.address} pinColor={store.color} />
       </MapView>
     </View>
