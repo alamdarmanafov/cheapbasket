@@ -75,7 +75,8 @@ export function ProductRow({ product, showStore = true }: { product: Product; sh
         </Txt>
       </View>
       <View style={{ alignItems: 'flex-end', marginLeft: space.sm }}>
-        {c.price != null ? <Price value={c.price} size="sm" /> : <Txt v="caption" color={colors.gray}>—</Txt>}
+        {c.regular != null && <OldPrice value={c.regular} />}
+        {c.price != null ? <Price value={c.price} size="sm" color={c.regular != null ? colors.primary : colors.dark} /> : <Txt v="caption" color={colors.gray}>—</Txt>}
       </View>
       <Pressable
         onPress={(e) => {
@@ -122,7 +123,11 @@ export function PriceLine({ item, rank, best }: { item: StorePrice; rank: number
           </Txt>
         ) : rank === 0 ? (
           <Txt v="caption" color={colors.success}>
-            Ən ucuz qiymət
+            Ən ucuz qiymət{item.regular != null ? ' · endirim' : ''}
+          </Txt>
+        ) : item.regular != null ? (
+          <Txt v="caption" color={colors.gray}>
+            Endirimdə · +{diff.toFixed(2)} ₼ baha
           </Txt>
         ) : (
           <Txt v="caption" color={colors.gray}>
@@ -131,11 +136,23 @@ export function PriceLine({ item, rank, best }: { item: StorePrice; rank: number
         )}
       </View>
       {item.price != null ? (
-        <Price value={item.price} size="md" color={rank === 0 ? colors.primary : colors.dark} />
+        <View style={{ alignItems: 'flex-end' }}>
+          {item.regular != null && <OldPrice value={item.regular} />}
+          <Price value={item.price} size="md" color={rank === 0 || item.regular != null ? colors.primary : colors.dark} />
+        </View>
       ) : (
         <Ionicons name="remove-circle-outline" size={20} color={colors.grayLight} />
       )}
     </Row>
+  );
+}
+
+/** Crossed-out regular price shown above a discounted price. */
+export function OldPrice({ value }: { value: number }) {
+  return (
+    <Txt v="caption" color={colors.grayLight} style={{ textDecorationLine: 'line-through' }}>
+      {value.toFixed(2)} ₼
+    </Txt>
   );
 }
 

@@ -4,13 +4,19 @@ import { Plus, Search, Trash2, X } from 'lucide-react';
 import { Shell } from '@/components/Shell';
 import { CATEGORIES, PriceRow, Product, Store, db, slugify } from '@/lib/supabase';
 
+type Cell = { price: string; discount: string };
+const EMPTY_CELL: Cell = { price: '', discount: '' };
+const same = (a?: Cell, b?: Cell) => (a?.price ?? '') === (b?.price ?? '') && (a?.discount ?? '') === (b?.discount ?? '');
+const num = (v: string) => (v.trim() === '' ? null : Number(v.replace(',', '.')));
+
 const EMPTY: Product = { id: '', barcode: '', name: '', brand: '', size: '', category: CATEGORIES[0], emoji: '🛒', tint: '#F3F4F6', image_url: null, rating: null };
 
 export default function Products() {
   const [stores, setStores] = useState<Store[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [prices, setPrices] = useState<Record<string, Record<string, string>>>({}); // product → store → price text
-  const [saved, setSaved] = useState<Record<string, Record<string, string>>>({});
+  // product → store → [regular price text, discount price text]
+  const [prices, setPrices] = useState<Record<string, Record<string, Cell>>>({});
+  const [saved, setSaved] = useState<Record<string, Record<string, Cell>>>({});
   const [q, setQ] = useState('');
   const [edit, setEdit] = useState<Product | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -20,14 +26,14 @@ export default function Products() {
     const [s, p, pr] = await Promise.all([
       db.select<Store>('stores', { order: 'name' }),
       db.select<Product>('products', { order: 'name' }),
-      db.select<PriceRow>('prices', { columns: 'product_id, store_id, price, updated_at' }),
+      db.select<PriceRow>('prices', { columns: 'product_id, store_id, price, discount_price, updated_at' }),
     ]).catch((e: Error) => { setMsg({ ok: false, text: e.message }); return [[], [], []] as [Store[], Product[], PriceRow[]]; });
     setStores(s);
     setProducts(p);
-    const map: Record<string, Record<string, string>> = {};
+    const map: Record<string, Record<string, Cell>> = {};
     pr.forEach((r) => {
       map[r.product_id] = map[r.product_id] ?? {};
-      map[r.product_id][r.store_id] = r.price == null ? '' : String(r.price);
+      map[r.product_id][r.store_id] = { price: r.price == null ? '' : String(r.price), discount: r.discount_price == null ? '' : String(r.discount_price) };
     });
     setPrices(map);
     setSaved(JSON.parse(JSON.stringify(map)));
@@ -40,17 +46,25 @@ export default function Products() {
   }, [products, q]);
 
   const dirty = useMemo(() => {
-    const out: { product_id: string; store_id: string; price: number | null }[] = [];
+    const out: { product_id: string; store_id: string; price: number | null; discount_price: number | null }[] = [];
     for (const pid of Object.keys(prices)) for (const sid of Object.keys(prices[pid])) {
       const v = prices[pid][sid];
-      if ((saved[pid]?.[sid] ?? '') !== v) out.push({ product_id: pid, store_id: sid, price: v.trim() === '' ? null : Number(v.replace(',', '.')) });
+      if (!same(saved[pid]?.[sid], v)) out.push({ product_id: pid, store_id: sid, price: num(v.price), discount_price: num(v.discount) });
     }
     return out;
   }, [prices, saved]);
 
+  const setCell = (pid: string, sid: string, patch: Partial<Cell>) =>
+    setPrices({ ...prices, [pid]: { ...(prices[pid] ?? {}), [sid]: { ...(prices[pid]?.[sid] ?? EMPTY_CELL), ...patch } } });
+
   const savePrices = async () => {
+    const bad = dirty.find((d) => (d.price != null && Number.isNaN(d.price)) || (d.discount_price != null && Number.isNaN(d.discount_price)) || (d.price == null && d.discount_price != null) || (d.price != null && d.discount_price != null && d.discount_price >= d.price));
+    if (bad) {
+      setMsg({ ok: false, text: bad.price == null ? 'Endirimli qiymət üçün əvvəlcə adi qiyməti yaz.' : 'Endirimli qiymət adi qiymətdən kiçik olmalıdır və rəqəm olmalıdır.' });
+      return;
+    }
     setBusy(true);
-    const toUpsert = dirty.filter((d) => d.price != null && !Number.isNaN(d.price));
+    const toUpsert = dirty.filter((d) => d.price != null);
     const toDelete = dirty.filter((d) => d.price == null);
     let err: string | null = null;
     if (toUpsert.length) {
@@ -92,7 +106,7 @@ export default function Products() {
           <thead>
             <tr>
               <th>Məhsul</th><th>Barkod</th><th>Kateqoriya</th>
-              {stores.map((s) => <th key={s.id} style={{ textAlign: 'right' }}><span className="avatar" style={{ background: s.color }}>{s.initial}</span>{s.name} ₼</th>)}
+              {stores.map((s) => <th key={s.id} style={{ textAlign: 'right' }}><span className="avatar" style={{ background: s.color }}>{s.initial}</span>{s.name} ₼<div className="muted" style={{ fontWeight: 400, fontSize: 11 }}>qiymət / endirim</div></th>)}
               <th></th>
             </tr>
           </thead>
@@ -103,9 +117,20 @@ export default function Products() {
                 <td className="muted" style={{ fontFamily: 'monospace', fontSize: 12 }}>{p.barcode ?? '—'}</td>
                 <td className="muted">{p.category}</td>
                 {stores.map((s) => (
-                  <td key={s.id} style={{ textAlign: 'right' }}>
-                    <input inputMode="decimal" placeholder="—" value={prices[p.id]?.[s.id] ?? ''} onChange={(e) => setPrices({ ...prices, [p.id]: { ...(prices[p.id] ?? {}), [s.id]: e.target.value } })}
-                      style={{ borderColor: (saved[p.id]?.[s.id] ?? '') !== (prices[p.id]?.[s.id] ?? '') ? '#E53935' : undefined }} />
+                  <td key={s.id} style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    {(() => {
+                      const cell = prices[p.id]?.[s.id] ?? EMPTY_CELL;
+                      const changed = !same(saved[p.id]?.[s.id], prices[p.id]?.[s.id]);
+                      const discounted = cell.discount.trim() !== '';
+                      return (
+                        <>
+                          <input inputMode="decimal" placeholder="—" title="Adi qiymət" value={cell.price} onChange={(e) => setCell(p.id, s.id, { price: e.target.value })}
+                            style={{ width: 72, borderColor: changed ? '#E53935' : undefined, textDecoration: discounted ? 'line-through' : undefined, color: discounted ? '#9CA3AF' : undefined }} />
+                          <input inputMode="decimal" placeholder="endirim" title="Endirimli qiymət (boş = endirim yoxdur)" value={cell.discount} onChange={(e) => setCell(p.id, s.id, { discount: e.target.value })}
+                            style={{ width: 72, marginLeft: 4, borderColor: changed ? '#E53935' : discounted ? '#16A34A' : undefined, color: discounted ? '#16A34A' : undefined, fontWeight: discounted ? 600 : undefined }} />
+                        </>
+                      );
+                    })()}
                   </td>
                 ))}
                 <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
@@ -118,7 +143,7 @@ export default function Products() {
           </tbody>
         </table>
       </div>
-      <p className="note">Qiymət sahəsini boş buraxsan, məhsul həmin marketdə "mövcud deyil" sayılır. Hər dəyişiklik qiymət tarixçəsinə avtomatik yazılır.</p>
+      <p className="note">Hər market üçün iki sahə var: <b>adi qiymət</b> və <b>endirimli qiymət</b>. Endirim yazılanda tətbiq müqayisəni endirimli qiymətlə aparır və adi qiyməti üstündən xətt çəkilmiş göstərir; endirim bitəndə sahəni boşalt. Adi qiymət boşdursa məhsul həmin marketdə "mövcud deyil" sayılır. Hər dəyişiklik qiymət tarixçəsinə avtomatik yazılır.</p>
 
       {edit && (
         <div className="modal-bg" onClick={() => setEdit(null)}>

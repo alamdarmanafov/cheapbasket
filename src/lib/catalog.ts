@@ -13,6 +13,7 @@ interface ProductPriceRow {
   image_url: string | null;
   rating: number | null;
   prices: Record<string, number | null> | null;
+  regular_prices?: Record<string, number | null> | null;
   updated_at: string | null;
 }
 
@@ -24,6 +25,8 @@ const need = () => {
 function rowToProduct(r: ProductPriceRow, history: number[] = []): Product {
   const prices: Record<StoreId, number | null> = {};
   for (const [k, v] of Object.entries(r.prices ?? {})) prices[k] = v == null ? null : Number(v);
+  const regularPrices: Record<StoreId, number> = {};
+  for (const [k, v] of Object.entries(r.regular_prices ?? {})) if (v != null && prices[k] != null && Number(v) > (prices[k] as number)) regularPrices[k] = Number(v);
   const updatedMinutesAgo = r.updated_at ? Math.max(0, Math.round((Date.now() - new Date(r.updated_at).getTime()) / 60000)) : 0;
   return {
     id: r.id,
@@ -36,6 +39,7 @@ function rowToProduct(r: ProductPriceRow, history: number[] = []): Product {
     tint: r.tint ?? '#F3F4F6',
     imageUrl: r.image_url,
     prices,
+    regularPrices,
     history,
     updatedMinutesAgo,
     rating: r.rating ?? undefined,

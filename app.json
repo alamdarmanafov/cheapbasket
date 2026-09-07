@@ -65,7 +65,8 @@
           "defaultChannel": "price-drops"
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-iap"
     ],
     "experiments": {
       "typedRoutes": false
