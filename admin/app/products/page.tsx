@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { Camera, CheckSquare, Copy, Plus, Search, Trash2, X } from 'lucide-react';
+import { Camera, ChevronLeft, ChevronRight, Copy, Plus, Search, Trash2, X } from 'lucide-react';
+
+const PAGE_SIZE = 50;
 import { Shell } from '@/components/Shell';
 import { CATEGORIES, PriceRow, Product, Store, db, slugify, useCategories } from '@/lib/supabase';
 
@@ -64,8 +66,10 @@ export default function Products() {
   const [prices, setPrices] = useState<PriceMap>({});
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('');
+  const [brand, setBrand] = useState('');
   const [priceFilter, setPriceFilter] = useState<'' | 'none' | 'partial'>('');
   const [noImageFilter, setNoImageFilter] = useState(false);
+  const [page, setPage] = useState(1);
   const [edit, setEdit] = useState<{ product: Product; cells: Record<string, Cell>; isNew: boolean } | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -104,17 +108,25 @@ export default function Products() {
   };
   useEffect(() => { load(); }, []);
 
+  const brands = useMemo(() => [...new Set(products.map((p) => p.brand).filter(Boolean))].sort(), [products]);
+
   const filtered = useMemo(() => {
+    setPage(1);
     const n = q.trim().toLowerCase();
     const priced = (p: Product) => stores.filter((s) => num(prices[p.id]?.[s.id]?.price ?? '') != null).length;
     return products.filter(
       (p) =>
         (!cat || p.category === cat) &&
-        (!n || `${p.brand} ${p.name} ${p.barcode ?? ''} ${p.category}`.toLowerCase().includes(n)) &&
+        (!brand || p.brand === brand) &&
+        (!n || `${p.brand} ${p.name} ${p.barcode ?? ''} ${p.category} ${p.size}`.toLowerCase().includes(n)) &&
         (!priceFilter || (priceFilter === 'none' ? priced(p) === 0 : priced(p) > 0 && priced(p) < stores.length)) &&
         (!noImageFilter || !p.image_url),
     );
-  }, [products, q, cat, priceFilter, noImageFilter, prices, stores]);
+  }, [products, q, cat, brand, priceFilter, noImageFilter, prices, stores]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paged = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const noPriceCount = useMemo(() => products.filter((p) => !stores.some((s) => num(prices[p.id]?.[s.id]?.price ?? '') != null)).length, [products, prices, stores]);
   const noImageCount = useMemo(() => products.filter((p) => !p.image_url).length, [products]);
@@ -364,6 +376,10 @@ export default function Products() {
       <div className="toolbar">
         <Search size={16} className="muted" />
         <input placeholder="Ad, brend, barkod…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <select value={brand} onChange={(e) => setBrand(e.target.value)}>
+          <option value="">Bütün brendlər</option>
+          {brands.map((b) => <option key={b}>{b}</option>)}
+        </select>
         <select value={cat} onChange={(e) => setCat(e.target.value)}>
           <option value="">Bütün kateqoriyalar</option>
           {catNames.map((c) => <option key={c}>{c}</option>)}
@@ -444,7 +460,7 @@ export default function Products() {
           </tr>
         </thead>
         <tbody>
-          {filtered.map((p) => {
+          {paged.map((p) => {
             const best = cheapestStore(p.id);
             const fetchState = imageFetch[p.id];
             return (
@@ -511,9 +527,48 @@ export default function Products() {
               </tr>
             );
           })}
-          {filtered.length === 0 && <tr><td colSpan={6} className="muted" style={{ textAlign: 'center', padding: 30 }}>Məhsul yoxdur — "Yeni məhsul" ilə və ya "Wolt-dan import" ilə əlavə et.</td></tr>}
+          {paged.length === 0 && <tr><td colSpan={6} className="muted" style={{ textAlign: 'center', padding: 30 }}>Məhsul yoxdur — "Yeni məhsul" ilə və ya "Wolt-dan import" ilə əlavə et.</td></tr>}
         </tbody>
       </table>
+
+      {/* ── Pagination ── */}
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 0', flexWrap: 'wrap' }}>
+          <button className="btn ghost" disabled={safePage <= 1} onClick={() => setPage(1)} title="İlk səhifə">«</button>
+          <button className="btn ghost" disabled={safePage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}><ChevronLeft size={15} /></button>
+          {Array.from({ length: totalPages }, (_, i) => i + 1)
+            .filter((p) => p === 1 || p === totalPages || Math.abs(p - safePage) <= 2)
+            .reduce<(number | '…')[]>((acc, p, i, arr) => {
+              if (i > 0 && (p as number) - (arr[i - 1] as number) > 1) acc.push('…');
+              acc.push(p);
+              return acc;
+            }, [])
+            .map((p, i) =>
+              p === '…'
+                ? <span key={`e${i}`} style={{ padding: '0 4px', color: 'var(--muted)' }}>…</span>
+                : <button key={p} className={`btn${safePage === p ? '' : ' ghost'}`} onClick={() => setPage(p as number)} style={{ minWidth: 34 }}>{p}</button>
+            )}
+          <button className="btn ghost" disabled={safePage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}><ChevronRight size={15} /></button>
+          <button className="btn ghost" disabled={safePage >= totalPages} onClick={() => setPage(totalPages)} title="Son səhifə">»</button>
+          <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>
+            {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filtered.length)} / {filtered.length} məhsul
+          </span>
+          <span className="muted" style={{ fontSize: 12 }}>· Səhifə:</span>
+          <input
+            type="number"
+            min={1}
+            max={totalPages}
+            value={safePage}
+            onChange={(e) => { const v = Number(e.target.value); if (v >= 1 && v <= totalPages) setPage(v); }}
+            style={{ width: 56, textAlign: 'center' }}
+          />
+          <span className="muted" style={{ fontSize: 12 }}>/ {totalPages}</span>
+        </div>
+      )}
+      {totalPages <= 1 && filtered.length > 0 && (
+        <p className="muted" style={{ textAlign: 'center', fontSize: 12, padding: '8px 0' }}>{filtered.length} məhsul</p>
+      )}
+
       <p className="note">Məhsula klik et: bir pəncərədə məlumatları və hər market üçün adi / endirimli qiyməti yaz. Yaşıl çip endirimin olduğunu göstərir. Hər dəyişiklik qiymət tarixçəsinə avtomatik yazılır. <b>Heç bir marketdə qiyməti olmayan məhsul tətbiqdə görünmür</b>; digər marketlərin qiymətini "Avtomatik yeniləmə"də həmin marketin Wolt mənbəsi ilə doldur.</p>
 
       {/* ── Image preview modal ── */}
