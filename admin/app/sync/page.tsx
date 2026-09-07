@@ -22,6 +22,7 @@ export default function SyncPage() {
   const [found, setFound] = useState<Array<{ slug: string; name: string; address: string | null; lat: number | null; lng: number | null; url: string; online?: boolean; pick: boolean }> | null>(null);
   const [searching, setSearching] = useState(false);
   const [alsoBranches, setAlsoBranches] = useState(true);
+  const [autoProgress, setAutoProgress] = useState<Array<{ storeId: string; name: string; status: 'pending' | 'loading' | 'done' | 'error'; count?: number; error?: string }>>([]);
 
   const search = async () => {
     if (q.trim().length < 2) return;
@@ -72,18 +73,27 @@ export default function SyncPage() {
 
   const api = async (body: unknown) => {
     const res = await fetch('/api/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const j = await res.json();
-    if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`);
+    const text = await res.text();
+    let j: Record<string, unknown> = {};
+    try { j = JSON.parse(text); } catch { throw new Error(`Server xətası (${res.status})${text ? ': ' + text.slice(0, 120) : ''}`); }
+    if (!res.ok) throw new Error(typeof j.error === 'string' ? j.error : `HTTP ${res.status}`);
     return j;
   };
   const load = async () => {
-    const [s, r] = await Promise.all([db.select<Store>('stores', { order: 'name' }), fetch('/api/sync').then((x) => x.json())]);
-    setStores(s);
-    if (!storeId && s[0]) setStoreId(s[0].id);
-    if (r.error) setMsg({ ok: false, text: r.error });
-    setSources(r.sources ?? []);
-    setAlerts(r.alerts ?? null);
-    setCron(!!r.cron);
+    try {
+      const [s, res] = await Promise.all([db.select<Store>('stores', { order: 'name' }), fetch('/api/sync')]);
+      setStores(s);
+      if (!storeId && s[0]) setStoreId(s[0].id);
+      const text = await res.text();
+      let r: Record<string, unknown> = {};
+      try { r = JSON.parse(text); } catch { setMsg({ ok: false, text: `Server xətası (${res.status}): ${text.slice(0, 120)}` }); return; }
+      if (r.error) setMsg({ ok: false, text: r.error as string });
+      setSources((r.sources as Source[]) ?? []);
+      setAlerts((r.alerts as Alerts) ?? null);
+      setCron(!!r.cron);
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error).message });
+    }
   };
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -108,6 +118,37 @@ export default function SyncPage() {
   const saveAlerts = async () => { if (!alerts) return; await api({ op: 'alerts', value: alerts }).then(() => setMsg({ ok: true, text: 'Bildiriş ayarları saxlanıldı' })).catch((e: Error) => setMsg({ ok: false, text: e.message })); };
   const store = (id: string) => stores.find((s) => s.id === id);
 
+  /** Auto-find and add one Wolt source for every store that has no source yet. */
+  const autoSetup = async () => {
+    const unconfigured = stores.filter((s) => !sources.some((src) => src.store_id === s.id));
+    if (!unconfigured.length) { setMsg({ ok: true, text: 'Bütün marketlər üçün artıq mənbə var.' }); return; }
+    setBusy('auto');
+    setMsg(null);
+    setAutoProgress(unconfigured.map((s) => ({ storeId: s.id, name: s.name, status: 'pending' })));
+    let added = 0;
+    for (let i = 0; i < unconfigured.length; i++) {
+      const s = unconfigured[i];
+      setAutoProgress((prev) => prev.map((p, idx) => idx === i ? { ...p, status: 'loading' } : p));
+      try {
+        const res = await fetch(`/api/import/wolt/venues?q=${encodeURIComponent(s.name)}`);
+        const j = await res.json();
+        if (!res.ok || !j.venues?.length) throw new Error(j.error ?? 'Wolt-da tapılmadı');
+        const venue = j.venues.find((v: { online?: boolean }) => v.online !== false) ?? j.venues[0];
+        await api({ op: 'add', store_id: s.id, url: venue.url });
+        added++;
+        if (alsoBranches && venue.lat != null && venue.lng != null) {
+          await db.upsert('branches', [{ id: slugify(`${s.id} ${venue.slug}`), store_id: s.id, name: venue.name, address: venue.address ?? venue.name, lat: venue.lat, lng: venue.lng, maps_url: `https://www.google.com/maps?q=${venue.lat},${venue.lng}`, open_from: '08:00', open_until: '23:00' }], 'id');
+        }
+        setAutoProgress((prev) => prev.map((p, idx) => idx === i ? { ...p, status: 'done', count: 1 } : p));
+      } catch (e) {
+        setAutoProgress((prev) => prev.map((p, idx) => idx === i ? { ...p, status: 'error', error: (e as Error).message } : p));
+      }
+    }
+    setMsg({ ok: true, text: `${added}/${unconfigured.length} market üçün Wolt mənbəsi tapıldı. İndi "Hamısını yenilə" ilə qiymətləri çək.` });
+    load();
+    setBusy(null);
+  };
+
   return (
     <Shell title="Avtomatik yeniləmə">
       {msg && <div className={`alert ${msg.ok ? 'ok' : 'err'}`}>{msg.text}</div>}
@@ -117,6 +158,32 @@ export default function SyncPage() {
           Hər market üçün Wolt səhifəsini bir dəfə yadda saxla. "Hamısını yenilə" bütün mənbələri oxuyur və <b>yalnız bazada olan məhsulların</b> qiymətini (adi + endirim) yeniləyir; yeni məhsul yaratmır.
           {' '}<span className={`pill ${cron ? 'green' : 'red'}`}>{cron ? 'Avtomatik: hər bazar ertəsi 08:00 (Bakı)' : 'CRON_SECRET yoxdur — avtomatik işləmir'}</span>
         </p>
+        {/* One-click: auto-find a Wolt source for every store that has none */}
+        {stores.some((s) => !sources.some((src) => src.store_id === s.id)) && (
+          <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 12, padding: 12, marginBottom: 10 }}>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 13, color: '#166534' }}>
+                <b>{stores.filter((s) => !sources.some((src) => src.store_id === s.id)).length} market</b> üçün hələ Wolt mənbəsi yoxdur.
+              </span>
+              <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13 }}>
+                <input type="checkbox" checked={alsoBranches} onChange={(e) => setAlsoBranches(e.target.checked)} style={{ width: 'auto' }} /> Filial kimi də qeyd et
+              </label>
+              <button className="btn" disabled={busy === 'auto'} onClick={autoSetup}>
+                <RefreshCw size={14} style={busy === 'auto' ? { animation: 'spin 1s linear infinite' } : {}} /> {busy === 'auto' ? 'Axtarılır…' : 'Bütün marketlər üçün avtomatik tap'}
+              </button>
+            </div>
+            {autoProgress.length > 0 && (
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 10 }}>
+                {autoProgress.map((p) => (
+                  <span key={p.storeId} style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 4, background: p.status === 'done' ? '#16A34A' : p.status === 'error' ? '#DC2626' : p.status === 'loading' ? '#2563EB' : '#9CA3AF', flexShrink: 0, display: 'inline-block' }} />
+                    {p.name}{p.status === 'error' ? ` ✗` : p.status === 'done' ? ' ✓' : ''}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <div className="toolbar" style={{ background: '#FAFAFA', padding: 12, borderRadius: 12 }}>
           <Search size={16} className="muted" />
           <input placeholder="Wolt-da market axtar: Araz, Bravo, Bazarstore, Neptun…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && search()} />
