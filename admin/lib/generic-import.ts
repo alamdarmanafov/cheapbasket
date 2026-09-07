@@ -116,27 +116,96 @@ async function fromAI(text: string, base: URL): Promise<WoltItem[]> {
   return out;
 }
 
-export async function fetchGenericPage(input: string): Promise<WoltResult> {
-  const base = new URL(input.trim());
-  const res = await fetch(base.toString(), { headers: { 'User-Agent': UA, Accept: 'text/html,application/xhtml+xml', 'Accept-Language': 'az,ru,en' }, redirect: 'follow' });
-  if (!res.ok) throw new Error(`Səhifə açılmadı: ${res.status} ${base.hostname}`);
-  const html = await res.text();
+const MAX_ITEMS = 1000;
+const MAX_PAGES = 60;
+const TIME_BUDGET_MS = 45_000; // the API route allows 60 s
+
+async function fetchHtml(url: URL): Promise<string> {
+  const res = await fetch(url.toString(), { headers: { 'User-Agent': UA, Accept: 'text/html,application/xhtml+xml', 'Accept-Language': 'az,ru,en' }, redirect: 'follow' });
+  if (!res.ok) throw new Error(`Səhifə açılmadı: ${res.status} ${url.hostname}`);
+  return res.text();
+}
+
+/** Products of one page: JSON-LD → OpenGraph → AI over the text. */
+async function parsePage(html: string, base: URL, allowAI: boolean): Promise<{ items: WoltItem[]; source: string }> {
   let items = fromJsonLd(html, base);
   let source = 'json-ld';
   if (items.length < 3) {
     const og = fromOpenGraph(html, base);
     if (og.length) { items = [...items, ...og]; source = items.length > og.length ? 'json-ld+og' : 'og'; }
   }
-  if (items.length < 3) {
+  if (items.length < 3 && allowAI) {
     const text = htmlToText(html);
     if (text.length < 200) throw new Error('Səhifə boş gəldi: məhsullar JavaScript ilə yüklənir, serverdən oxumaq mümkün deyil. Saytın kateqoriya səhifəsini və ya JSON API linkini sına.');
     const ai = await fromAI(text, base);
     if (ai.length) { items = ai; source = 'ai'; }
   }
-  if (!items.length) throw new Error(`${base.hostname}: məhsul tapılmadı`);
-  // dedupe by name
+  return { items, source };
+}
+
+/**
+ * Next page of a paginated listing: <link rel="next">, an <a rel="next">, a link whose page number is
+ * current+1 (?page=N, &p=N, /page/N), or — when the page carries a page parameter already — the same URL with it incremented.
+ */
+function nextPageUrl(html: string, current: URL, pageNo: number): URL | null {
+  const abs = (h: string) => { try { const u = new URL(h.replace(/&amp;/g, '&'), current); return u.hostname === current.hostname ? u : null; } catch { return null; } };
+  const rel = html.match(/<(?:link|a)[^>]+rel=["']next["'][^>]+href=["']([^"']+)["']/i)?.[1] ?? html.match(/<(?:link|a)[^>]+href=["']([^"']+)["'][^>]+rel=["']next["']/i)?.[1];
+  if (rel) { const u = abs(rel); if (u && u.toString() !== current.toString()) return u; }
+  const want = pageNo + 1;
+  for (const m of html.matchAll(/href=["']([^"']+)["']/gi)) {
+    const h = m[1].replace(/&amp;/g, '&');
+    if (new RegExp(`(?:[?&](?:page|p|pg|pagina)=${want}(?:&|$)|/page/${want}(?:/|$|\\?))`).test(h)) { const u = abs(h); if (u) return u; }
+  }
+  for (const key of ['page', 'p', 'pg']) {
+    if (current.searchParams.has(key) && /^\d+$/.test(current.searchParams.get(key) ?? '')) {
+      const u = new URL(current.toString()); u.searchParams.set(key, String(want)); return u;
+    }
+  }
+  const m = current.pathname.match(/^(.*\/page\/)(\d+)(\/?)$/);
+  if (m) { const u = new URL(current.toString()); u.pathname = `${m[1]}${want}${m[3]}`; return u; }
+  return null;
+}
+
+/**
+ * Import from any shop page. Follows the listing's pagination (up to MAX_ITEMS products / MAX_PAGES pages / 45 s)
+ * and returns one entry per product (same name or id on later pages is dropped).
+ */
+export async function fetchGenericPage(input: string): Promise<WoltResult> {
+  const started = Date.now();
+  const first = new URL(input.trim());
   const seen = new Map<string, WoltItem>();
-  for (const it of items) if (!seen.has(it.name.toLowerCase())) seen.set(it.name.toLowerCase(), it);
+  const ids = new Set<string>();
+  const visited = new Set<string>();
+  const sources = new Set<string>();
+  let url: URL | null = first;
+  let pageNo = 1;
+  let pages = 0;
+  const pageParam = first.searchParams.get('page') ?? first.searchParams.get('p');
+  if (pageParam && /^\d+$/.test(pageParam)) pageNo = Number(pageParam);
+  while (url && pages < MAX_PAGES && seen.size < MAX_ITEMS && Date.now() - started < TIME_BUDGET_MS) {
+    if (visited.has(url.toString())) break;
+    visited.add(url.toString());
+    let html: string;
+    try { html = await fetchHtml(url); } catch (e) { if (pages === 0) throw e; break; } // a missing later page ends the listing
+    // AI extraction is allowed on the first page only (later pages of a structured site are structured too).
+    const { items, source } = await parsePage(html, url, pages === 0);
+    pages += 1;
+    sources.add(source);
+    let added = 0;
+    for (const it of items) {
+      const k = it.name.toLowerCase();
+      if (seen.has(k) || ids.has(it.ext_id)) continue;
+      seen.set(k, it); ids.add(it.ext_id); added += 1;
+      if (seen.size >= MAX_ITEMS) break;
+    }
+    if (pages > 1 && added === 0) break; // a page with nothing new = end of the listing
+    if (!items.length) break;
+    url = nextPageUrl(html, url, pageNo);
+    pageNo += 1;
+  }
+  if (!seen.size) throw new Error(`${first.hostname}: məhsul tapılmadı`);
   const list = [...seen.values()];
-  return { venue: base.hostname, items: list, categories: [...new Set(list.map((i) => i.category).filter((c): c is string => !!c))], debug: { endpoint: `${source} · ${base.toString()}`, topKeys: [], sampleKeys: [] } };
+  const note = pages > 1 ? ` · ${pages} səhifə` : '';
+  const cap = seen.size >= MAX_ITEMS ? ` · limit ${MAX_ITEMS}` : Date.now() - started >= TIME_BUDGET_MS ? ' · vaxt limiti (növbəti səhifədən davam et)' : '';
+  return { venue: first.hostname, items: list, categories: [...new Set(list.map((i) => i.category).filter((c): c is string => !!c))], debug: { endpoint: `${[...sources].join('+')} · ${first.toString()}${note}${cap}`, topKeys: [], sampleKeys: [] } };
 }
