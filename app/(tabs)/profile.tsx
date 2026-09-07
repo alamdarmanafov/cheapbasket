@@ -91,7 +91,11 @@ export default function Profile() {
             {isPlus ? 'Cheap Basket Plus aktivdir' : 'Cheap Basket Plus'}
           </Txt>
           <Txt v="caption" color="rgba(255,255,255,0.75)" style={{ fontSize: 11 }}>
-            {isPlus ? 'Bütün funksiyalar açıqdır' : 'Qiymət tarixçəsi, bildirişlər, AI · 1.99 $ / ay'}
+            {isPlus
+              ? auth.profile?.planExpiresAt
+                ? `${Math.max(0, Math.ceil((new Date(auth.profile.planExpiresAt).getTime() - Date.now()) / 86400000))} gün qalıb · ${new Date(auth.profile.planExpiresAt).toLocaleDateString('az-AZ')}`
+                : 'Bütün funksiyalar açıqdır'
+              : 'Qiymət tarixçəsi, bildirişlər, AI · 1.99 $ / ay'}
           </Txt>
         </View>
         <Ionicons name="chevron-forward" size={20} color={colors.white} />
