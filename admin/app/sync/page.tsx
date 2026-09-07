@@ -1,14 +1,15 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, BarChart2, MapPin, Play, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { AlertTriangle, BarChart2, Bell, MapPin, Play, Plus, RefreshCw, Search, Tag, Trash2 } from 'lucide-react';
 import { Shell } from '@/components/Shell';
 import { Store, db, slugify } from '@/lib/supabase';
 
-interface Result { ok: boolean; venue?: string; found: number; matched: number; created: number; updated: number; unchanged: number; photos?: number; error?: string; at: string }
+interface Result { ok: boolean; venue?: string; found: number; matched: number; created: number; updated: number; unchanged: number; pending?: number; photos?: number; error?: string; at: string }
 interface Source { id: string; store_id: string; url: string; name: string | null; enabled: boolean; last_run_at: string | null; last_result: Result | null }
 interface Alerts { enabled: boolean; plus_only: boolean; min_percent: number }
 interface PriceSnap { product_id: string; store_id: string; price: number | null; discount_price: number | null }
 interface Anomaly { product_id: string; store_id: string; storeName: string; oldPrice: number; newPrice: number; changePct: number; flagged: boolean }
+interface NewDiscount { product_id: string; store_id: string; storeName: string; regularPrice: number; discountPrice: number; pct: number }
 interface TrendRow { store_id: string; storeName: string; storeColor: string; avgPrice: number; discountCount: number; totalCount: number; lastSync: string | null }
 
 export default function SyncPage() {
@@ -33,8 +34,14 @@ export default function SyncPage() {
 
   // Price anomaly detection
   const priceSnapshot = useRef<PriceSnap[]>([]);
+  const syncStartRef = useRef<string>(new Date().toISOString());
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
   const [showAnalysis, setShowAnalysis] = useState(false);
+
+  // New discount detection
+  const [newDiscounts, setNewDiscounts] = useState<NewDiscount[]>([]);
+  const [showDiscounts, setShowDiscounts] = useState(false);
+  const [alertBusy, setAlertBusy] = useState(false);
 
   // Market trends
   const [trends, setTrends] = useState<TrendRow[]>([]);
@@ -157,17 +164,55 @@ export default function SyncPage() {
     } catch { /* ignore */ }
   };
 
+  const detectDiscounts = async (storeMap: Map<string, string>) => {
+    try {
+      const after = await db.select<PriceSnap>('prices', { columns: 'product_id,store_id,price,discount_price' });
+      const beforeMap = new Map(priceSnapshot.current.map((p) => [`${p.product_id}:${p.store_id}`, p]));
+      const found: NewDiscount[] = [];
+      for (const p of after) {
+        if (p.discount_price == null) continue; // not discounted after sync
+        const key = `${p.product_id}:${p.store_id}`;
+        const before = beforeMap.get(key);
+        if (!before || before.discount_price != null) continue; // not a new discount
+        const regularPrice = p.price ?? 0;
+        const discountPrice = p.discount_price;
+        if (regularPrice <= 0 || discountPrice >= regularPrice) continue;
+        const pct = ((regularPrice - discountPrice) / regularPrice) * 100;
+        found.push({ product_id: p.product_id, store_id: p.store_id, storeName: storeMap.get(p.store_id) ?? p.store_id, regularPrice, discountPrice, pct });
+      }
+      setNewDiscounts(found);
+      if (found.length > 0) setShowDiscounts(true);
+    } catch { /* ignore */ }
+  };
+
+  const sendDiscountAlert = async () => {
+    setAlertBusy(true);
+    try {
+      const res = await fetch('/api/alerts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ since: syncStartRef.current }) });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`);
+      setMsg({ ok: true, text: `Bildiriş göndərildi: ${j.users ?? 0} istifadəçi, ${j.sent ?? 0} cihaz.` });
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error).message });
+    } finally {
+      setAlertBusy(false);
+    }
+  };
+
   const run = async (id?: string) => {
     setBusy(id ?? 'all');
     setMsg(null);
+    syncStartRef.current = new Date().toISOString();
     await captureSnapshot();
     try {
       const r = (await api({ op: 'run', id })) as { results: Array<Result & { store_id: string }>; alerts: { users: number; sent: number } | null };
       const upd = r.results.reduce((a, x) => a + x.updated, 0);
+      const pend = r.results.reduce((a, x) => a + (x.pending ?? 0), 0);
       const bad = r.results.filter((x) => !x.ok);
-      setMsg({ ok: bad.length === 0, text: `${r.results.length} mənbə yoxlanıldı · ${upd} qiymət dəyişdi${r.alerts ? ` · ${r.alerts.users} istifadəçiyə qiymət düşüşü bildirişi (${r.alerts.sent} cihaz)` : ''}${bad.length ? ` · xəta: ${bad.map((b) => b.error).join('; ')}` : ''}` });
+      setMsg({ ok: bad.length === 0, text: `${r.results.length} mənbə yoxlanıldı · ${upd} qiymət dəyişdi${pend ? ` · ${pend} məhsul növbəyə əlavə edildi` : ''}${r.alerts ? ` · ${r.alerts.users} istifadəçiyə bildiriş (${r.alerts.sent} cihaz)` : ''}${bad.length ? ` · xəta: ${bad.map((b) => b.error).join('; ')}` : ''}` });
       const storeMap = new Map(stores.map((s) => [s.id, s.name]));
       await detectAnomalies(storeMap);
+      await detectDiscounts(storeMap);
       load();
     } catch (e) { setMsg({ ok: false, text: (e as Error).message }); } finally { setBusy(null); }
   };
@@ -348,7 +393,7 @@ export default function SyncPage() {
                 <td className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{s.last_run_at ? new Date(s.last_run_at).toLocaleString('az-AZ') : '—'}</td>
                 <td style={{ fontSize: 12 }}>
                   {!s.last_result ? <span className="muted">hələ işləməyib</span> : s.last_result.ok
-                    ? <span>{s.last_result.found} məhsul · {s.last_result.matched} uyğun{s.last_result.created ? <> · <b style={{ color: '#2563EB' }}>{s.last_result.created} yaradıldı</b></> : null} · <b style={{ color: s.last_result.updated ? '#16A34A' : undefined }}>{s.last_result.updated} dəyişdi</b>{s.last_result.photos ? ` · ${s.last_result.photos} şəkil` : ''}</span>
+                    ? <span>{s.last_result.found} məhsul · {s.last_result.matched} uyğun{s.last_result.pending ? <> · <b style={{ color: '#D97706' }}>{s.last_result.pending} növbədə</b></> : null}{s.last_result.created ? <> · <b style={{ color: '#2563EB' }}>{s.last_result.created} yaradıldı</b></> : null} · <b style={{ color: s.last_result.updated ? '#16A34A' : undefined }}>{s.last_result.updated} dəyişdi</b>{s.last_result.photos ? ` · ${s.last_result.photos} şəkil` : ''}</span>
                     : <span className="pill red" title={s.last_result.error}>xəta: {s.last_result.error?.slice(0, 60)}</span>}
                 </td>
                 <td><input type="checkbox" checked={s.enabled} onChange={() => toggle(s)} /></td>
@@ -385,6 +430,64 @@ export default function SyncPage() {
             <label style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>Min. düşüş <input type="number" min={0} max={90} value={alerts.min_percent} onChange={(e) => setAlerts({ ...alerts, min_percent: Number(e.target.value) })} style={{ width: 70 }} /> %</label>
             <button className="btn secondary" onClick={saveAlerts}>Saxla</button>
           </div>
+        </div>
+      )}
+
+      {/* New Discounts Card */}
+      {(newDiscounts.length > 0 || showDiscounts) && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+            <h2 style={{ margin: 0 }}><Tag size={18} style={{ verticalAlign: -3 }} /> Yeni endirimli məhsullar{newDiscounts.length > 0 ? ` (${newDiscounts.length})` : ''}</h2>
+            <button className="btn secondary" onClick={() => setShowDiscounts(!showDiscounts)}>{showDiscounts ? 'Gizlət' : 'Göstər'}</button>
+          </div>
+          {showDiscounts && (
+            <>
+              <p className="muted" style={{ marginTop: 8, fontSize: 13 }}>Son sinxronizasiyadan sonra endirim qiyməti əlavə olunmuş məhsullar (əvvəllər endirim yox idi).</p>
+              {newDiscounts.length === 0 ? (
+                <p className="muted" style={{ fontSize: 13 }}>Yeni endirimlər aşkarlanmadı.</p>
+              ) : (
+                <>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Məhsul</th>
+                          <th>Market</th>
+                          <th style={{ textAlign: 'right' }}>Adi qiymət ₼</th>
+                          <th style={{ textAlign: 'right' }}>Endirimli ₼</th>
+                          <th style={{ textAlign: 'right' }}>Endirim %</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {newDiscounts.map((d, i) => (
+                          <tr key={i}>
+                            <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{d.product_id}</td>
+                            <td>{d.storeName}</td>
+                            <td style={{ textAlign: 'right', textDecoration: 'line-through', color: '#9CA3AF' }}>{d.regularPrice.toFixed(2)}</td>
+                            <td style={{ textAlign: 'right', fontWeight: 600, color: '#16A34A' }}>{d.discountPrice.toFixed(2)}</td>
+                            <td style={{ textAlign: 'right' }}>
+                              <span className="pill green">-{d.pct.toFixed(1)}%</span>
+                            </td>
+                            <td>
+                              <button className="btn ghost" style={{ fontSize: 12 }} disabled={alertBusy} onClick={sendDiscountAlert}>
+                                <Bell size={12} /> {alertBusy ? '…' : 'Bildiriş göndər'}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div style={{ marginTop: 10, display: 'flex', justifyContent: 'flex-end' }}>
+                    <button className="btn secondary" disabled={alertBusy} onClick={sendDiscountAlert}>
+                      <Bell size={14} /> {alertBusy ? 'Göndərilir…' : `Hamısı üçün bildiriş göndər (${newDiscounts.length})`}
+                    </button>
+                  </div>
+                </>
+              )}
+            </>
+          )}
         </div>
       )}
 
