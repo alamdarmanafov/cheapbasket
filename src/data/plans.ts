@@ -19,6 +19,7 @@ export const PLUS_FEATURES: PlanFeature[] = [
   { emoji: '🔔', label: 'Qiymət düşüşü bildirişi' },
   { emoji: '🤖', label: 'AI tövsiyələri' },
   { emoji: '💚', label: 'Qənaət statistikası' },
+  { emoji: '🤖', label: 'Hər gün AI endirim xəbəri' },
 ];
 
 export const PLUS_PRICING = {

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +8,7 @@ import { Btn, Card, Row, Txt } from '@/components/ui';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { useAuth } from '@/store/auth';
 import { supabase } from '@/lib/supabase';
+import { confirmAsync } from '@/lib/confirm';
 
 /** "Mənim məlumatlarım": name/surname and city are editable (Apple often hides the name), plus account deletion. */
 export default function Account() {
@@ -18,12 +19,19 @@ export default function Account() {
   const [name, setName] = useState('');
   const [city, setCity] = useState('');
   const [busy, setBusy] = useState(false);
+  const [digest, setDigest] = useState(true);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     setName(auth.profile?.display_name || meta.display_name || meta.full_name || meta.name || '');
     setCity(auth.profile?.city || '');
+    if (supabase && auth.user) supabase.from('profiles').select('digest_enabled').eq('user_id', auth.user.id).maybeSingle().then(({ data }) => setDigest(data?.digest_enabled ?? true));
   }, [auth.profile, auth.user]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleDigest = async (v: boolean) => {
+    setDigest(v);
+    if (supabase && auth.user) await supabase.from('profiles').upsert({ user_id: auth.user.id, digest_enabled: v });
+  };
 
   if (!auth.user) {
     return (
@@ -50,23 +58,15 @@ export default function Account() {
     if (!error) auth.refreshProfile();
   };
 
-  const remove = () => {
-    Alert.alert('Hesabı sil', 'Hesabın, səbətin və bütün məlumatların silinəcək. Bu geri qaytarıla bilməz.', [
-      { text: 'Ləğv et', style: 'cancel' },
-      {
-        text: 'Sil',
-        style: 'destructive',
-        onPress: async () => {
-          if (!supabase) return;
-          const { error } = await supabase.rpc('delete_own_account');
-          if (error) setMsg({ ok: false, text: error.message });
-          else {
-            await auth.signOut();
-            router.replace('/auth');
-          }
-        },
-      },
-    ]);
+  const remove = async () => {
+    const ok = await confirmAsync('Hesabı sil', 'Hesabın, səbətin və bütün məlumatların silinəcək. Bu geri qaytarıla bilməz.', 'Sil', true);
+    if (!ok || !supabase) return;
+    const { error } = await supabase.rpc('delete_own_account');
+    if (error) setMsg({ ok: false, text: error.message });
+    else {
+      await auth.signOut();
+      router.replace('/auth');
+    }
   };
 
   return (
@@ -107,6 +107,18 @@ export default function Account() {
             </View>
           )}
           <Btn title="Yadda saxla" loading={busy} onPress={save} style={{ marginTop: space.lg }} />
+        </Card>
+
+        <Card style={{ marginTop: space.lg }}>
+          <Row style={{ justifyContent: 'space-between' }}>
+            <View style={{ flex: 1, marginRight: space.md }}>
+              <Txt v="bodyStrong">AI endirim xəbəri</Txt>
+              <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>
+                {auth.profile?.plan === 'plus' ? 'Hər gün səhər ucuzlaşan məhsullar.' : 'Ayda 3 dəfə ucuzlaşan məhsullar. Plus ilə hər gün.'}
+              </Txt>
+            </View>
+            <Switch value={digest} onValueChange={toggleDigest} trackColor={{ true: colors.primary, false: colors.line }} thumbColor={colors.white} />
+          </Row>
         </Card>
 
         <Card style={{ marginTop: space.lg }}>

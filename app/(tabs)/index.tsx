@@ -208,6 +208,18 @@ export default function Home() {
           </View>
         )}
 
+        {/* Deals */}
+        <Pressable onPress={() => router.push('/deals')} style={({ pressed }) => [styles.summary, { marginTop: 14 }, pressed && { opacity: 0.9 }]}>
+          <Txt style={{ fontSize: 28, lineHeight: 34 }}>🔻</Txt>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Txt v="bodyStrong">Endirimlər</Txt>
+            <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>
+              Ucuzlaşan məhsullar · AI xəbəri {basket.isPlus ? 'hər gün' : 'ayda 3 dəfə'}
+            </Txt>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.grayLight} />
+        </Pressable>
+
         {/* AI banner */}
         <Pressable onPress={() => router.push('/assistant')} style={({ pressed }) => [styles.aiBanner, pressed && { opacity: 0.9 }]}>
           <Ionicons name="sparkles" size={22} color={colors.primary} />

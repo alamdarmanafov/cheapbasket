@@ -9,12 +9,14 @@ import { AuthProvider } from '@/store/auth';
 import { PhoneFrame } from '@/components/PhoneFrame';
 import { colors } from '@/theme';
 import { hasSupabase } from '@/lib/supabase';
+import { useNotificationDeepLink } from '@/lib/notifications';
 import { View, Text } from 'react-native';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({ Inter_400Regular, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold });
+  useNotificationDeepLink();
 
   useEffect(() => {
     if (loaded || error) SplashScreen.hideAsync().catch(() => undefined);
@@ -44,6 +46,7 @@ export default function RootLayout() {
           <Stack.Screen name="plus" options={{ presentation: 'modal' }} />
           <Stack.Screen name="auth" options={{ presentation: 'modal' }} />
           <Stack.Screen name="account" />
+          <Stack.Screen name="deals" />
           <Stack.Screen name="product/[id]" />
         </Stack>
       </PhoneFrame>
