@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, shadow, space } from '@/theme';
 import { useRefresh } from '@/lib/useRefresh';
@@ -40,6 +40,15 @@ export default function Markets() {
     if (params.store) setBranchFilter(params.store);
     router.setParams({ view: undefined, store: undefined });
   }, [params.view, params.store, router]);
+
+  // Location is asked for here rather than at launch: this is the first screen
+  // where it buys the user anything (branch distances). Null means undecided, so
+  // the question is put once and never again after an answer either way.
+  useFocusEffect(
+    useCallback(() => {
+      if (locationGranted === null) requestLocation({ interactive: true });
+    }, [locationGranted, requestLocation]),
+  );
 
   const subtitle =
     view === 'branches'
