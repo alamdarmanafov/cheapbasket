@@ -11,6 +11,7 @@ export interface Store {
   /** Brand tint for the store avatar */
   color: string;
   initial: string;
+  logo_url?: string | null;
 }
 
 export interface Product {

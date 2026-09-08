@@ -31,6 +31,16 @@ export function ProductArt({ product, size = 56, emojiScale = 0.5 }: { product: 
 }
 
 export function StoreAvatar({ store, size = 32 }: { store: Store; size?: number }) {
+  if (store.logo_url) {
+    return (
+      <Image
+        source={{ uri: store.logo_url }}
+        style={{ width: size, height: size, borderRadius: size / 2 }}
+        resizeMode="contain"
+        accessibilityIgnoresInvertColors
+      />
+    );
+  }
   return (
     <View
       style={{
