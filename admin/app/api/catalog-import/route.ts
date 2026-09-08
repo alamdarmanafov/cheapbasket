@@ -122,52 +122,56 @@ If no products are visible, return {"products":[]}.`;
  */
 export async function PUT(req: Request) {
   if (!(await requireAdmin(req))) return NextResponse.json({ error: 'Giriş tələb olunur' }, { status: 401 });
-  const body = (await req.json()) as {
-    store_id: string;
-    items: Array<{ product_id: string; price: number; old_price: number | null }>;
-    unmatched?: Array<{ name: string; price: number; old_price: number | null; unit?: string; barcode?: string | null; brand?: string | null; size?: string | null }>;
-  };
-  const { store_id, items, unmatched } = body;
-  if (!store_id) return NextResponse.json({ error: 'store_id tələb olunur' }, { status: 400 });
-
-  const db = adminDb();
-  const at = new Date().toISOString();
-  let updated = 0;
-
-  if (items?.length) {
-    const rows = items.map((it) => ({
-      product_id: it.product_id,
-      store_id,
-      price: it.old_price ?? it.price,
-      discount_price: it.old_price != null ? it.price : null,
-      updated_at: at,
-    }));
-    for (let i = 0; i < rows.length; i += 200) {
-      const { error } = await db.from('prices').upsert(rows.slice(i, i + 200), { onConflict: 'product_id,store_id' });
-      if (error) return NextResponse.json({ error: errText(error) }, { status: 500 });
-    }
-    const history = rows.map((r) => ({ ...r, recorded_at: at }));
-    for (let i = 0; i < history.length; i += 200) {
-      await db.from('price_history').insert(history.slice(i, i + 200)).then(() => {}, () => {});
-    }
-    updated = rows.length;
-  }
-
-  // Queue unmatched products into pending_products for review
-  let pending = 0;
   try {
-    if (unmatched?.length) {
-      const { data: existing } = await db.from('pending_products').select('id');
-      const existingIds = new Set((existing ?? []).map((r: { id: string }) => r.id));
-      const pendingRows = unmatched
-        .map((u) => { try { return { id: slugify(u.name), name: u.name, brand: u.brand ?? null, barcode: u.barcode ?? null, size: u.size ?? null, store_id, source_name: null }; } catch { return null; } })
-        .filter((r): r is { id: string; name: string; store_id: string; source_name: null } => !!r?.id && !existingIds.has(r.id));
-      for (let i = 0; i < pendingRows.length; i += 200) {
-        await db.from('pending_products').insert(pendingRows.slice(i, i + 200)).then(() => {}, () => {});
-      }
-      pending = pendingRows.length;
-    }
-  } catch { /* pending insert failure is non-fatal */ }
+    const body = (await req.json()) as {
+      store_id: string;
+      items: Array<{ product_id: string; price: number; old_price: number | null }>;
+      unmatched?: Array<{ name: string; price: number; old_price: number | null; unit?: string; barcode?: string | null; brand?: string | null; size?: string | null }>;
+    };
+    const { store_id, items, unmatched } = body;
+    if (!store_id) return NextResponse.json({ error: 'store_id tələb olunur' }, { status: 400 });
 
-  return NextResponse.json({ ok: true, updated, pending });
+    const db = adminDb();
+    const at = new Date().toISOString();
+    let updated = 0;
+
+    if (items?.length) {
+      const rows = items.map((it) => ({
+        product_id: it.product_id,
+        store_id,
+        price: it.old_price ?? it.price,
+        discount_price: it.old_price != null ? it.price : null,
+        updated_at: at,
+      }));
+      for (let i = 0; i < rows.length; i += 200) {
+        const { error } = await db.from('prices').upsert(rows.slice(i, i + 200), { onConflict: 'product_id,store_id' });
+        if (error) return NextResponse.json({ error: errText(error) }, { status: 500 });
+      }
+      const history = rows.map((r) => ({ product_id: r.product_id, store_id: r.store_id, price: r.price, recorded_at: at }));
+      for (let i = 0; i < history.length; i += 200) {
+        await db.from('price_history').insert(history.slice(i, i + 200)).then(() => {}, () => {});
+      }
+      updated = rows.length;
+    }
+
+    // Queue unmatched products into pending_products for review
+    let pending = 0;
+    try {
+      if (unmatched?.length) {
+        const { data: existing } = await db.from('pending_products').select('id');
+        const existingIds = new Set((existing ?? []).map((r: { id: string }) => r.id));
+        const pendingRows = unmatched
+          .map((u) => { try { return { id: slugify(u.name), name: u.name, brand: u.brand ?? null, barcode: u.barcode ?? null, size: u.size ?? null, store_id, source_name: null }; } catch { return null; } })
+          .filter((r): r is { id: string; name: string; brand: string | null; barcode: string | null; size: string | null; store_id: string; source_name: null } => !!r?.id && !existingIds.has(r.id));
+        for (let i = 0; i < pendingRows.length; i += 200) {
+          await db.from('pending_products').insert(pendingRows.slice(i, i + 200)).then(() => {}, () => {});
+        }
+        pending = pendingRows.length;
+      }
+    } catch { /* pending insert failure is non-fatal */ }
+
+    return NextResponse.json({ ok: true, updated, pending });
+  } catch (e) {
+    return NextResponse.json({ error: errText(e) }, { status: 500 });
+  }
 }
