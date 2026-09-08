@@ -149,3 +149,156 @@ img{display:block;max-width:100%}
   .download-box{flex-direction:column;align-items:flex-start;gap:15px}
   .footer-grid{grid-template-columns:1fr 1fr}
 }
+
+/* ---- Legal pages and the account-deletion form ---- */
+.legal {
+  padding: 120px 0 80px;
+  background: #fff;
+}
+.legal-inner {
+  max-width: 760px;
+}
+.legal-inner.narrow {
+  max-width: 620px;
+}
+.legal h1 {
+  font-size: clamp(30px, 5vw, 42px);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin: 0 0 10px;
+}
+.legal h2 {
+  font-size: 19px;
+  line-height: 1.3;
+  margin: 34px 0 10px;
+}
+.legal p {
+  color: #4b5563;
+  line-height: 1.7;
+  margin: 0 0 12px;
+}
+.legal-updated {
+  font-size: 13px;
+  color: #9ca3af;
+}
+.legal-intro {
+  font-size: 17px;
+  color: #374151;
+  border-left: 3px solid #e53935;
+  padding-left: 16px;
+  margin: 18px 0 8px;
+}
+.legal ul {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  color: #4b5563;
+  line-height: 1.7;
+}
+.legal li {
+  margin-bottom: 7px;
+}
+.legal-more {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin-top: 48px;
+  padding-top: 22px;
+  border-top: 1px solid #e5e7eb;
+}
+.legal-more a {
+  color: #e53935;
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+}
+.legal-more a:hover {
+  text-decoration: underline;
+}
+
+.warn {
+  display: flex;
+  gap: 12px;
+  background: #fff5f5;
+  border: 1px solid #fecaca;
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin: 22px 0;
+  color: #991b1b;
+}
+.warn b {
+  display: block;
+  margin-bottom: 6px;
+}
+.warn ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #991b1b;
+}
+.ok-box {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 14px;
+  padding: 18px;
+  margin: 22px 0;
+  color: #065f46;
+}
+.ok-box p {
+  color: #065f46;
+  margin: 6px 0 0;
+}
+.err-box {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  padding: 12px 14px;
+  color: #991b1b !important;
+  margin-top: 16px;
+}
+
+.del-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 420px;
+  margin: 16px 0;
+}
+.del-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+.del-form input {
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 15px;
+  font-family: inherit;
+  width: 100%;
+}
+.del-form input:focus {
+  outline: 2px solid #e53935;
+  outline-offset: -1px;
+  border-color: transparent;
+}
+.del-form .red-btn,
+.del-form .plan-btn {
+  justify-content: center;
+}
+.red-btn.danger {
+  background: #991b1b;
+}
+.red-btn[disabled],
+.plan-btn[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.or {
+  max-width: 420px;
+  text-align: center;
+  font-size: 13px;
+  color: #9ca3af !important;
+  margin: 4px 0 10px !important;
+}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { ArrowRight, Check, ChevronDown, Clock, MapPin, ScanLine, Search, ShoppingBasket } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { StoreBadges } from '@/components/StoreBadges';
@@ -210,13 +211,16 @@ export default function Page() {
             <a href="#faq">{t.nav.faq}</a>
           </div>
           <div>
-            <b>{t.footer.company}</b>
-            <a href="#top">{t.footer.about}</a>
-            <a href={LINKS.email}>{t.footer.contact}</a>
-            <a href="#top">{t.footer.privacy}</a>
+            <b>{t.footer.legal}</b>
+            <Link href="/privacy">{t.footer.privacy}</Link>
+            <Link href="/terms">{t.footer.terms}</Link>
+            <Link href="/refunds">{t.footer.refunds}</Link>
+            <Link href="/cookies">{t.footer.cookies}</Link>
           </div>
           <div>
-            <b>{t.footer.social}</b>
+            <b>{t.footer.company}</b>
+            <a href={LINKS.email}>{t.footer.contact}</a>
+            <Link href="/delete-account">{t.footer.deleteAccount}</Link>
             <a href={LINKS.instagram} target="_blank" rel="noreferrer">Instagram</a>
             <a href={LINKS.tiktok} target="_blank" rel="noreferrer">TikTok</a>
             <a href={LINKS.linkedin} target="_blank" rel="noreferrer">LinkedIn</a>
