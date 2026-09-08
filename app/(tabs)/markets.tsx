@@ -31,7 +31,9 @@ export default function Markets() {
   const { branches, stores, locationGranted, requestLocation } = useCatalog();
   const t = useT();
 
-  const [view, setView] = useState<View2>(params.view === 'branches' ? 'branches' : 'best');
+  // An empty basket gives "Ən sərfəli" nothing to rank, so the tab opens on the
+  // branches instead of on an empty state.
+  const [view, setView] = useState<View2>(params.view === 'branches' || lines.length === 0 ? 'branches' : 'best');
   const [branchFilter, setBranchFilter] = useState<string>(params.store ?? 'all');
 
   // "Filiallara bax" from the basket arrives as params; apply them once, then clear
