@@ -11,17 +11,14 @@ export const FREE_FEATURES: PlanFeature[] = [
   { emoji: '🏆', label: 'Ən sərfəli market' },
   { emoji: '📍', label: 'Yaxın filial' },
   { emoji: '📷', label: 'Barkod skanı' },
-  { emoji: '🤳', label: 'Gündə 1 şəkillə tanıma' },
 ];
 
 export const PLUS_FEATURES: PlanFeature[] = [
   { emoji: '🛒', label: 'Limitsiz səbət' },
-  { emoji: '📊', label: 'Qiymət tarixçəsi' },
   { emoji: '🔔', label: 'Qiymət düşüşü bildirişi' },
   { emoji: '🤖', label: 'AI tövsiyələri' },
   { emoji: '💚', label: 'Qənaət statistikası' },
   { emoji: '🤖', label: 'Hər gün AI endirim xəbəri' },
-  { emoji: '🤳', label: 'Limitsiz şəkillə məhsul tanıma' },
 ];
 
 export const PLUS_PRICING = {

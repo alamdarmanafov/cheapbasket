@@ -112,61 +112,34 @@ export default function Home() {
           </View>
         )}
 
-        {/* Scan card */}
-        <Pressable onPress={() => router.push('/scan')} accessibilityRole="button" style={({ pressed }) => [styles.scanCard, pressed && { opacity: 0.92 }]}>
-          <View style={styles.scanSymbol}>
-            <Ionicons name="barcode-outline" size={24} color={colors.white} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Txt v="bodyStrong" color={colors.white}>
-              {t('home.scanBarcode')}
-            </Txt>
-            <Txt v="caption" color="rgba(255,255,255,0.8)" style={{ fontSize: 11 }}>
-              {t('home.scanSubtitle')}
-            </Txt>
-          </View>
-          <Ionicons name="chevron-forward" size={22} color={colors.white} />
-        </Pressable>
-
-        {/* Quick grid */}
-        <Row gap={10} style={{ marginTop: 10 }}>
-          <QuickTile icon="camera-outline" label={t('home.photoTile')} onPress={() => router.push('/scan?mode=photo')} plus={!basket.isPlus} />
-          <QuickTile icon="list-outline" label={t('home.listTile')} onPress={() => router.push('/search')} />
-        </Row>
-
         {/* Promo banners (admin-managed slider) */}
         <BannerSlider banners={cat.banners} />
 
-        {/* Basket summary */}
-        <Pressable onPress={() => router.push('/basket')} style={({ pressed }) => [styles.summary, pressed && { opacity: 0.9 }]}>
-          <View style={{ flex: 1 }}>
-            <Txt v="caption" color={colors.gray}>
-              {t('home.yourBasket')}
-            </Txt>
-            <Txt v="captionStrong" style={{ marginTop: 4 }}>
-              {t('home.itemCount', { count: basket.count })}
-            </Txt>
-            {lines.length ? (
-              <>
-                <Price value={o.best?.total ?? 0} size="md" style={{ marginTop: 2 }} />
-                {o.best && (
-                  <Row gap={6} style={{ marginTop: 6 }}>
-                    <StoreAvatar store={o.best.store} size={18} />
-                    <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>
-                      {t('home.cheapestAt', { store: o.best.store.name })}
-                    </Txt>
-                    {o.saving > 0 && <Pill tone="success" text={t('home.savingPill', { amount: o.saving.toFixed(2) })} />}
-                  </Row>
-                )}
-              </>
-            ) : (
-              <Txt v="caption" color={colors.primary} style={{ marginTop: 2 }}>
-                {t('home.addProduct')}
+        {/* Basket summary — only worth a card once there is something in it.
+            Scanning and search both live in the bar above and the tab bar. */}
+        {lines.length > 0 && (
+          <Pressable onPress={() => router.push('/basket')} style={({ pressed }) => [styles.summary, pressed && { opacity: 0.9 }]}>
+            <View style={{ flex: 1 }}>
+              <Txt v="caption" color={colors.gray}>
+                {t('home.yourBasket')}
               </Txt>
-            )}
-          </View>
-          <Txt style={{ fontSize: 48, lineHeight: 56 }}>🛒</Txt>
-        </Pressable>
+              <Txt v="captionStrong" style={{ marginTop: 4 }}>
+                {t('home.itemCount', { count: basket.count })}
+              </Txt>
+              <Price value={o.best?.total ?? 0} size="md" style={{ marginTop: 2 }} />
+              {o.best && (
+                <Row gap={6} style={{ marginTop: 6 }}>
+                  <StoreAvatar store={o.best.store} size={18} />
+                  <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>
+                    {t('home.cheapestAt', { store: o.best.store.name })}
+                  </Txt>
+                  {o.saving > 0 && <Pill tone="success" text={t('home.savingPill', { amount: o.saving.toFixed(2) })} />}
+                </Row>
+              )}
+            </View>
+            <Txt style={{ fontSize: 48, lineHeight: 56 }}>🛒</Txt>
+          </Pressable>
+        )}
 
         {/* Stores (live from admin) */}
         {cat.stores.length > 0 && (
@@ -270,22 +243,6 @@ export default function Home() {
   );
 }
 
-function QuickTile({ icon, label, onPress, plus }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; plus?: boolean }) {
-  return (
-    <Pressable onPress={onPress} accessibilityRole="button" style={({ pressed }) => [styles.tile, pressed && { backgroundColor: colors.primarySoft }]}>
-      {plus && (
-        <View style={{ position: 'absolute', top: 8, right: 8 }}>
-          <PlusTag />
-        </View>
-      )}
-      <Ionicons name={icon} size={22} color={colors.primary} />
-      <Txt v="captionStrong" center style={{ fontSize: 11, marginTop: 6 }}>
-        {label}
-      </Txt>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   search: {
     height: 48,
@@ -304,26 +261,6 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : {}),
   },
   results: { backgroundColor: colors.white, borderRadius: 15, marginTop: 12, overflow: 'hidden', ...shadow.card },
-  scanCard: {
-    marginTop: 12,
-    borderRadius: 16,
-    backgroundColor: colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 14,
-  },
-  scanSymbol: { width: 42, height: 42, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
-  tile: {
-    flex: 1,
-    borderRadius: 14,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.line,
-    paddingVertical: 13,
-    paddingHorizontal: 8,
-    alignItems: 'center',
-  },
   summary: {
     marginTop: 12,
     borderRadius: 17,

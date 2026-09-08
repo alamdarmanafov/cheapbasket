@@ -22,9 +22,7 @@ const FEATURES: Array<[string, string | boolean, string | boolean]> = [
   ['Ən sərfəli market', true, true],
   ['Yaxın filial və xəritə', true, true],
   ['Barkod skanı', true, true],
-  ['Şəkillə məhsul tanıma (AI)', 'Gündə 1', 'Limitsiz'],
   ['AI endirim xəbəri', false, 'Hər gün'],
-  ['Qiymət tarixçəsi', false, true],
   ['Qiymət düşüşü bildirişi', false, true],
   ['AI tövsiyələri', false, true],
   ['Qənaət statistikası', false, true],
@@ -91,7 +89,7 @@ export default function Plus() {
             </Txt>
           </Txt>
           <Txt v="body" color={colors.gray} center style={{ marginTop: space.sm, maxWidth: 320 }}>
-            Hər gün endirim xəbəri, qiymət tarixçəsi, düşüş bildirişləri və AI tövsiyələri ilə daha çox qənaət et.
+            Hər gün endirim xəbəri, qiymət düşüşü bildirişləri və AI tövsiyələri ilə daha çox qənaət et.
           </Txt>
           {isPlus && (
             <View style={{ marginTop: space.md }}>

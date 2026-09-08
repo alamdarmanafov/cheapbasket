@@ -10,7 +10,6 @@ import { track } from '@/lib/track';
 import { useAuth } from '@/store/auth';
 import { useCatalog } from '@/store/catalog';
 import { notify } from '@/lib/confirm';
-import { PlusTag } from '@/components/PlusLock';
 import { colors, fonts, radius, shadow, space } from '@/theme';
 import { Btn, Divider, IconBtn, Pill, Price, Row, Txt } from '@/components/ui';
 import { Freshness, ProductArt, StoreAvatar } from '@/components/product';
@@ -18,7 +17,7 @@ import { StateView } from '@/components/states';
 import { Product, StoreId, catalog, cheapest, findByBarcode, getStore, sortedPrices } from '@/data/products';
 import { useBasket } from '@/store/basket';
 
-type Phase = 'scanning' | 'searching' | 'found' | 'notfound' | 'error' | 'limit' | 'login';
+type Phase = 'scanning' | 'searching' | 'found' | 'notfound' | 'error';
 
 /**
  * In-store scanner. Recognises a product, compares prices, and tells the user
@@ -27,8 +26,7 @@ type Phase = 'scanning' | 'searching' | 'found' | 'notfound' | 'error' | 'limit'
 export default function Scan() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ mode?: string; store?: string }>();
-  const mode = params.mode === 'photo' ? 'photo' : 'barcode';
+  const params = useLocalSearchParams<{ store?: string }>();
   const basket = useBasket();
   const auth = useAuth();
   const cat = useCatalog();
@@ -75,48 +73,6 @@ export default function Scan() {
 
   const canUseCamera = Platform.OS !== 'web' && permission?.granted;
 
-  /** Photo mode: capture → server vision model → best catalogue match. */
-  const takePhoto = async () => {
-    if (lockRef.current) return;
-    if (!camRef.current) return setHint('Kamera hazır deyil.');
-    if (!API_URL) return setHint('Server konfiqurasiya olunmayıb (EXPO_PUBLIC_API_URL).');
-    if (!auth.user) {
-      setPhase('login');
-      return;
-    }
-    lockRef.current = true;
-    setPhase('searching');
-    try {
-      const token = (await supabase?.auth.getSession())?.data.session?.access_token;
-      const pic = await camRef.current.takePictureAsync({ base64: true, quality: 0.4, skipProcessing: true });
-      const res = await fetch(`${API_URL}/api/ai/identify`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token ?? ''}` }, body: JSON.stringify({ image: pic?.base64 ?? '' }) });
-      const j = (await res.json()) as { identified?: { query: string }; candidates?: Array<{ id: string }>; remaining?: number | null; error?: string; code?: string };
-      if (res.status === 429 || j.code === 'limit') {
-        setHint(j.error ?? null);
-        setPhase('limit');
-        return;
-      }
-      if (res.status === 401 || j.code === 'auth') {
-        setPhase('login');
-        return;
-      }
-      if (!res.ok) throw new Error(j.error ?? `Server xətası (${res.status})`);
-      if (j.remaining != null) setHint(j.remaining > 0 ? `Bu gün daha ${j.remaining} pulsuz foto qalır.` : 'Bu günkü pulsuz foto istifadə olundu. Limitsiz tanıma Plus-dadır.');
-      const top = j.candidates?.[0] ? catalog.products.find((p) => p.id === j.candidates?.[0].id) : undefined;
-      track('photo', { product_id: top?.id ?? null, found: !!top, query: j.identified?.query ?? null });
-      if (top) {
-        setProduct(top);
-        setPhase('found');
-      } else {
-        setHint(j.identified?.query ? `Tanındı: "${j.identified.query}" — bazamızda hələ yoxdur.` : null);
-        setPhase('notfound');
-      }
-    } catch (e) {
-      setHint((e as Error).message);
-      setPhase('notfound');
-    }
-  };
-
   const submitManual = () => {
     const code = manual.replace(/\D/g, '');
     if (code.length < 8) return;
@@ -133,7 +89,7 @@ export default function Scan() {
           facing="back"
           enableTorch={torch}
           barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128'] }}
-          onBarcodeScanned={phase === 'scanning' && mode === 'barcode' ? ({ data }) => resolve(findByBarcode(data)) : undefined}
+          onBarcodeScanned={phase === 'scanning' ? ({ data }) => resolve(findByBarcode(data)) : undefined}
         />
       ) : (
         <View style={[StyleSheet.absoluteFill, styles.fakeCam]}>
@@ -157,35 +113,13 @@ export default function Scan() {
         <View style={styles.center} pointerEvents="box-none">
           <Frame />
           <Txt v="bodyStrong" color={colors.white} center style={{ marginTop: space.xl }}>
-            {mode === 'photo' ? 'Məhsulu çərçivəyə gətir və şəkil çək' : 'Barkodu çərçivəyə gətir'}
+            Barkodu çərçivəyə gətir
           </Txt>
-          {mode === 'photo' && !basket.isPlus && (
-            <Row gap={6} style={{ justifyContent: 'center', marginTop: 6 }}>
-              <PlusTag />
-              <Txt v="caption" color="rgba(255,255,255,0.8)">
-                Pulsuz planda gündə 1 foto
-              </Txt>
-            </Row>
-          )}
           <Txt v="caption" color="rgba(255,255,255,0.7)" center style={{ marginTop: 4 }}>
             Məhsul tanındıqdan sonra qiymətləri avtomatik müqayisə edəcəyik.
           </Txt>
           <View style={{ marginTop: space.xxl, alignItems: 'center', gap: space.sm }}>
-            {mode === 'photo' && canUseCamera && (
-              <Pressable onPress={takePhoto} style={styles.shutter} accessibilityLabel="Şəkil çək">
-                <View style={styles.shutterInner} />
-              </Pressable>
-            )}
-            {mode === 'photo' && !canUseCamera && (
-              <>
-                <Txt v="caption" color="rgba(255,255,255,0.8)" center>
-                  {Platform.OS === 'web' ? 'Şəkillə tanıma yalnız telefon tətbiqində işləyir.' : 'Kameraya icazə lazımdır.'}
-                </Txt>
-                {Platform.OS !== 'web' && !permission?.granted && <Btn title="Kameraya icazə ver" size="md" full={false} onPress={() => requestPermission()} />}
-                <Btn title="Adı ilə axtar" variant="secondary" size="md" full={false} onPress={() => router.replace('/search')} />
-              </>
-            )}
-            {mode === 'barcode' && !canUseCamera && (
+            {!canUseCamera && (
               <View style={{ width: '100%', alignItems: 'center', gap: space.sm }}>
                 <Txt v="caption" color="rgba(255,255,255,0.8)" center>
                   {Platform.OS === 'web' ? 'Kamera ilə skan telefon tətbiqindədir. Barkodu əl ilə yaz:' : 'Kameraya icazə yoxdur. Barkodu əl ilə yaz:'}
@@ -227,37 +161,15 @@ export default function Scan() {
           <StateView
             emoji="🤔"
             title="Məhsul tapılmadı"
-            body={hint ?? (mode === 'photo' ? 'Məhsul tanınmadı. Adı ilə axtar və ya yenidən şəkil çək.' : 'Bu barkod bazamızda yoxdur. Adı ilə axtar və ya yenidən cəhd et.')}
+            body={hint ?? 'Bu barkod bazamızda yoxdur. Adı ilə axtar və ya yenidən cəhd et.'}
             cta="Adı ilə axtar"
             onCta={() => router.replace('/search')}
-            secondary={mode === 'photo' ? 'Yenidən çək' : 'Yenidən skan et'}
+            secondary="Yenidən skan et"
             onSecondary={reset}
           />
         </View>
       )}
 
-      {phase === 'limit' && (
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + space.lg }]}>
-          <StateView
-            emoji="⭐"
-            title="Bu günkü pulsuz foto bitdi"
-            body={hint ?? 'Pulsuz planda gündə 1 foto. Plus ilə limitsiz şəkillə tanıma, qiymət tarixçəsi və hər gün endirim xəbəri.'}
-            cta="Plus-a keç"
-            onCta={() => router.push('/plus')}
-            secondary="Barkodla skan et"
-            onSecondary={() => {
-              reset();
-              router.replace('/scan');
-            }}
-          />
-        </View>
-      )}
-
-      {phase === 'login' && (
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + space.lg }]}>
-          <StateView emoji="👤" title="Daxil ol" body="Şəkillə tanıma üçün hesabına daxil olmalısan. Pulsuz planda gündə 1 foto, Plus-da limitsiz." cta="Daxil ol" onCta={() => router.push('/auth')} secondary="Geri" onSecondary={reset} />
-        </View>
-      )}
 
       {phase === 'found' && product && (
         <FoundSheet
@@ -434,8 +346,6 @@ const styles = StyleSheet.create({
   hereChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 12, height: 36, borderRadius: radius.pill },
   corner: { position: 'absolute', width: 36, height: 36 },
   laser: { position: 'absolute', left: 12, right: 12, height: 2, borderRadius: 1, opacity: 0.9 },
-  shutter: { width: 76, height: 76, borderRadius: 38, borderWidth: 4, borderColor: colors.white, alignItems: 'center', justifyContent: 'center' },
-  shutterInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: colors.white },
   sheet: {
     position: 'absolute',
     left: 0,
