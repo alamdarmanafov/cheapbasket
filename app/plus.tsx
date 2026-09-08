@@ -8,6 +8,7 @@ import { useRefresh } from '@/lib/useRefresh';
 import { Btn, Pill, Row, Txt } from '@/components/ui';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { PLUS_PRICING } from '@/data/plans';
+import { PLUS_SKUS } from '@/lib/plusStore';
 import { useBasket } from '@/store/basket';
 import { useAuth } from '@/store/auth';
 import { usePlusStore } from '@/lib/iap';
@@ -65,6 +66,13 @@ export default function Plus() {
     if (fromStore) return p === 'yearly' ? `${fromStore} / il` : `${fromStore} / ay`;
     return PLUS_PRICING[p].label;
   };
+
+  /**
+   * The store connected and finished loading but returned no product for this id.
+   * Without this the button stayed tappable and the purchase failed with nothing
+   * on screen to say why.
+   */
+  const storeMissing = store.available && store.ready && !store.prices[period];
 
   const subscribe = () => {
     if (!auth.user) {
@@ -188,7 +196,19 @@ export default function Plus() {
         {isPlus ? (
           <Btn title={expires ? `Plus · ${expires.toLocaleDateString('az-AZ')} tarixinə qədər` : 'Plus aktivdir'} variant="secondary" onPress={() => router.back()} />
         ) : (
-          <Btn title={store.busy ? 'Gözlə…' : `Plus-a keç · ${priceLabel(period)}`} icon="star" onPress={subscribe} disabled={store.busy} />
+          <>
+            {storeMissing && (
+              <Txt v="caption" color={colors.warning} center style={{ marginBottom: space.sm }}>
+                Bu abunəlik mağazada tapılmadı ({PLUS_SKUS[period]}). App Store Connect-də məhsul ID-si və Paid Applications müqaviləsini yoxla.
+              </Txt>
+            )}
+            <Btn
+              title={store.busy ? 'Gözlə…' : `Plus-a keç · ${priceLabel(period)}`}
+              icon="star"
+              onPress={subscribe}
+              disabled={store.busy || storeMissing}
+            />
+          </>
         )}
       </View>
     </View>
