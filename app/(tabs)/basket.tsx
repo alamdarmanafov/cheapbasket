@@ -136,7 +136,7 @@ export default function Basket() {
         }}
         onGoToStore={(storeId) => {
           setShowResult(false);
-          router.push({ pathname: '/(tabs)/places', params: { store: storeId } });
+          router.push({ pathname: '/(tabs)/markets', params: { view: 'branches', store: storeId } });
         }}
       />
     </View>

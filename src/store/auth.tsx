@@ -33,6 +33,8 @@ interface AuthState {
   signInGoogle: () => Promise<{ error?: string }>;
   resetPassword: (email: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
+  /** Permanently removes the account (App Store guideline 5.1.1(v)). */
+  deleteAccount: () => Promise<{ error?: string }>;
   refreshProfile: () => Promise<void>;
   /** null until read from storage; false → show onboarding first. */
   onboarded: boolean | null;
@@ -192,6 +194,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       async signOut() {
         await supabase?.auth.signOut();
         setProfile(null);
+      },
+      async deleteAccount() {
+        if (!supabase) return { error: 'Supabase konfiqurasiya olunmayıb' };
+        const api = process.env.EXPO_PUBLIC_API_URL;
+        if (!api) return { error: 'Server ünvanı təyin edilməyib' };
+        try {
+          const { data } = await supabase.auth.getSession();
+          const token = data.session?.access_token;
+          if (!token) return { error: 'Sessiya tapılmadı — yenidən daxil ol' };
+          const res = await fetch(`${api}/api/account/delete`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+          const body = (await res.json().catch(() => null)) as { error?: string } | null;
+          if (!res.ok) return { error: body?.error ?? `Server xətası (${res.status})` };
+          await supabase.auth.signOut();
+          setProfile(null);
+          return {};
+        } catch (e) {
+          return { error: msg(e) };
+        }
       },
       refreshProfile: () => loadProfile(session?.user.id),
       onboarded,

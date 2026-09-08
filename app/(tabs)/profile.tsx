@@ -13,7 +13,7 @@ import { useRefresh } from '@/lib/useRefresh';
 import { useAuth } from '@/store/auth';
 import { registerForPush, unregisterPush } from '@/lib/notifications';
 import * as StoreReview from 'expo-store-review';
-import { notify } from '@/lib/confirm';
+import { confirmAsync, notify } from '@/lib/confirm';
 
 type RowDef = { label: string; icon: keyof typeof Ionicons.glyphMap; value?: string; route?: string; plus?: boolean; action?: 'location' | 'rate'; info?: boolean };
 const ROWS: RowDef[] = [
@@ -38,6 +38,7 @@ export default function Profile() {
   const refresh = useRefresh();
   const [notif, setNotif] = useState(false);
   const [notifBusy, setNotifBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const displayName = auth.profile?.display_name || auth.user?.user_metadata?.display_name || auth.user?.user_metadata?.full_name || auth.user?.email?.split('@')[0] || 'Qonaq';
   const initial = displayName.trim().charAt(0).toUpperCase() || 'Q';
 
@@ -61,6 +62,24 @@ export default function Profile() {
       if (Platform.OS !== 'web' && (await StoreReview.hasAction().catch(() => false))) return StoreReview.requestReview();
       return notify('Təşəkkürlər ⭐', 'Qiymətləndirmə App Store / Google Play-də tətbiq yayımlanandan sonra açılacaq.');
     }
+  };
+
+  const onSignOut = async () => {
+    if (await confirmAsync('Çıxış', 'Hesabdan çıxmaq istəyirsən?', 'Çıxış')) await auth.signOut();
+  };
+
+  const onDeleteAccount = async () => {
+    const ok = await confirmAsync(
+      'Hesabı sil',
+      'Hesabın və bütün məlumatların — səbətlər, siyahılar, xallar — həmişəlik silinəcək. Bu əməliyyat geri qaytarılmır.',
+      'Sil',
+      true,
+    );
+    if (!ok) return;
+    setDeleting(true);
+    const r = await auth.deleteAccount();
+    setDeleting(false);
+    if (r.error) notify('Hesab silinmədi', r.error);
   };
   const rowValue = (r: RowDef) => (r.action === 'location' ? cat.place ?? (cat.locationGranted === false ? 'Bağlıdır' : 'Açıqdır') : r.route === '/referral' && auth.profile?.points ? `${auth.profile.points} xal` : r.value);
   return (
@@ -89,11 +108,7 @@ export default function Profile() {
             </Pressable>
           )}
           {auth.user ? (
-            <Pressable onPress={() => auth.signOut()} hitSlop={8}>
-              <Txt v="captionStrong" color={colors.primary}>
-                Çıxış
-              </Txt>
-            </Pressable>
+            <Ionicons name="chevron-forward" size={20} color={colors.grayLight} />
           ) : (
             <View style={styles.loginBtn}>
               <Txt v="captionStrong" color={colors.white}>
@@ -170,6 +185,34 @@ export default function Profile() {
           </Pressable>
         ))}
       </View>
+
+      {/* Account actions live at the very bottom, away from everyday settings. */}
+      {auth.user && (
+        <View style={[styles.rows, { marginTop: space.lg }]}>
+          <Pressable
+            onPress={onSignOut}
+            disabled={deleting}
+            style={({ pressed }) => [styles.row, styles.rowLine, pressed && { backgroundColor: colors.fill }]}
+            accessibilityRole="button"
+          >
+            <Ionicons name="log-out-outline" size={20} color={colors.dark} />
+            <Txt v="body" style={{ marginLeft: 12, fontSize: 13 }}>
+              Çıxış
+            </Txt>
+          </Pressable>
+          <Pressable
+            onPress={onDeleteAccount}
+            disabled={deleting}
+            style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.fill }, deleting && { opacity: 0.5 }]}
+            accessibilityRole="button"
+          >
+            <Ionicons name="trash-outline" size={20} color={colors.primary} />
+            <Txt v="body" color={colors.primary} style={{ marginLeft: 12, fontSize: 13 }}>
+              {deleting ? 'Silinir…' : 'Hesabı sil'}
+            </Txt>
+          </Pressable>
+        </View>
+      )}
 
       <View style={{ alignItems: 'center', marginTop: space.xxl, gap: space.sm }}>
         <LogoMark size={36} />
