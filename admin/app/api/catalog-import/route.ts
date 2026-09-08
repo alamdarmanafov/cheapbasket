@@ -125,7 +125,7 @@ export async function PUT(req: Request) {
   const body = (await req.json()) as {
     store_id: string;
     items: Array<{ product_id: string; price: number; old_price: number | null }>;
-    unmatched?: Array<{ name: string; price: number; old_price: number | null; unit?: string }>;
+    unmatched?: Array<{ name: string; price: number; old_price: number | null; unit?: string; barcode?: string | null; brand?: string | null; size?: string | null }>;
   };
   const { store_id, items, unmatched } = body;
   if (!store_id) return NextResponse.json({ error: 'store_id tələb olunur' }, { status: 400 });
