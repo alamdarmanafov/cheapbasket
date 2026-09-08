@@ -6,6 +6,7 @@ import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold, Inter_800
 import { BasketProvider } from '@/store/basket';
 import { CatalogProvider } from '@/store/catalog';
 import { AuthProvider } from '@/store/auth';
+import { I18nProvider } from '@/lib/i18n';
 import { PhoneFrame } from '@/components/PhoneFrame';
 import { colors } from '@/theme';
 import { hasSupabase } from '@/lib/supabase';
@@ -34,6 +35,7 @@ export default function RootLayout() {
     );
 
   return (
+    <I18nProvider>
     <CatalogProvider>
     <AuthProvider>
     <BasketProvider>
@@ -61,5 +63,6 @@ export default function RootLayout() {
     </BasketProvider>
     </AuthProvider>
     </CatalogProvider>
+    </I18nProvider>
   );
 }

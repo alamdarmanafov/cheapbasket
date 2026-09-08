@@ -6,6 +6,7 @@ import { isOpenNow, Branch } from '@/data/products';
 import { colors, fonts, radius, space } from '@/theme';
 import { Row, Txt } from './ui';
 import { StoreAvatar } from './product';
+import { useT } from '@/lib/i18n';
 
 function openMaps(b: Branch) {
   const url = b.mapsUrl
@@ -24,6 +25,7 @@ function fmtDist(km: number): string {
 /** Store branches with distance, opening state and a Google/Apple Maps link. */
 export function BranchList({ filter, onFilterChange }: { filter: string; onFilterChange: (storeId: string) => void }) {
   const { branches, stores, requestLocation, loading } = useCatalog();
+  const t = useT();
 
   const filtered = useMemo(
     () => (filter === 'all' ? branches : branches.filter((b) => b.storeId === filter)),
@@ -63,7 +65,7 @@ export function BranchList({ filter, onFilterChange }: { filter: string; onFilte
               <View style={[styles.badge, { backgroundColor: isOpen ? colors.successSoft : '#FEE2E2' }]}>
                 <View style={[styles.dot, { backgroundColor: isOpen ? colors.success : colors.primary }]} />
                 <Txt v="caption" color={isOpen ? colors.success : colors.primary} style={{ marginLeft: 4, fontFamily: fonts.semibold }}>
-                  {isOpen ? (b.openUntil ? `${b.openUntil}-dək` : 'Açıqdır') : 'Bağlıdır'}
+                  {isOpen ? (b.openUntil ? t('common.openUntil', { time: b.openUntil }) : t('common.open')) : t('common.closed')}
                 </Txt>
               </View>
             )}
@@ -74,7 +76,7 @@ export function BranchList({ filter, onFilterChange }: { filter: string; onFilte
           style={styles.navBtn}
           onPress={() => openMaps(b)}
           accessibilityRole="button"
-          accessibilityLabel={`${b.name} — xəritədə aç`}
+          accessibilityLabel={t('branches.openIn', { name: b.name })}
           hitSlop={12}
         >
           <Ionicons name="navigate" size={20} color={colors.primary} />
@@ -89,7 +91,7 @@ export function BranchList({ filter, onFilterChange }: { filter: string; onFilte
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
           <Pressable style={[styles.chip, filter === 'all' && styles.chipActive]} onPress={() => onFilterChange('all')}>
             <Txt v="captionStrong" color={filter === 'all' ? colors.white : colors.dark}>
-              Hamısı ({branches.length})
+              {t('branches.all', { count: branches.length })}
             </Txt>
           </Pressable>
           {stores.map((s) => {
@@ -102,7 +104,7 @@ export function BranchList({ filter, onFilterChange }: { filter: string; onFilte
                 onPress={() => onFilterChange(filter === s.id ? 'all' : s.id)}
               >
                 <Txt v="captionStrong" color={filter === s.id ? colors.white : colors.dark}>
-                  {s.name} ({count})
+                  {t('branches.chip', { store: s.name, count })}
                 </Txt>
               </Pressable>
             );
@@ -120,7 +122,7 @@ export function BranchList({ filter, onFilterChange }: { filter: string; onFilte
         ListEmptyComponent={
           <View style={styles.empty}>
             <Txt v="body" color={colors.gray} center>
-              {loading ? 'Yüklənir…' : 'Filial tapılmadı.'}
+              {loading ? t('common.loading') : t('branches.empty')}
             </Txt>
           </View>
         }

@@ -14,6 +14,7 @@ import { PlusTag } from '@/components/PlusLock';
 import { isOpenNow, storeLabel, nearestBranch } from '@/data/products';
 import { useBasket } from '@/store/basket';
 import { useCatalog } from '@/store/catalog';
+import { useT } from '@/lib/i18n';
 
 type View2 = 'best' | 'branches';
 
@@ -28,6 +29,7 @@ export default function Markets() {
   const params = useLocalSearchParams<{ view?: string; store?: string }>();
   const { lines, count, optimization: o, chosenStore, setChosenStore, isPlus, add, remove } = useBasket();
   const { branches, stores, locationGranted, requestLocation } = useCatalog();
+  const t = useT();
 
   const [view, setView] = useState<View2>(params.view === 'branches' ? 'branches' : 'best');
   const [branchFilter, setBranchFilter] = useState<string>(params.store ?? 'all');
@@ -52,16 +54,16 @@ export default function Markets() {
 
   const subtitle =
     view === 'branches'
-      ? `${branches.length} filial · ${stores.length} market`
+      ? t('markets.subtitleBranches', { branches: branches.length, stores: stores.length })
       : lines.length
-        ? `${count} məhsullu səbətin · ${o.ranked.length} market müqayisə edildi`
-        : 'Səbətini doldur, ən ucuz marketi tapaq';
+        ? t('markets.subtitleBasket', { count, stores: o.ranked.length })
+        : t('markets.subtitleEmpty');
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top + space.md }}>
       <Row style={{ paddingHorizontal: space.lg, alignItems: 'flex-start' }}>
         <View style={{ flex: 1 }}>
-          <Txt v="title">Marketlər</Txt>
+          <Txt v="title">{t('markets.title')}</Txt>
           <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }} numberOfLines={1}>
             {subtitle}
           </Txt>
@@ -71,7 +73,7 @@ export default function Markets() {
             onPress={() => requestLocation({ interactive: true })}
             style={[styles.gpsBtn, locationGranted === true && styles.gpsBtnActive]}
             accessibilityRole="button"
-            accessibilityLabel="Lokasiyamı aç"
+            accessibilityLabel={t('markets.enableLocation')}
           >
             <Ionicons name={locationGranted === true ? 'location' : 'location-outline'} size={20} color={locationGranted === true ? colors.white : colors.primary} />
           </Pressable>
@@ -89,7 +91,7 @@ export default function Markets() {
             style={[styles.segBtn, view === v && styles.segBtnActive]}
           >
             <Txt v="captionStrong" color={view === v ? colors.dark : colors.gray}>
-              {v === 'best' ? 'Ən sərfəli' : 'Filiallar'}
+              {t(v === 'best' ? 'markets.segBest' : 'markets.segBranches')}
             </Txt>
           </Pressable>
         ))}
@@ -134,10 +136,12 @@ function BestStoreView({
   refresh: ReturnType<typeof useRefresh>;
   onSeeBranches: (storeId: string) => void;
 }) {
+  const t = useT();
+
   if (lines.length === 0 || !o.best) {
     return (
       <View style={{ flex: 1, justifyContent: 'center' }}>
-        <StateView emoji="🏪" title="Hələ səbətin yoxdur" body="Məhsul əlavə et — hansı marketə getməyin sərfəli olduğunu göstərək." cta="Məhsul əlavə et" onCta={() => router.push('/search')} />
+        <StateView emoji="🏪" title={t('markets.emptyTitle')} body={t('markets.emptyBody')} cta={t('markets.emptyCta')} onCta={() => router.push('/search')} />
       </View>
     );
   }
@@ -153,7 +157,7 @@ function BestStoreView({
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: space.xxl }} refreshControl={refresh.control}>
       {/* Hero result */}
       <View style={styles.hero}>
-        <Pill tone={isBest ? 'success' : 'warning'} icon={isBest ? 'checkmark' : 'hand-left-outline'} text={isBest ? 'Ən sərfəli seçim' : 'Sənin seçimin'} />
+        <Pill tone={isBest ? 'success' : 'warning'} icon={isBest ? 'checkmark' : 'hand-left-outline'} text={t(isBest ? 'markets.bestPick' : 'markets.yourPick')} />
         <Row gap={space.sm} style={{ marginTop: 12 }}>
           <StoreAvatar store={chosen.store} size={32} />
           <Txt v="title" style={{ fontSize: 20, lineHeight: 26 }}>
@@ -163,16 +167,16 @@ function BestStoreView({
         <Price value={chosen.total} size="xl" style={{ marginTop: 4 }} />
         {isBest && worst && o.saving > 0 ? (
           <Txt v="captionStrong" color={colors.success} style={{ marginTop: 4 }}>
-            🟢 {worst.store.name}-dan {o.saving.toFixed(2)} ₼ daha ucuzdur!
+            {t('markets.cheaperThan', { store: worst.store.name, amount: o.saving.toFixed(2) })}
           </Txt>
         ) : !isBest ? (
           <Txt v="captionStrong" color={colors.warning} style={{ marginTop: 4 }}>
-            {best.store.name}-dan {(chosen.total - best.total).toFixed(2)} ₼ bahadır
+            {t('markets.pricierThan', { store: best.store.name, amount: (chosen.total - best.total).toFixed(2) })}
           </Txt>
         ) : null}
         {chosen.missing.length > 0 && (
           <Txt v="caption" color={colors.warning} center style={{ marginTop: 4 }}>
-            {chosen.missing.length} məhsul burada yoxdur: {chosen.missing.map((m) => m.product.name).join(', ')}
+            {t('markets.missingHere', { count: chosen.missing.length, names: chosen.missing.map((m) => m.product.name).join(', ') })}
           </Txt>
         )}
 
@@ -196,7 +200,11 @@ function BestStoreView({
                   {r.total.toFixed(2)} ₼
                 </Txt>
                 <Txt v="caption" color={r.missing.length ? colors.warning : i === 0 ? colors.success : colors.gray} style={{ fontSize: 9, marginTop: 2 }} numberOfLines={1}>
-                  {r.missing.length ? `${r.missing.length} yoxdur` : i === 0 ? 'Ən sərfəli' : `+${(r.total - best.total).toFixed(2)} ₼`}
+                  {r.missing.length
+                    ? t('markets.missingCount', { count: r.missing.length })
+                    : i === 0
+                      ? t('markets.segBest')
+                      : t('markets.plusAmount', { amount: (r.total - best.total).toFixed(2) })}
                 </Txt>
                 <View style={[styles.miniBar, { width: `${Math.max(10, (r.total / maxTotal) * 100)}%`, backgroundColor: i === 0 ? colors.success : colors.line }]} />
               </Pressable>
@@ -217,11 +225,15 @@ function BestStoreView({
               </Txt>
               <Row gap={space.sm} style={{ marginTop: 4 }}>
                 <Txt v="caption" color={colors.primary} style={{ fontWeight: '600' }}>
-                  {branch.distanceKm} km · 🚶 {branch.walkMinutes} dəq
+                  {t('markets.walk', { km: branch.distanceKm, min: branch.walkMinutes })}
                 </Txt>
                 {isOpenNow(branch) != null && (
                   <Txt v="captionStrong" color={isOpenNow(branch) ? colors.success : colors.warning} style={{ fontSize: 11 }}>
-                    {branch.alwaysOpen ? '24 saat' : isOpenNow(branch) ? `${branch.openUntil}-dək` : 'Bağlıdır'}
+                    {branch.alwaysOpen
+                      ? t('common.allDay')
+                      : isOpenNow(branch)
+                        ? t('common.openUntil', { time: branch.openUntil ?? '' })
+                        : t('common.closed')}
                   </Txt>
                 )}
               </Row>
@@ -235,7 +247,7 @@ function BestStoreView({
               }}
               style={styles.navBtn}
               accessibilityRole="button"
-              accessibilityLabel="Xəritədə aç"
+              accessibilityLabel={t('markets.openInMaps')}
             >
               <Ionicons name="navigate" size={20} color={colors.primary} />
             </Pressable>
@@ -244,15 +256,15 @@ function BestStoreView({
       ) : (
         <Card style={{ marginTop: 14 }}>
           <Txt v="caption" color={colors.gray}>
-            {chosen.store.name} üçün filial əlavə edilməyib (Supabase → branches).
+            {t('markets.noBranch', { store: chosen.store.name })}
           </Txt>
         </Card>
       )}
-      <Btn title="Bütün filiallar" variant="secondary" size="md" icon="location-outline" onPress={() => onSeeBranches(chosen.store.id)} style={{ marginTop: 10 }} />
+      <Btn title={t('markets.allBranches')} variant="secondary" size="md" icon="location-outline" onPress={() => onSeeBranches(chosen.store.id)} style={{ marginTop: 10 }} />
 
       {/* Shopping list at the chosen store */}
       <Txt v="bodyStrong" style={{ marginTop: 19, marginBottom: 9 }}>
-        {chosen.store.name}-da alacaqların
+        {t('markets.shoppingList', { store: chosen.store.name })}
       </Txt>
       <Card style={{ paddingVertical: space.xs }}>
         {lines.map((l, i) => {
@@ -270,7 +282,7 @@ function BestStoreView({
                     {l.qty} × {l.product.size}
                   </Txt>
                 </View>
-                {p != null ? <Price value={p * l.qty} size="sm" /> : <Pill tone="warning" text="Yoxdur" />}
+                {p != null ? <Price value={p * l.qty} size="sm" /> : <Pill tone="warning" text={t('common.missing')} />}
               </Row>
               {p == null && (() => {
                 const alt = suggestSubstitute(l.product, chosen.store.id);
@@ -287,9 +299,9 @@ function BestStoreView({
                   >
                     <Ionicons name="swap-horizontal" size={16} color={colors.primary} />
                     <Txt v="caption" style={{ flex: 1, marginLeft: 8, fontSize: 12 }} numberOfLines={1}>
-                      Əvəzedici: <Txt v="captionStrong" style={{ fontSize: 12 }}>{alt.product.brand} {alt.product.name} {alt.product.size}</Txt> · {(alt.price * l.qty).toFixed(2)} ₼
+                      {t('markets.substitute')} <Txt v="captionStrong" style={{ fontSize: 12 }}>{alt.product.brand} {alt.product.name} {alt.product.size}</Txt> · {(alt.price * l.qty).toFixed(2)} ₼
                     </Txt>
-                    {isPlus ? <Txt v="captionStrong" color={colors.primary} style={{ fontSize: 12 }}>Əvəz et</Txt> : <PlusTag />}
+                    {isPlus ? <Txt v="captionStrong" color={colors.primary} style={{ fontSize: 12 }}>{t('markets.swap')}</Txt> : <PlusTag />}
                   </Pressable>
                 );
               })()}

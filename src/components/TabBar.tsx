@@ -6,19 +6,21 @@ import type { BottomTabBarProps } from 'expo-router/build/react-navigation/botto
 import { colors, space } from '@/theme';
 import { Txt } from './ui';
 import { useBasket } from '@/store/basket';
+import { useT, type Key } from '@/lib/i18n';
 
-const META: Record<string, { label: string; icon: keyof typeof Ionicons.glyphMap; active: keyof typeof Ionicons.glyphMap }> = {
-  index: { label: 'Ana səhifə', icon: 'home-outline', active: 'home' },
-  basket: { label: 'Səbət', icon: 'basket-outline', active: 'basket' },
-  markets: { label: 'Marketlər', icon: 'storefront-outline', active: 'storefront' },
-  scan: { label: 'Skan et', icon: 'scan-outline', active: 'scan' },
-  profile: { label: 'Profil', icon: 'person-outline', active: 'person' },
+const META: Record<string, { key: Key; icon: keyof typeof Ionicons.glyphMap; active: keyof typeof Ionicons.glyphMap }> = {
+  index: { key: 'tab.home', icon: 'home-outline', active: 'home' },
+  basket: { key: 'tab.basket', icon: 'basket-outline', active: 'basket' },
+  markets: { key: 'tab.markets', icon: 'storefront-outline', active: 'storefront' },
+  scan: { key: 'tab.scan', icon: 'scan-outline', active: 'scan' },
+  profile: { key: 'tab.profile', icon: 'person-outline', active: 'person' },
 };
 
 /** Five flat tabs, as in the design. */
 export function TabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const basket = useBasket();
+  const t = useT();
   const isScan = state.routes[state.index]?.name === 'scan';
 
   return (
@@ -51,7 +53,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
                 )}
               </View>
               <Txt v="captionStrong" color={color} style={{ fontSize: 10, lineHeight: 13, marginTop: 4 }}>
-                {m.label}
+                {t(m.key)}
               </Txt>
             </Pressable>
           );
