@@ -14,16 +14,18 @@ import { supabase } from '@/lib/supabase';
 import { confirmAsync, notify } from '@/lib/confirm';
 import { useRefresh } from '@/lib/useRefresh';
 import { useAuth } from '@/store/auth';
+import { useT } from '@/lib/i18n';
 import { useBasket } from '@/store/basket';
 
 interface Saved { id: string; name: string; items: Array<{ id: string; qty: number }>; updated_at: string }
 const FREE_LIMIT = 1;
 
-/** "Siyahılarım": save the current basket under a name and load it back later. Free: 1 list, Plus: unlimited. */
+/** {t('lists.title')}: save the current basket under a name and load it back later. Free: 1 list, Plus: unlimited. */
 export default function Lists() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const auth = useAuth();
+  const t = useT();
   const basket = useBasket();
   const [lists, setLists] = useState<Saved[] | null>(null);
   const [name, setName] = useState('');
@@ -41,26 +43,26 @@ export default function Lists() {
 
   const save = async () => {
     if (!supabase || !auth.user) return;
-    if (!basket.entries.length) return notify('Səbət boşdur', 'Əvvəlcə səbətə məhsul əlavə et.');
+    if (!basket.entries.length) return notify(t('lists.emptyBasket'), t('lists.emptyBody'));
     if (!basket.isPlus && (lists?.length ?? 0) >= FREE_LIMIT) {
-      const go = await confirmAsync('Plus lazımdır', `Pulsuz planda ${FREE_LIMIT} siyahı saxlamaq olur. Limitsiz siyahı üçün Plus-a keç?`, 'Plus-a bax');
+      const go = await confirmAsync(t('lists.plusNeeded'), t('lists.plusBody', { limit: FREE_LIMIT }), 'Plus-a bax');
       if (go) router.push('/plus');
       return;
     }
     setBusy(true);
-    const { error } = await supabase.from('saved_baskets').insert({ user_id: auth.user.id, name: name.trim() || `Siyahı ${(lists?.length ?? 0) + 1}`, items: basket.entries });
+    const { error } = await supabase.from('saved_baskets').insert({ user_id: auth.user.id, name: name.trim() || t('lists.defaultName', { n: (lists?.length ?? 0) + 1 }), items: basket.entries });
     setBusy(false);
-    if (error) return notify('Saxlanılmadı', error.message);
+    if (error) return notify(t('lists.notSaved'), error.message);
     setName('');
     load();
   };
   const loadInto = async (l: Saved) => {
-    if (basket.entries.length && !(await confirmAsync('Səbəti əvəz et', `Cari səbət "${l.name}" siyahısı ilə əvəz olunsun?`, 'Əvəz et'))) return;
+    if (basket.entries.length && !(await confirmAsync(t('lists.replace'), t('lists.replaceBody', { name: l.name }), t('lists.replaceCta')))) return;
     basket.replace(l.items.filter((i) => getProduct(i.id)));
     router.replace('/basket');
   };
   const remove = async (l: Saved) => {
-    if (!supabase || !(await confirmAsync('Siyahını sil', `"${l.name}" silinsin?`, 'Sil', true))) return;
+    if (!supabase || !(await confirmAsync(t('lists.delete'), `"${l.name}" silinsin?`, 'Sil', true))) return;
     await supabase.from('saved_baskets').delete().eq('id', l.id);
     load();
   };
@@ -72,18 +74,18 @@ export default function Lists() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <ScreenHeader title="Siyahılarım" />
+      <ScreenHeader title={t('lists.title')} />
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: insets.bottom + space.xxl }} refreshControl={refresh.control} keyboardShouldPersistTaps="handled">
         <Card>
           <Row gap={6}>
-            <Txt v="bodyStrong">Cari səbəti yadda saxla</Txt>
+            <Txt v="bodyStrong">{t('lists.saveCurrent')}</Txt>
             {!basket.isPlus && <PlusTag />}
           </Row>
           <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>
-            {basket.count} məhsul · {basket.isPlus ? 'limitsiz siyahı' : `pulsuz planda ${FREE_LIMIT} siyahı`}
+            {basket.count} məhsul · {basket.isPlus ? t('lists.unlimited') : t('lists.freeLimit', { limit: FREE_LIMIT })}
           </Txt>
           <Row gap={space.sm} style={{ marginTop: space.md }}>
-            <TextInput value={name} onChangeText={setName} placeholder="Həftəlik səbətim" placeholderTextColor={colors.grayLight} style={styles.input} returnKeyType="done" onSubmitEditing={save} />
+            <TextInput value={name} onChangeText={setName} placeholder={t('lists.namePlaceholder')} placeholderTextColor={colors.grayLight} style={styles.input} returnKeyType="done" onSubmitEditing={save} />
             <Btn title="Saxla" size="md" full={false} icon="bookmark" loading={busy} onPress={save} />
           </Row>
         </Card>
@@ -96,7 +98,7 @@ export default function Lists() {
             Yüklənir…
           </Txt>
         ) : lists.length === 0 ? (
-          <StateView emoji="📋" title="Hələ siyahı yoxdur" body='Səbətini "Həftəlik səbətim" kimi yadda saxla, növbəti dəfə iki kliklə yüklə.' />
+          <StateView emoji="📋" title={t('lists.none')} body={t('lists.noneBody', { name: t('lists.namePlaceholder') })} />
         ) : (
           <Card style={{ paddingVertical: space.xs }}>
             {lists.map((l, i) => (
