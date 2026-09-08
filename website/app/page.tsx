@@ -1,17 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import Link from 'next/link';
 import { ArrowRight, Check, ChevronDown, Clock, MapPin, ScanLine, Search, ShoppingBasket } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { StoreBadges } from '@/components/StoreBadges';
-import { CONTENT, LINKS, PRICING, Lang } from '@/components/content';
+import { LangPicker } from '@/components/LangPicker';
+import { useLang } from '@/components/LangContext';
+import { LINKS, PRICING } from '@/components/content';
 
 const STEP_ICONS = [ShoppingBasket, Search, MapPin];
 const BENEFIT_ICONS = [Clock, MapPin, ScanLine, Check];
 
 export default function Page() {
-  const [lang, setLang] = useState<Lang>('az');
-  const t = CONTENT[lang];
+  const { t } = useLang();
 
   return (
     <main id="top">
@@ -25,9 +26,7 @@ export default function Page() {
             <a href="#faq">{t.nav.faq}</a>
           </nav>
           <div className="nav-actions">
-            <button className="lang" onClick={() => setLang(lang === 'az' ? 'en' : 'az')} aria-label="Language">
-              {lang.toUpperCase()} <ChevronDown size={14} />
-            </button>
+            <LangPicker />
             <a className="download" href="#download">
               {t.nav.download}
             </a>
@@ -210,13 +209,16 @@ export default function Page() {
             <a href="#faq">{t.nav.faq}</a>
           </div>
           <div>
-            <b>{t.footer.company}</b>
-            <a href="#top">{t.footer.about}</a>
-            <a href={LINKS.email}>{t.footer.contact}</a>
-            <a href="#top">{t.footer.privacy}</a>
+            <b>{t.footer.legal}</b>
+            <Link href="/privacy">{t.footer.privacy}</Link>
+            <Link href="/terms">{t.footer.terms}</Link>
+            <Link href="/refunds">{t.footer.refunds}</Link>
+            <Link href="/cookies">{t.footer.cookies}</Link>
           </div>
           <div>
-            <b>{t.footer.social}</b>
+            <b>{t.footer.company}</b>
+            <a href={LINKS.email}>{t.footer.contact}</a>
+            <Link href="/delete-account">{t.footer.deleteAccount}</Link>
             <a href={LINKS.instagram} target="_blank" rel="noreferrer">Instagram</a>
             <a href={LINKS.tiktok} target="_blank" rel="noreferrer">TikTok</a>
             <a href={LINKS.linkedin} target="_blank" rel="noreferrer">LinkedIn</a>
