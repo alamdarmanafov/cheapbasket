@@ -7,6 +7,7 @@ import { Btn, Divider, Pill, Price, Row, Txt } from './ui';
 import { StoreAvatar } from './product';
 import { useBasket } from '@/store/basket';
 import { storeLabel } from '@/data/products';
+import { useT } from '@/lib/i18n';
 
 /**
  * Market comparison bottom sheet.
@@ -15,6 +16,7 @@ import { storeLabel } from '@/data/products';
 export function ResultSheet({ visible, onClose, onShowMap, onGoToStore }: { visible: boolean; onClose: () => void; onShowMap: () => void; onGoToStore?: (storeId: string) => void }) {
   const insets = useSafeAreaInsets();
   const { optimization: o, count } = useBasket();
+  const t = useT();
   const [ready, setReady] = useState(false);
   const scale = React.useRef(new Animated.Value(1)).current;
 
@@ -42,7 +44,7 @@ export function ResultSheet({ visible, onClose, onShowMap, onGoToStore }: { visi
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Bağla" />
+      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel={t('common.close')} />
       <View style={[styles.sheet, { paddingBottom: insets.bottom + space.xl }]}>
         <View style={styles.handle} />
 
@@ -53,10 +55,10 @@ export function ResultSheet({ visible, onClose, onShowMap, onGoToStore }: { visi
               <Ionicons name="sparkles" size={26} color={colors.primary} />
             </Animated.View>
             <Txt v="title" center style={{ marginTop: space.md }}>
-              Qiymətlər müqayisə edilir
+              {t('result.comparing')}
             </Txt>
             <Txt v="caption" color={colors.gray} center style={{ marginTop: 4 }}>
-              {count} məhsul · marketlərdə qiymətlər yoxlanılır…
+              {t('result.comparingBody', { count })}
             </Txt>
           </View>
         ) : (
@@ -66,19 +68,19 @@ export function ResultSheet({ visible, onClose, onShowMap, onGoToStore }: { visi
               <View style={[styles.icon, { backgroundColor: colors.successSoft }]}>
                 <Ionicons name="checkmark-circle" size={30} color={colors.success} />
               </View>
-              <Pill tone="success" text="Ən sərfəli seçim" />
+              <Pill tone="success" text={t('markets.bestPick')} />
               <Txt v="bodyStrong" center style={{ marginTop: space.sm }}>
                 {storeLabel(best.store)}
               </Txt>
               <Price value={best.total} size="xl" style={{ marginTop: 2 }} />
               {worst && o.saving > 0 && (
                 <Txt v="captionStrong" color={colors.success} center style={{ marginTop: 4 }}>
-                  💚 {worst.store.name}-dan {o.saving.toFixed(2)} ₼ ucuz
+                  {t('result.cheaperThan', { store: worst.store.name, amount: o.saving.toFixed(2) })}
                 </Txt>
               )}
               {best.missing.length > 0 && (
                 <Txt v="caption" color={colors.warning} center style={{ marginTop: 4 }}>
-                  {best.missing.length} məhsul mövcud deyil
+                  {t('result.missingCount', { count: best.missing.length })}
                 </Txt>
               )}
               {onGoToStore && (
@@ -99,7 +101,7 @@ export function ResultSheet({ visible, onClose, onShowMap, onGoToStore }: { visi
             {o.ranked.length > 1 && (
               <View style={styles.rankCard}>
                 <Txt v="captionStrong" color={colors.gray} style={{ marginBottom: space.sm }}>
-                  BÜTÜN MARKETLƏRİN MÜQAYİSƏSİ
+                  {t('result.allStores')}
                 </Txt>
                 {o.ranked.map((r, i) => {
                   const isBest = r.store.id === best.store.id;
@@ -110,7 +112,7 @@ export function ResultSheet({ visible, onClose, onShowMap, onGoToStore }: { visi
                         onPress={() => onGoToStore?.(r.store.id)}
                         style={({ pressed }) => [styles.rankRow, isBest && styles.rankRowBest, pressed && { opacity: 0.7 }]}
                         accessibilityRole="button"
-                        accessibilityLabel={`${r.store.name} filiallarına bax`}
+                        accessibilityLabel={t('result.seeBranches', { store: r.store.name })}
                       >
                         <Txt v="captionStrong" color={isBest ? colors.success : colors.gray} style={{ width: 18 }}>
                           {i + 1}
@@ -122,14 +124,14 @@ export function ResultSheet({ visible, onClose, onShowMap, onGoToStore }: { visi
                           </Txt>
                           {r.missing.length > 0 && (
                             <Txt v="caption" color={colors.warning} style={{ fontSize: 11 }}>
-                              {r.missing.length} məhsul yoxdur
+                              {t('result.missingHere', { count: r.missing.length })}
                             </Txt>
                           )}
                         </View>
                         <View style={{ alignItems: 'flex-end', flexDirection: 'row', gap: 6, alignSelf: 'center' }}>
                           <View style={{ alignItems: 'flex-end' }}>
                             <Price value={r.total} size="sm" />
-                            {isBest && <Pill tone="success" text="ən ucuz" />}
+                            {isBest && <Pill tone="success" text={t('result.cheapest')} />}
                           </View>
                           {onGoToStore && <Ionicons name="chevron-forward" size={14} color={colors.gray} />}
                         </View>
@@ -145,15 +147,15 @@ export function ResultSheet({ visible, onClose, onShowMap, onGoToStore }: { visi
               <View style={[styles.rankCard, { marginTop: space.sm, backgroundColor: colors.fill }]}>
                 <Row style={{ justifyContent: 'space-between' }}>
                   <View style={{ flex: 1 }}>
-                    <Txt v="captionStrong" style={{ fontSize: 12 }}>Hər məhsulu ayrıca ən ucuz marketdən alsan</Txt>
-                    <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>Çox markete getmək lazımdır</Txt>
+                    <Txt v="captionStrong" style={{ fontSize: 12 }}>{t('result.splitTitle')}</Txt>
+                    <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>{t('result.splitBody')}</Txt>
                   </View>
                   <Price value={o.cheapestSplitTotal} size="sm" />
                 </Row>
               </View>
             )}
 
-            <Btn title="Bağla" variant="ghost" size="md" onPress={onClose} style={{ marginTop: space.lg }} />
+            <Btn title={t('common.close')} variant="ghost" size="md" onPress={onClose} style={{ marginTop: space.lg }} />
           </ScrollView>
         )}
       </View>

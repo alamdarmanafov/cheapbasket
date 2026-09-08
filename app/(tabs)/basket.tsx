@@ -12,9 +12,11 @@ import { ResultSheet } from '@/components/ResultSheet';
 import { cheapest } from '@/data/products';
 import { useBasket } from '@/store/basket';
 import { track } from '@/lib/track';
+import { useT } from '@/lib/i18n';
 
 export default function Basket() {
   const refresh = useRefresh();
+  const t = useT();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ compare?: string }>();
@@ -37,16 +39,16 @@ export default function Basket() {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top + space.md }}>
         <Txt v="title" style={{ paddingHorizontal: space.lg }}>
-          Səbətim
+          {t('basket.title')}
         </Txt>
         <View style={{ flex: 1, justifyContent: 'center' }}>
           <StateView
             emoji="🧺"
-            title="Səbətin boşdur"
-            body="Almaq istədiyin məhsulları əlavə et — hansı marketin ən sərfəli olduğunu deyək."
-            cta="Məhsul əlavə et"
+            title={t('basket.emptyTitle')}
+            body={t('basket.emptyBody')}
+            cta={t('basket.addProduct')}
             onCta={() => router.push('/search')}
-            secondary="Barkodu skan et"
+            secondary={t('home.scanBarcode')}
             onSecondary={() => router.push('/scan')}
           />
         </View>
@@ -58,14 +60,16 @@ export default function Basket() {
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + space.md, paddingHorizontal: space.lg, paddingBottom: 180 }} refreshControl={refresh.control}>
         <Row style={{ justifyContent: 'space-between' }}>
-          <Txt v="title">Səbətim</Txt>
+          <Txt v="title">{t('basket.title')}</Txt>
           <Row gap={8}>
-            <IconBtn name="bookmark-outline" bg={colors.white} onPress={() => router.push('/lists')} label="Siyahılarım" />
-            <IconBtn name="trash-outline" bg={colors.white} onPress={clear} label="Səbəti təmizlə" />
+            <IconBtn name="bookmark-outline" bg={colors.white} onPress={() => router.push('/lists')} label={t('basket.myLists')} />
+            <IconBtn name="trash-outline" bg={colors.white} onPress={clear} label={t('basket.clear')} />
           </Row>
         </Row>
         <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>
-          {count} məhsul · {best ? `${best.total.toFixed(2)} ₼ (${best.store.name})` : ''}
+          {best
+            ? t('basket.summaryWith', { count, total: best.total.toFixed(2), store: best.store.name })
+            : t('home.itemCount', { count })}
         </Txt>
 
         <View style={styles.list}>
@@ -82,13 +86,13 @@ export default function Basket() {
                       {l.product.brand} {l.product.name} {l.product.size}
                     </Txt>
                     <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>
-                      {c.price != null ? `ən ucuz ${c.store.name} · ${c.price.toFixed(2)} ₼` : 'mövcud deyil'}
+                      {c.price != null ? t('basket.cheapestAt', { store: c.store.name, price: c.price.toFixed(2) }) : t('basket.unavailable')}
                     </Txt>
                     {atBest != null ? (
                       <Price value={atBest * l.qty} size="sm" style={{ marginTop: 4 }} />
                     ) : (
                       <View style={{ marginTop: 4 }}>
-                        <Pill tone="warning" text={`${best?.store.name}-da yoxdur`} />
+                        <Pill tone="warning" text={t('basket.missingAt', { store: best?.store.name ?? '' })} />
                       </View>
                     )}
                   </View>
@@ -108,7 +112,7 @@ export default function Basket() {
         <Pressable onPress={() => router.push('/search')} style={({ pressed }) => [styles.addProduct, pressed && { backgroundColor: colors.primarySoft }]}>
           <Ionicons name="add" size={20} color={colors.primary} />
           <Txt v="bodyStrong" color={colors.primary} style={{ marginLeft: 6 }}>
-            Məhsul əlavə et
+            {t('basket.addProduct')}
           </Txt>
         </Pressable>
       </ScrollView>
@@ -118,13 +122,13 @@ export default function Basket() {
         <Row style={{ justifyContent: 'space-between', marginBottom: space.sm }}>
           <View>
             <Txt v="caption" color={colors.gray}>
-              Təxmini cəm · {count} məhsul
+              {t('basket.estimated', { count })}
             </Txt>
             <Price value={best?.total ?? 0} size="lg" />
           </View>
-          {o.saving > 0 && <Pill tone="success" icon="trending-down" text={`${o.saving.toFixed(2)} ₼-dək qənaət`} />}
+          {o.saving > 0 && <Pill tone="success" icon="trending-down" text={t('basket.saveUpTo', { amount: o.saving.toFixed(2) })} />}
         </Row>
-        <Btn title="Qiymətləri müqayisə et" icon="sparkles" onPress={compare} />
+        <Btn title={t('basket.compare')} icon="sparkles" onPress={compare} />
       </View>
 
       <ResultSheet

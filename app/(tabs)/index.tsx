@@ -13,6 +13,7 @@ import { Product, catalogCategories, categoryEmoji, searchProducts } from '@/dat
 import { useCatalog } from '@/store/catalog';
 import { useRefresh } from '@/lib/useRefresh';
 import { useBasket } from '@/store/basket';
+import { useT } from '@/lib/i18n';
 
 
 export default function Home() {
@@ -21,6 +22,7 @@ export default function Home() {
   const { optimization: o, lines } = basket;
   const cat = useCatalog();
   const refresh = useRefresh();
+  const t = useT();
   const categories = catalogCategories();
   const [q, setQ] = useState('');
   const [results, setResults] = useState<Product[] | null>(null);
@@ -45,13 +47,13 @@ export default function Home() {
       <TopBar />
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxl }} keyboardShouldPersistTaps="handled" refreshControl={refresh.control}>
         <Txt v="display" style={{ marginTop: space.xs }}>
-          Bu gün{'\n'}
+          {t('home.title1')}{'\n'}
           <Txt v="display" color={colors.primary}>
-            nə alırsan?
+            {t('home.title2')}
           </Txt>
         </Txt>
         <Txt v="caption" color={colors.gray} style={{ marginTop: space.sm, marginBottom: space.lg }}>
-          Alış-verişə getməzdən əvvəl ən sərfəli səbətini hazırla.
+          {t('home.subtitle')}
         </Txt>
 
         {/* Search */}
@@ -60,18 +62,18 @@ export default function Home() {
           <TextInput
             value={q}
             onChangeText={setQ}
-            placeholder="Məhsul axtar..."
+            placeholder={t('home.searchPlaceholder')}
             placeholderTextColor={colors.grayLight}
             style={styles.input}
             returnKeyType="search"
             autoCorrect={false}
           />
           {q ? (
-            <Pressable onPress={() => setQ('')} hitSlop={8} accessibilityLabel="Təmizlə">
+            <Pressable onPress={() => setQ('')} hitSlop={8} accessibilityLabel={t('home.clear')}>
               <Ionicons name="close-circle" size={18} color={colors.grayLight} />
             </Pressable>
           ) : (
-            <Pressable onPress={() => router.push('/scan')} hitSlop={8} accessibilityLabel="Barkodu skan et">
+            <Pressable onPress={() => router.push('/scan')} hitSlop={8} accessibilityLabel={t('home.scanBarcode')}>
               <Ionicons name="barcode-outline" size={20} color={colors.dark} />
             </Pressable>
           )}
@@ -81,7 +83,7 @@ export default function Home() {
         {q.trim() !== '' && (
           <View style={styles.results}>
             <Txt v="bodyStrong" style={{ paddingHorizontal: space.md, paddingTop: space.sm, paddingBottom: space.xs }}>
-              Məhsullar
+              {t('home.results')}
             </Txt>
             {loading ? (
               <>
@@ -99,12 +101,12 @@ export default function Home() {
               <View style={{ alignItems: 'center', padding: space.xl }}>
                 <Txt style={{ fontSize: 32, lineHeight: 40 }}>🔍</Txt>
                 <Txt v="bodyStrong" style={{ marginTop: space.sm }}>
-                  Məhsul tapılmadı
+                  {t('home.notFound')}
                 </Txt>
                 <Txt v="caption" color={colors.gray} center style={{ marginTop: 4 }}>
-                  Adı fərqli yaz və ya barkodu skan et.
+                  {t('home.notFoundBody')}
                 </Txt>
-                <Btn title="Barkodu skan et" size="md" full={false} icon="barcode-outline" onPress={() => router.push('/scan')} style={{ marginTop: space.md }} />
+                <Btn title={t('home.scanBarcode')} size="md" full={false} icon="barcode-outline" onPress={() => router.push('/scan')} style={{ marginTop: space.md }} />
               </View>
             )}
           </View>
@@ -117,10 +119,10 @@ export default function Home() {
           </View>
           <View style={{ flex: 1 }}>
             <Txt v="bodyStrong" color={colors.white}>
-              Barkodu skan et
+              {t('home.scanBarcode')}
             </Txt>
             <Txt v="caption" color="rgba(255,255,255,0.8)" style={{ fontSize: 11 }}>
-              Məhsulu tanı, ən ucuzunu tap
+              {t('home.scanSubtitle')}
             </Txt>
           </View>
           <Ionicons name="chevron-forward" size={22} color={colors.white} />
@@ -128,8 +130,8 @@ export default function Home() {
 
         {/* Quick grid */}
         <Row gap={10} style={{ marginTop: 10 }}>
-          <QuickTile icon="camera-outline" label="Məhsulun şəklini çək" onPress={() => router.push('/scan?mode=photo')} plus={!basket.isPlus} />
-          <QuickTile icon="list-outline" label="Siyahını əlavə et" onPress={() => router.push('/search')} />
+          <QuickTile icon="camera-outline" label={t('home.photoTile')} onPress={() => router.push('/scan?mode=photo')} plus={!basket.isPlus} />
+          <QuickTile icon="list-outline" label={t('home.listTile')} onPress={() => router.push('/search')} />
         </Row>
 
         {/* Promo banners (admin-managed slider) */}
@@ -139,10 +141,10 @@ export default function Home() {
         <Pressable onPress={() => router.push('/basket')} style={({ pressed }) => [styles.summary, pressed && { opacity: 0.9 }]}>
           <View style={{ flex: 1 }}>
             <Txt v="caption" color={colors.gray}>
-              Sənin səbətin
+              {t('home.yourBasket')}
             </Txt>
             <Txt v="captionStrong" style={{ marginTop: 4 }}>
-              {basket.count} məhsul
+              {t('home.itemCount', { count: basket.count })}
             </Txt>
             {lines.length ? (
               <>
@@ -151,15 +153,15 @@ export default function Home() {
                   <Row gap={6} style={{ marginTop: 6 }}>
                     <StoreAvatar store={o.best.store} size={18} />
                     <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>
-                      {o.best.store.name}-da ən sərfəli
+                      {t('home.cheapestAt', { store: o.best.store.name })}
                     </Txt>
-                    {o.saving > 0 && <Pill tone="success" text={`${o.saving.toFixed(2)} ₼ qənaət`} />}
+                    {o.saving > 0 && <Pill tone="success" text={t('home.savingPill', { amount: o.saving.toFixed(2) })} />}
                   </Row>
                 )}
               </>
             ) : (
               <Txt v="caption" color={colors.primary} style={{ marginTop: 2 }}>
-                Məhsul əlavə et →
+                {t('home.addProduct')}
               </Txt>
             )}
           </View>
@@ -170,10 +172,10 @@ export default function Home() {
         {cat.stores.length > 0 && (
           <>
             <Row style={{ justifyContent: 'space-between', marginTop: 19, marginBottom: 9 }}>
-              <Txt v="bodyStrong">Marketlər</Txt>
+              <Txt v="bodyStrong">{t('home.stores')}</Txt>
               <Pressable onPress={() => router.push('/nearby')} hitSlop={8} accessibilityRole="button">
                 <Txt v="captionStrong" color={colors.primary}>
-                  Yaxınlıqdakılar →
+                  {t('home.nearby')}
                 </Txt>
               </Pressable>
             </Row>
@@ -194,7 +196,7 @@ export default function Home() {
         {categories.length > 0 && (
           <>
             <Txt v="bodyStrong" style={{ marginTop: 19, marginBottom: 9 }}>
-              Kateqoriyalar
+              {t('home.categories')}
             </Txt>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7 }}>
               {categories.map((c) => (
@@ -212,9 +214,9 @@ export default function Home() {
           <View style={[styles.summary, { marginTop: 14 }]}>
             <Txt style={{ fontSize: 28, lineHeight: 34 }}>🗂️</Txt>
             <View style={{ flex: 1, marginLeft: 12 }}>
-              <Txt v="bodyStrong">{cat.error ? 'Kataloq yüklənmədi' : 'Kataloq hələ boşdur'}</Txt>
+              <Txt v="bodyStrong">{t(cat.error ? 'home.catalogFailed' : 'home.catalogEmpty')}</Txt>
               <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>
-                {cat.error ?? 'Admin paneldən məhsul və qiymət əlavə et.'}
+                {cat.error ?? t('home.catalogEmptyBody')}
               </Txt>
             </View>
           </View>
@@ -224,9 +226,9 @@ export default function Home() {
         <Pressable onPress={() => router.push('/deals')} style={({ pressed }) => [styles.summary, { marginTop: 14 }, pressed && { opacity: 0.9 }]}>
           <Txt style={{ fontSize: 28, lineHeight: 34 }}>🔻</Txt>
           <View style={{ flex: 1, marginLeft: 12 }}>
-            <Txt v="bodyStrong">Endirimlər</Txt>
+            <Txt v="bodyStrong">{t('home.deals')}</Txt>
             <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>
-              Ucuzlaşan məhsullar · AI xəbəri {basket.isPlus ? 'hər gün' : 'Plus ilə hər gün'}
+              {t('home.dealsBody', { when: t(basket.isPlus ? 'home.dealsDaily' : 'home.dealsPlus') })}
             </Txt>
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.grayLight} />
@@ -237,11 +239,11 @@ export default function Home() {
           <Ionicons name="sparkles" size={22} color={colors.primary} />
           <View style={{ flex: 1, marginLeft: 10 }}>
             <Row gap={8}>
-              <Txt v="bodyStrong">Ağıllı alış-veriş</Txt>
+              <Txt v="bodyStrong">{t('home.aiTitle')}</Txt>
               {!basket.isPlus && <PlusTag />}
             </Row>
             <Txt v="caption" color={colors.gray} style={{ fontSize: 12 }}>
-              AI köməkçi ilə daha çox qənaət et!
+              {t('home.aiBody')}
             </Txt>
           </View>
           <View style={styles.aiArrow}>
@@ -254,12 +256,12 @@ export default function Home() {
           <Pressable onPress={() => router.push('/savings')} style={({ pressed }) => [styles.savings, pressed && { opacity: 0.9 }]}>
             <View style={{ flex: 1 }}>
               <Txt v="caption" color={colors.gray} style={{ fontSize: 12 }}>
-                Bu səbətdə qənaət edirsən
+                {t('profile.savingNow')}
               </Txt>
               <Price value={o.saving} size="md" color={colors.success} />
             </View>
             <Txt v="captionStrong" color={colors.primary}>
-              Ətraflı →
+              {t('profile.more')}
             </Txt>
           </Pressable>
         )}
