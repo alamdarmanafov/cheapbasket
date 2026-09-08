@@ -93,8 +93,8 @@ export default function Products() {
   const load = async () => {
     const [s, p, pr] = await Promise.all([
       db.select<Store>('stores', { order: 'name' }),
-      db.select<Product>('products', { order: 'name' }),
-      db.select<PriceRow>('prices', { columns: 'product_id, store_id, price, discount_price, updated_at' }),
+      db.select<Product>('products', { order: 'name', limit: 100000 }),
+      db.select<PriceRow>('prices', { columns: 'product_id, store_id, price, discount_price, updated_at', limit: 100000 }),
     ]).catch((e: Error) => { setMsg({ ok: false, text: e.message }); return [[], [], []] as [Store[], Product[], PriceRow[]]; });
     setStores(s);
     setProducts(p);
@@ -301,7 +301,7 @@ export default function Products() {
   const findDups = useCallback(async () => {
     setDupBusy(true);
     try {
-      const all = await db.select<Product>('products', { columns: 'id,barcode,name,brand,size,category,image_url' });
+      const all = await db.select<Product>('products', { columns: 'id,barcode,name,brand,size,category,image_url', limit: 100000 });
       const groups = findDuplicates(all);
       setDupGroups(groups);
       // Default: keep first in each group
@@ -330,7 +330,7 @@ export default function Products() {
       }
       setMsg({ ok: true, text: `${toDelete.length} dublikat silindi, qiymətlər birləşdirildi` });
       // Refresh groups
-      const all = await db.select<Product>('products', { columns: 'id,barcode,name,brand,size,category,image_url' });
+      const all = await db.select<Product>('products', { columns: 'id,barcode,name,brand,size,category,image_url', limit: 100000 });
       const groups = findDuplicates(all);
       setDupGroups(groups);
       load();
