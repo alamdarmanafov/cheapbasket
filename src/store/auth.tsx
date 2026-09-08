@@ -17,6 +17,8 @@ export interface Profile {
   plan: PlanId;
   planExpiresAt: string | null;
   points: number;
+  /** Issued with the profile row, so it is ready to show without opening the points screen. */
+  referralCode: string | null;
   blocked: boolean;
   city: string | null;
 }
@@ -67,12 +69,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(null);
       return;
     }
-    const { data } = await supabase.from('profiles').select('display_name, plan, plan_expires_at, blocked, city, points').eq('user_id', userId).maybeSingle();
+    const { data } = await supabase.from('profiles').select('display_name, plan, plan_expires_at, blocked, city, points, referral_code').eq('user_id', userId).maybeSingle();
     if (!data) {
-      setProfile({ display_name: null, plan: 'free', planExpiresAt: null, blocked: false, city: null, points: 0 });
+      setProfile({ display_name: null, plan: 'free', planExpiresAt: null, blocked: false, city: null, points: 0, referralCode: null });
       return;
     }
     const expired = !!data.plan_expires_at && new Date(data.plan_expires_at) <= new Date();
+    // Codes are minted with the profile row, but accounts created before that
+    // (and any row the trigger missed) still need one — ask for it once, here,
+    // so every screen can just read profile.referralCode.
+    let code = (data as { referral_code?: string | null }).referral_code ?? null;
+    if (!code) {
+      const { data: minted } = await supabase.rpc('my_referral_code');
+      if (typeof minted === 'string') code = minted;
+    }
     setProfile({
       display_name: data.display_name,
       plan: data.plan === 'plus' && !expired ? 'plus' : 'free',
@@ -80,6 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       blocked: !!data.blocked,
       city: data.city,
       points: Number((data as { points?: number }).points ?? 0),
+      referralCode: code,
     });
     if (data.blocked) await supabase.auth.signOut();
   }, []);

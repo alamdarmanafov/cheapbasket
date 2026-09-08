@@ -5,7 +5,8 @@ import { useRouter } from 'expo-router';
 import { colors, radius, shadow, space } from '@/theme';
 import { Btn, Txt } from './ui';
 import { useBasket } from '@/store/basket';
-import { fetchPopups, pickPopup, readLog, recordView, type Popup } from '@/lib/popups';
+import { fetchPopups, localize, pickPopup, readLog, recordView, type Popup } from '@/lib/popups';
+import { useI18n } from '@/lib/i18n';
 
 /**
  * Shows one admin-authored announcement over the app, at most as often as that
@@ -15,6 +16,7 @@ import { fetchPopups, pickPopup, readLog, recordView, type Popup } from '@/lib/p
 export function PopupHost() {
   const router = useRouter();
   const { isPlus } = useBasket();
+  const { lang, t } = useI18n();
   const [popup, setPopup] = useState<Popup | null>(null);
 
   useEffect(() => {
@@ -35,9 +37,12 @@ export function PopupHost() {
   }, [isPlus]);
 
   if (!popup) return null;
+  // Admin writes one popup in up to four languages; show the reader's own, or
+  // the Azerbaijani source when that language was left blank.
+  const shown = localize(popup, lang);
 
   const onCta = () => {
-    const link = popup.ctaLink?.trim();
+    const link = shown.ctaLink?.trim();
     setPopup(null);
     if (!link) return;
     if (/^https?:\/\//i.test(link)) Linking.openURL(link).catch(() => undefined);
@@ -48,23 +53,23 @@ export function PopupHost() {
     <Modal visible transparent animationType="fade" onRequestClose={() => setPopup(null)}>
       <View style={styles.backdrop}>
         <View style={styles.card}>
-          <Pressable onPress={() => setPopup(null)} style={styles.close} hitSlop={10} accessibilityRole="button" accessibilityLabel="Bağla">
+          <Pressable onPress={() => setPopup(null)} style={styles.close} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('common.close')}>
             <Ionicons name="close" size={20} color={colors.gray} />
           </Pressable>
 
-          {popup.imageUrl ? <Image source={{ uri: popup.imageUrl }} style={styles.image} resizeMode="cover" accessibilityIgnoresInvertColors /> : null}
+          {shown.imageUrl ? <Image source={{ uri: shown.imageUrl }} style={styles.image} resizeMode="cover" accessibilityIgnoresInvertColors /> : null}
 
           <View style={{ padding: space.lg }}>
             <Txt v="title" center style={{ fontSize: 20, lineHeight: 26 }}>
-              {popup.title}
+              {shown.title}
             </Txt>
             <Txt v="body" color={colors.gray} center style={{ marginTop: space.sm }}>
-              {popup.body}
+              {shown.body}
             </Txt>
-            {popup.ctaLabel ? (
-              <Btn title={popup.ctaLabel} onPress={onCta} style={{ marginTop: space.lg }} />
+            {shown.ctaLabel ? (
+              <Btn title={shown.ctaLabel} onPress={onCta} style={{ marginTop: space.lg }} />
             ) : (
-              <Btn title="Bağla" variant="secondary" onPress={() => setPopup(null)} style={{ marginTop: space.lg }} />
+              <Btn title={t('common.close')} variant="secondary" onPress={() => setPopup(null)} style={{ marginTop: space.lg }} />
             )}
           </View>
         </View>

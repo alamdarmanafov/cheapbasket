@@ -34,7 +34,11 @@ export interface Popup {
   active: boolean;
   starts_at: string | null;
   ends_at: string | null;
+  /** Non-Azerbaijani copy, keyed by language code. Blank fields fall back to the base columns. */
+  translations: PopupTranslations;
 }
+export type PopupLang = 'az' | 'en' | 'tr' | 'ru';
+export type PopupTranslations = Partial<Record<Exclude<PopupLang, 'az'>, { title?: string; body?: string; cta_label?: string }>>;
 export interface Product {
   id: string; barcode: string | null; name: string; brand: string; size: string; category: string;
   emoji: string | null; tint: string | null; image_url: string | null; rating: number | null;

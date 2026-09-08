@@ -1,5 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
+import type { Lang } from './translations';
+
+/** Admin-authored copy for one non-Azerbaijani language; any field may be missing. */
+interface Translation {
+  title?: string;
+  body?: string;
+  cta_label?: string;
+}
 
 export interface Popup {
   id: string;
@@ -11,6 +19,8 @@ export interface Popup {
   audience: 'all' | 'free' | 'plus';
   maxPerDay: number;
   maxPerWeek: number;
+  /** Non-Azerbaijani copy keyed by language code — the base fields stay Azerbaijani. */
+  translations: Partial<Record<Lang, Translation>>;
 }
 
 interface PopupRow {
@@ -23,6 +33,7 @@ interface PopupRow {
   audience: string;
   max_per_day: number;
   max_per_week: number;
+  translations: Partial<Record<Lang, Translation>> | null;
 }
 
 const LOG_KEY = 'cb_popup_views';
@@ -58,7 +69,7 @@ export async function fetchPopups(): Promise<Popup[]> {
   if (!supabase) return [];
   const { data, error } = await supabase
     .from('popups')
-    .select('id, title, body, image_url, cta_label, cta_link, audience, max_per_day, max_per_week')
+    .select('id, title, body, image_url, cta_label, cta_link, audience, max_per_day, max_per_week, translations')
     .order('sort');
   if (error) return [];
   return (data as PopupRow[] | null ?? []).map((r) => ({
@@ -71,6 +82,7 @@ export async function fetchPopups(): Promise<Popup[]> {
     audience: r.audience === 'free' || r.audience === 'plus' ? r.audience : 'all',
     maxPerDay: r.max_per_day ?? 0,
     maxPerWeek: r.max_per_week ?? 0,
+    translations: r.translations ?? {},
   }));
 }
 
@@ -89,4 +101,21 @@ export function pickPopup(popups: Popup[], isPlus: boolean, log: ViewLog): Popup
     return p;
   }
   return null;
+}
+
+/**
+ * The popup as one language should read it. Azerbaijani is the authored source,
+ * so any field the admin left untranslated falls back to it rather than to an
+ * empty string — a half-translated announcement still says something.
+ */
+export function localize(p: Popup, lang: Lang): Popup {
+  if (lang === 'az') return p;
+  const t = p.translations?.[lang];
+  if (!t) return p;
+  return {
+    ...p,
+    title: t.title?.trim() || p.title,
+    body: t.body?.trim() || p.body,
+    ctaLabel: t.cta_label?.trim() || p.ctaLabel,
+  };
 }
