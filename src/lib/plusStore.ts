@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 
 /** App Store / Google Play subscription product ids (must match App Store Connect & Play Console). */
-export const PLUS_SKUS = { monthly: 'az.cheapbasket.app', yearly: 'az.cheapbasket.app.yearly' } as const;
+export const PLUS_SKUS = { monthly: 'az.cheapbasket.app.monthly', yearly: 'az.cheapbasket.app.yearly' } as const;
 export type PlusPeriod = keyof typeof PLUS_SKUS;
 export const PLUS_SKU_LIST: string[] = Object.values(PLUS_SKUS);
 

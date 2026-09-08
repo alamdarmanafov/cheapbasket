@@ -2,7 +2,7 @@ import { adminDb } from './server';
 
 /** Store product id → plan. Extend when more products are added. */
 export const PRODUCTS: Record<string, { plan: 'plus'; period: 'monthly' | 'yearly' }> = {
-  'az.cheapbasket.app': { plan: 'plus', period: 'monthly' },
+  'az.cheapbasket.app.monthly': { plan: 'plus', period: 'monthly' },
   'az.cheapbasket.app.yearly': { plan: 'plus', period: 'yearly' },
   plus_monthly: { plan: 'plus', period: 'monthly' },
   plus_yearly: { plan: 'plus', period: 'yearly' },
