@@ -122,18 +122,19 @@ export default function CatalogImportPage() {
     const items = matched
       .filter((_, i) => selected.has(String(i)))
       .map(m => ({ product_id: m.product_id, price: m.price, old_price: m.old_price ?? null }));
-    if (!items.length) { setMsg({ ok: false, text: 'Heç bir məhsul seçilməyib.' }); return; }
     setApplying(true);
     setMsg(null);
     try {
       const res = await fetch('/api/catalog-import', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ store_id: storeId, items }),
+        body: JSON.stringify({ store_id: storeId, items, unmatched }),
       });
-      const j = await res.json() as { updated?: number; error?: string };
+      const text = await res.text();
+      let j: { updated?: number; pending?: number; error?: string };
+      try { j = JSON.parse(text); } catch { throw new Error(text.slice(0, 120)); }
       if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`);
-      setMsg({ ok: true, text: `${j.updated} məhsulun qiyməti yeniləndi.` });
+      setMsg({ ok: true, text: `${j.updated ?? 0} qiymət yeniləndi · ${j.pending ?? 0} yeni məhsul Növbəyə əlavə edildi` });
       setMatched([]);
       setUnmatched([]);
       setSelected(new Set());
@@ -218,8 +219,8 @@ export default function CatalogImportPage() {
                 <button className="btn ghost" onClick={toggleAll}>
                   {selected.size === matched.length ? 'Hamısını ləğv et' : 'Hamısını seç'}
                 </button>
-                <button className="btn" onClick={applyPrices} disabled={applying || !selected.size}>
-                  {applying ? 'Tətbiq edilir…' : `${selected.size} qiyməti tətbiq et`}
+                <button className="btn" onClick={applyPrices} disabled={applying}>
+                  {applying ? 'Tətbiq edilir…' : `${selected.size} qiymət + ${unmatched.length} yenini əlavə et`}
                 </button>
               </div>
             </div>
