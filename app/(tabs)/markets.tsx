@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,7 +8,6 @@ import { useRefresh } from '@/lib/useRefresh';
 import { Btn, Card, Divider, Pill, Price, Row, Txt } from '@/components/ui';
 import { ProductArt, StoreAvatar } from '@/components/product';
 import { StateView } from '@/components/states';
-import { RealMap } from '@/components/RealMap';
 import { suggestSubstitute } from '@/lib/substitute';
 import { PlusTag } from '@/components/PlusLock';
 import { isOpenNow, storeLabel } from '@/data/products';
@@ -23,7 +22,6 @@ export default function Markets() {
   const refresh = useRefresh();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
   const { lines, count, optimization: o, chosenStore, setChosenStore, isPlus, add, remove } = useBasket();
 
   if (lines.length === 0 || !o.best) {
@@ -107,25 +105,42 @@ export default function Markets() {
         </Row>
       </View>
 
-      {/* Map card */}
+      {/* Branch info card */}
       {branch ? (
-      <Pressable onPress={() => router.push(`/map?store=${chosen.store.id}`)} style={({ pressed }) => [styles.mapCard, pressed && { opacity: 0.95 }]}>
-        <RealMap width={width - space.lg * 2} height={185} branch={branch} interactive={false} />
-        <Row style={{ padding: 12 }} gap={space.md}>
-          <View style={{ flex: 1 }}>
-            <Txt v="bodyStrong">{branch.name}</Txt>
-            <Txt v="caption" color={colors.gray} style={{ fontSize: 11, marginTop: 2 }}>
-              {branch.address} · {branch.distanceKm} km · {branch.walkMinutes} dəqiqə
-            </Txt>
-            {isOpenNow(branch) != null && (
-              <Txt v="captionStrong" color={isOpenNow(branch) ? colors.success : colors.warning} style={{ fontSize: 11, marginTop: 2 }}>
-                {branch.alwaysOpen ? '24 saat açıqdır' : isOpenNow(branch) ? `İndi açıqdır · ${branch.openUntil}-a qədər` : `Bağlıdır${branch.openFrom ? ` · ${branch.openFrom}-da açılır` : ''}`}
+        <View style={[styles.branchCard, { marginTop: 14 }]}>
+          <Row gap={space.md} style={{ padding: space.md }}>
+            <StoreAvatar store={chosen.store} size={40} />
+            <View style={{ flex: 1 }}>
+              <Txt v="bodyStrong" numberOfLines={1}>{branch.name}</Txt>
+              <Txt v="caption" color={colors.gray} numberOfLines={1} style={{ marginTop: 2 }}>
+                {branch.address}
               </Txt>
-            )}
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.grayLight} />
-        </Row>
-      </Pressable>
+              <Row gap={space.sm} style={{ marginTop: 4 }}>
+                <Txt v="caption" color={colors.primary} style={{ fontWeight: '600' }}>
+                  {branch.distanceKm} km · 🚶 {branch.walkMinutes} dəq
+                </Txt>
+                {isOpenNow(branch) != null && (
+                  <Txt v="captionStrong" color={isOpenNow(branch) ? colors.success : colors.warning} style={{ fontSize: 11 }}>
+                    {branch.alwaysOpen ? '24 saat' : isOpenNow(branch) ? `${branch.openUntil}-dək` : 'Bağlıdır'}
+                  </Txt>
+                )}
+              </Row>
+            </View>
+            <Pressable
+              onPress={() => {
+                const url = branch.mapsUrl
+                  ? branch.mapsUrl
+                  : Platform.select({ ios: `maps://maps.apple.com/?daddr=${branch.lat},${branch.lng}`, default: `https://maps.google.com/?q=${branch.lat},${branch.lng}` });
+                Linking.openURL(url!).catch(() => Linking.openURL(`https://maps.google.com/?q=${branch.lat},${branch.lng}`));
+              }}
+              style={styles.navBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Google Maps-də aç"
+            >
+              <Ionicons name="navigate" size={20} color={colors.primary} />
+            </Pressable>
+          </Row>
+        </View>
       ) : (
         <Card style={{ marginTop: 14 }}>
           <Txt v="caption" color={colors.gray}>
@@ -133,8 +148,7 @@ export default function Markets() {
           </Txt>
         </Card>
       )}
-      {branch && <Btn title="Xəritədə göstər" icon="navigate" onPress={() => router.push(`/map?store=${chosen.store.id}`)} style={{ marginTop: 10 }} />}
-      <Btn title="Yaxınlıqdakı bütün marketlər" variant="secondary" size="md" icon="storefront-outline" onPress={() => router.push('/nearby')} style={{ marginTop: 8 }} />
+      <Btn title="Bütün filiallar" variant="secondary" size="md" icon="location-outline" onPress={() => router.push({ pathname: '/(tabs)/places', params: { store: chosen.store.id } })} style={{ marginTop: 10 }} />
 
       {/* Shopping list at the chosen store */}
       <Txt v="bodyStrong" style={{ marginTop: 19, marginBottom: 9 }}>
@@ -193,5 +207,6 @@ const styles = StyleSheet.create({
   mini: { flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: 11, paddingVertical: 9, paddingHorizontal: 4, alignItems: 'center', overflow: 'hidden' },
   miniActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   miniBar: { height: 3, borderRadius: 2, marginTop: 6, alignSelf: 'flex-start', marginLeft: 4 },
-  mapCard: { marginTop: 14, backgroundColor: colors.white, borderRadius: 18, overflow: 'hidden', ...shadow.card },
+  branchCard: { backgroundColor: colors.white, borderRadius: 18, ...shadow.card },
+  navBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
 });

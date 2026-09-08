@@ -10,8 +10,5 @@ module.exports = ({ config }) => {
   // Android map tiles (react-native-maps) need a Google Maps SDK key; iOS uses Apple Maps without a key.
   const mapsKey = process.env.GOOGLE_MAPS_ANDROID_KEY;
   if (mapsKey) expo.android = { ...expo.android, config: { ...(expo.android?.config ?? {}), googleMaps: { apiKey: mapsKey } } };
-  // iOS: with a key the app uses Google Maps (Expo prebuild adds the GoogleMaps pod); without it, Apple Maps.
-  const iosMapsKey = process.env.GOOGLE_MAPS_IOS_KEY;
-  if (iosMapsKey) expo.ios = { ...expo.ios, config: { ...(expo.ios?.config ?? {}), googleMapsApiKey: iosMapsKey } };
   return expo;
 };
