@@ -18,6 +18,23 @@ export const db = {
 };
 
 export interface Store { id: string; name: string; color: string; initial: string; logo_url?: string | null }
+
+/** Announcement popup shown over the app (campaigns, release notes). */
+export interface Popup {
+  id: string;
+  title: string;
+  body: string;
+  image_url: string | null;
+  cta_label: string | null;
+  cta_link: string | null;
+  audience: 'all' | 'free' | 'plus';
+  max_per_day: number;
+  max_per_week: number;
+  sort: number;
+  active: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
+}
 export interface Product {
   id: string; barcode: string | null; name: string; brand: string; size: string; category: string;
   emoji: string | null; tint: string | null; image_url: string | null; rating: number | null;
