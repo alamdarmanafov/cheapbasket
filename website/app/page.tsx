@@ -220,7 +220,6 @@ export default function Page() {
             <a href={LINKS.email}>{t.footer.contact}</a>
             <Link href="/delete-account">{t.footer.deleteAccount}</Link>
             <a href={LINKS.instagram} target="_blank" rel="noreferrer">Instagram</a>
-            <a href={LINKS.tiktok} target="_blank" rel="noreferrer">TikTok</a>
             <a href={LINKS.linkedin} target="_blank" rel="noreferrer">LinkedIn</a>
           </div>
         </div>

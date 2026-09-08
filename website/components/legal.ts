@@ -1,4 +1,4 @@
-import { Lang } from './content';
+import { PRICING, Lang } from './content';
 
 /**
  * Edit these before publishing: everything else in this file is written around
@@ -149,6 +149,7 @@ const az: Record<Slug, LegalDoc> = {
       {
         h: '4. Plus abunəliyi',
         ul: [
+          `Qiymət: ${PRICING.plusMonthly} / ay və ya ${PRICING.plusYearly} / il. Ödəniş təsdiqlədiyin anda App Store və ya Google Play hesabından alınır. Qiymət mağazada yerli valyutada göstərilir və ölkəyə görə fərqlənə bilər.`,
           'Plus abunəliyi App Store və ya Google Play üzərindən alınır və həmin hesaba bağlanır.',
           'Abunəlik avtomatik yenilənir. Cari dövr bitməzdən ən azı 24 saat əvvəl ləğv etməsən, növbəti dövr üçün ödəniş avtomatik alınır.',
           'Ləğv etməyi cihazın parametrlərindən (App Store və ya Google Play abunəliklər bölməsi) edə bilərsən. Ləğv etdikdən sonra Plus cari ödənişli dövrün sonunadək aktiv qalır.',
@@ -417,6 +418,7 @@ const en: Record<Slug, LegalDoc> = {
       {
         h: '4. Plus subscription',
         ul: [
+          `Price: ${PRICING.plusMonthly} / month or ${PRICING.plusYearly} / year. Payment is charged to your App Store or Google Play account on confirmation. The store shows the price in your local currency and it may differ by country.`,
           'Plus is purchased through the App Store or Google Play and is tied to that account.',
           'It renews automatically. Unless you cancel at least 24 hours before the current period ends, the next period is charged automatically.',
           'You cancel from your device settings (App Store or Google Play subscriptions). After cancelling, Plus stays active until the end of the period you already paid for.',
