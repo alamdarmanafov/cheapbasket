@@ -88,7 +88,7 @@ export function BranchList({ filter, onFilterChange }: { filter: string; onFilte
   return (
     <View style={{ flex: 1 }}>
       {stores.length > 1 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipBar} contentContainerStyle={styles.chips}>
           <Pressable style={[styles.chip, filter === 'all' && styles.chipActive]} onPress={() => onFilterChange('all')}>
             <Txt v="captionStrong" color={filter === 'all' ? colors.white : colors.dark}>
               {t('branches.all', { count: branches.length })}
@@ -133,7 +133,10 @@ export function BranchList({ filter, onFilterChange }: { filter: string; onFilte
 }
 
 const styles = StyleSheet.create({
-  chips: { paddingHorizontal: space.lg, paddingBottom: space.md, gap: space.sm, flexDirection: 'row' },
+  // Without flexGrow:0 the row steals the column's spare height and, with the
+  // default cross-axis stretch, each chip grows to fill it.
+  chipBar: { flexGrow: 0, flexShrink: 0 },
+  chips: { paddingHorizontal: space.lg, paddingBottom: space.md, gap: space.sm, flexDirection: 'row', alignItems: 'center' },
   chip: { paddingHorizontal: space.md, paddingVertical: 7, borderRadius: radius.pill, backgroundColor: colors.fill },
   chipActive: { backgroundColor: colors.primary, borderWidth: 0 },
   list: { paddingHorizontal: space.lg, paddingBottom: space.xxxl },
