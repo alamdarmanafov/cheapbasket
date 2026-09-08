@@ -14,13 +14,19 @@ alter table popups add column if not exists translations jsonb not null default 
 -- points screen had none, and anything that wanted to show the code up front
 -- (the profile row) had nothing to show. Generating it with the profile makes
 -- the column reliably non-null.
+--
+-- The generator deliberately avoids gen_random_bytes(): that lives in pgcrypto,
+-- which Supabase installs into the `extensions` schema, so a function pinned to
+-- `search_path = public` cannot see it — the reason 0017's my_referral_code()
+-- raised 42883 and never issued a single code. gen_random_uuid() is core
+-- Postgres and needs no extension.
 create or replace function public.gen_referral_code() returns text language plpgsql security definer set search_path = public as $$
 declare c text;
 begin
   loop
-    -- Base64 minus the glyph pairs that get misread out loud or in a screenshot
-    -- (0/O, 1/I/l) and minus the '+/=' padding characters.
-    c := upper(substr(translate(encode(gen_random_bytes(6), 'base64'), '+/=0O1Il', 'ABCDEFGH'), 1, 6));
+    -- Six hex characters, with 0 and 1 mapped away from the glyphs they get
+    -- confused with (0/O, 1/I/l) when a code is read aloud or off a screenshot.
+    c := translate(upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 6)), '01', 'GH');
     exit when not exists (select 1 from profiles where referral_code = c);
   end loop;
   return c;
