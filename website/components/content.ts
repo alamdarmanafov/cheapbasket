@@ -7,7 +7,6 @@ export const LINKS = {
   googlePlay: '#download',
   site: 'https://cheapmarket.app',
   instagram: 'https://instagram.com/cheapmarketapp',
-  tiktok: 'https://tiktok.com/@cheapmarket.az',
   linkedin: 'https://linkedin.com/company/cheapmarket',
   email: 'mailto:hello@cheapmarket.app',
 };
