@@ -85,6 +85,9 @@ export default function Products() {
   const [dupGroups, setDupGroups] = useState<DupGroup[] | null>(null);
   const [dupBusy, setDupBusy] = useState(false);
   const [dupKeep, setDupKeep] = useState<Record<string, string>>({}); // groupKey → product id to keep
+  const [dupSelected, setDupSelected] = useState<Set<string>>(new Set()); // selected group keys for bulk merge
+  const [dupMerging, setDupMerging] = useState(false);
+  const [dupProgress, setDupProgress] = useState<{ done: number; total: number } | null>(null);
 
   // Image fetch state
   const [imageFetch, setImageFetch] = useState<Record<string, 'loading' | 'error'>>({});
@@ -319,7 +322,6 @@ export default function Products() {
     if (!confirm(`"${group.key}" qrupunda ${toDelete.length} dublikat silinsin?`)) return;
     setBusy(true);
     try {
-      // Move all price rows from deleted products to the kept one
       for (const p of toDelete) {
         const pPrices = await db.select<PriceRow>('prices', { eq: { product_id: p.id }, columns: 'product_id,store_id,price,discount_price,updated_at' });
         if (pPrices.length) {
@@ -329,13 +331,56 @@ export default function Products() {
         await db.delete('products', { id: p.id });
       }
       setMsg({ ok: true, text: `${toDelete.length} dublikat silindi, qiymətlər birləşdirildi` });
-      // Refresh groups
       const all = await db.select<Product>('products', { columns: 'id,barcode,name,brand,size,category,image_url', fetchAll: true });
       const groups = findDuplicates(all);
       setDupGroups(groups);
       load();
     } catch (e) { setMsg({ ok: false, text: (e as Error).message }); }
     finally { setBusy(false); }
+  };
+
+  const mergeDupGroupSilent = async (group: DupGroup): Promise<{ merged: number; error?: string }> => {
+    const keepId = dupKeep[group.key];
+    if (!keepId) return { merged: 0 };
+    const toDelete = group.products.filter((p) => p.id !== keepId);
+    try {
+      for (const p of toDelete) {
+        const pPrices = await db.select<PriceRow>('prices', { eq: { product_id: p.id }, columns: 'product_id,store_id,price,discount_price,updated_at' });
+        if (pPrices.length) {
+          const moved = pPrices.map((r) => ({ ...r, product_id: keepId }));
+          await db.upsert('prices', moved as unknown as Record<string, unknown>[], 'product_id,store_id');
+        }
+        await db.delete('products', { id: p.id });
+      }
+      return { merged: toDelete.length };
+    } catch (e) { return { merged: 0, error: (e as Error).message }; }
+  };
+
+  const mergeBulkDups = async (groups: DupGroup[]) => {
+    if (!groups.length) return;
+    const totalDups = groups.reduce((acc, g) => acc + g.products.length - 1, 0);
+    if (!confirm(`${groups.length} qrupda ${totalDups} dublikat silinsin?`)) return;
+    setDupMerging(true);
+    setDupProgress({ done: 0, total: groups.length });
+    let totalMerged = 0;
+    const errors: string[] = [];
+    for (let i = 0; i < groups.length; i++) {
+      const { merged, error } = await mergeDupGroupSilent(groups[i]);
+      totalMerged += merged;
+      if (error) errors.push(error);
+      setDupProgress({ done: i + 1, total: groups.length });
+    }
+    const all = await db.select<Product>('products', { columns: 'id,barcode,name,brand,size,category,image_url', fetchAll: true });
+    const newGroups = findDuplicates(all);
+    setDupGroups(newGroups);
+    const defaults: Record<string, string> = { ...dupKeep };
+    for (const g of newGroups) if (!defaults[g.key]) defaults[g.key] = g.products[0].id;
+    setDupKeep(defaults);
+    setDupSelected(new Set());
+    setDupMerging(false);
+    setDupProgress(null);
+    setMsg({ ok: !errors.length, text: errors.length ? `${totalMerged} silindi, xəta: ${errors[0]}` : `${totalMerged} dublikat silindi, qiymətlər birləşdirildi` });
+    load();
   };
 
   // ── Auto image fetch ─────────────────────────────────────────────────────────
@@ -591,58 +636,96 @@ export default function Products() {
 
       {/* ── Duplicate detection modal ── */}
       {dupGroups !== null && (
-        <div className="modal-bg" onClick={() => setDupGroups(null)}>
+        <div className="modal-bg" onClick={() => !dupMerging && setDupGroups(null)}>
           <div className="modal" style={{ width: 'min(860px,100%)', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ margin: 0 }}>Dublikat məhsullar</h2>
-              <button className="btn ghost" onClick={() => setDupGroups(null)}><X size={18} /></button>
+              <h2 style={{ margin: 0 }}>Dublikat məhsullar {dupGroups.length > 0 && <span className="pill gray" style={{ fontSize: 13, marginLeft: 6 }}>{dupGroups.length} qrup</span>}</h2>
+              <button className="btn ghost" disabled={dupMerging} onClick={() => setDupGroups(null)}><X size={18} /></button>
             </div>
             {dupGroups.length === 0
               ? <p className="muted" style={{ textAlign: 'center', padding: 30 }}>Dublikat tapılmadı.</p>
-              : dupGroups.map((group) => (
-                <div key={group.key} style={{ marginTop: 20, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
-                  <div style={{ background: 'var(--accent-bg, #F0F9FF)', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between' }}>
-                    <b style={{ fontSize: 13 }}>{group.key}</b>
-                    <button className="btn danger" disabled={busy} onClick={() => mergeDupGroup(group)}>
-                      İdleri birləşdir və dublikatları sil
+              : <>
+                {/* Bulk action bar */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0 4px', flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', userSelect: 'none' }}>
+                    <input
+                      type="checkbox"
+                      checked={dupGroups.length > 0 && dupGroups.every((g) => dupSelected.has(g.key))}
+                      ref={(el) => { if (el) el.indeterminate = dupSelected.size > 0 && !dupGroups.every((g) => dupSelected.has(g.key)); }}
+                      onChange={() => {
+                        const allSel = dupGroups.every((g) => dupSelected.has(g.key));
+                        setDupSelected(allSel ? new Set() : new Set(dupGroups.map((g) => g.key)));
+                      }}
+                    />
+                    <span style={{ fontSize: 13 }}>Hamısını seç</span>
+                  </label>
+                  {dupSelected.size > 0 && (
+                    <button className="btn danger" disabled={dupMerging} onClick={() => mergeBulkDups(dupGroups.filter((g) => dupSelected.has(g.key)))}>
+                      {dupMerging && dupProgress ? `Birləşdirilir… ${dupProgress.done}/${dupProgress.total}` : `Seçilənləri birləşdir (${dupSelected.size})`}
                     </button>
-                  </div>
-                  <table style={{ margin: 0 }}>
-                    <thead>
-                      <tr>
-                        <th style={{ width: 36 }}>Saxla</th>
-                        <th>Məhsul</th>
-                        <th>Kateqoriya</th>
-                        <th>Şəkil</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {group.products.map((p) => (
-                        <tr key={p.id} style={{ background: dupKeep[group.key] === p.id ? 'var(--accent-bg, #F0FDF4)' : undefined }}>
-                          <td style={{ textAlign: 'center' }}>
-                            <input
-                              type="radio"
-                              name={`keep-${group.key}`}
-                              checked={dupKeep[group.key] === p.id}
-                              onChange={() => setDupKeep((prev) => ({ ...prev, [group.key]: p.id }))}
-                            />
-                          </td>
-                          <td>
-                            <b>{p.brand}</b> {p.name} <span className="muted">{p.size}</span>
-                            <div className="muted" style={{ fontSize: 11, fontFamily: 'monospace' }}>{p.id}</div>
-                          </td>
-                          <td className="muted">{p.category}</td>
-                          <td>
-                            {p.image_url
-                              ? <img src={p.image_url} alt="" width={34} height={34} style={{ borderRadius: 6, objectFit: 'cover' }} />
-                              : <span className="muted" style={{ fontSize: 11 }}>yoxdur</span>}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  )}
+                  <button className="btn danger" disabled={dupMerging} style={{ marginLeft: 'auto' }} onClick={() => mergeBulkDups(dupGroups)}>
+                    {dupMerging && dupProgress && dupSelected.size === 0 ? `Birləşdirilir… ${dupProgress.done}/${dupProgress.total}` : `Hamısını birləşdir (${dupGroups.length})`}
+                  </button>
                 </div>
-              ))}
+                {dupProgress && (
+                  <div style={{ height: 4, background: 'var(--border)', borderRadius: 2, margin: '6px 0', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', background: '#EF4444', borderRadius: 2, width: `${(dupProgress.done / dupProgress.total) * 100}%`, transition: 'width .2s' }} />
+                  </div>
+                )}
+                {dupGroups.map((group) => (
+                  <div key={group.key} style={{ marginTop: 16, border: `2px solid ${dupSelected.has(group.key) ? '#EF4444' : 'var(--border)'}`, borderRadius: 10, overflow: 'hidden' }}>
+                    <div style={{ background: 'var(--accent-bg, #F0F9FF)', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', flex: 1 }}>
+                        <input
+                          type="checkbox"
+                          checked={dupSelected.has(group.key)}
+                          onChange={() => setDupSelected((prev) => { const next = new Set(prev); if (next.has(group.key)) next.delete(group.key); else next.add(group.key); return next; })}
+                        />
+                        <b style={{ fontSize: 13 }}>{group.key}</b>
+                        <span className="muted" style={{ fontSize: 11 }}>{group.products.length - 1} dublikat</span>
+                      </label>
+                      <button className="btn danger" disabled={busy || dupMerging} onClick={() => mergeDupGroup(group)}>
+                        Birləşdir
+                      </button>
+                    </div>
+                    <table style={{ margin: 0 }}>
+                      <thead>
+                        <tr>
+                          <th style={{ width: 36 }}>Saxla</th>
+                          <th>Məhsul</th>
+                          <th>Kateqoriya</th>
+                          <th>Şəkil</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.products.map((p) => (
+                          <tr key={p.id} style={{ background: dupKeep[group.key] === p.id ? 'var(--accent-bg, #F0FDF4)' : undefined }}>
+                            <td style={{ textAlign: 'center' }}>
+                              <input
+                                type="radio"
+                                name={`keep-${group.key}`}
+                                checked={dupKeep[group.key] === p.id}
+                                onChange={() => setDupKeep((prev) => ({ ...prev, [group.key]: p.id }))}
+                              />
+                            </td>
+                            <td>
+                              <b>{p.brand}</b> {p.name} <span className="muted">{p.size}</span>
+                              <div className="muted" style={{ fontSize: 11, fontFamily: 'monospace' }}>{p.id}</div>
+                            </td>
+                            <td className="muted">{p.category}</td>
+                            <td>
+                              {p.image_url
+                                ? <img src={p.image_url} alt="" width={34} height={34} style={{ borderRadius: 6, objectFit: 'cover' }} />
+                                : <span className="muted" style={{ fontSize: 11 }}>yoxdur</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+              </>}
           </div>
         </div>
       )}
