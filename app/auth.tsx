@@ -78,32 +78,8 @@ export default function AuthScreen() {
           </View>
         )}
 
-        {mode !== 'reset' && (
-          <>
-            {SHOW_APPLE && (
-              <Btn title={t('auth.apple')} variant="dark" icon="logo-apple" loading={busy === 'apple'} onPress={() => run('apple', auth.signInApple)} style={{ marginTop: space.xl }} />
-            )}
-            {SHOW_GOOGLE && (
-              <Btn title={t('auth.google')} variant="secondary" icon="logo-google" loading={busy === 'google'} onPress={() => run('google', auth.signInGoogle)} style={{ marginTop: SHOW_APPLE ? space.sm : space.xl, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line }} />
-            )}
-            {(SHOW_APPLE || SHOW_GOOGLE) && (
-            <Row gap={space.md} style={{ marginVertical: space.lg }}>
-              <View style={{ flex: 1 }}>
-                <Divider />
-              </View>
-              <Txt v="caption" color={colors.gray}>
-                {t('auth.orEmail')}
-              </Txt>
-              <View style={{ flex: 1 }}>
-                <Divider />
-              </View>
-            </Row>
-            )}
-          </>
-        )}
-
-        {mode === 'signup' && <Field icon="person-outline" placeholder="Ad" value={name} onChangeText={setName} autoCapitalize="words" />}
-        <Field icon="mail-outline" placeholder={t('auth.email')} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
+        {mode === 'signup' && <Field icon="person-outline" placeholder={t('auth.name')} value={name} onChangeText={setName} autoCapitalize="words" style={{ marginTop: space.xl }} />}
+        <Field icon="mail-outline" placeholder={t('auth.email')} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" style={mode === 'signup' ? undefined : { marginTop: space.xl }} />
         {mode !== 'reset' && (
           <Field icon="lock-closed-outline" placeholder={t('auth.password')} value={password} onChangeText={setPassword} secureTextEntry autoComplete={mode === 'signup' ? 'new-password' : 'password'} />
         )}
@@ -148,6 +124,30 @@ export default function AuthScreen() {
             </Txt>
           </Pressable>
         </Row>
+
+        {/* Social sign-in sits under the email form: most people here have an
+            account with us already, so the password path leads. */}
+        {mode !== 'reset' && (SHOW_APPLE || SHOW_GOOGLE) && (
+          <>
+            <Row gap={space.md} style={{ marginVertical: space.lg }}>
+              <View style={{ flex: 1 }}>
+                <Divider />
+              </View>
+              <Txt v="caption" color={colors.gray}>
+                {t('auth.or')}
+              </Txt>
+              <View style={{ flex: 1 }}>
+                <Divider />
+              </View>
+            </Row>
+            {SHOW_APPLE && (
+              <Btn title={t('auth.apple')} variant="dark" icon="logo-apple" loading={busy === 'apple'} onPress={() => run('apple', auth.signInApple)} />
+            )}
+            {SHOW_GOOGLE && (
+              <Btn title={t('auth.google')} variant="secondary" icon="logo-google" loading={busy === 'google'} onPress={() => run('google', auth.signInGoogle)} style={{ marginTop: SHOW_APPLE ? space.sm : 0, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line }} />
+            )}
+          </>
+        )}
 
 
         <Txt v="caption" color={colors.grayLight} center style={{ marginTop: space.xl, fontSize: 11 }}>
