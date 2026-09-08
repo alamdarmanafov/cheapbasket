@@ -129,13 +129,14 @@ export default function Basket() {
 
       <ResultSheet
         visible={showResult}
-        onClose={() => {
-          setShowResult(false);
-          router.push('/markets');
-        }}
+        onClose={() => setShowResult(false)}
         onShowMap={() => {
           setShowResult(false);
           router.push('/markets');
+        }}
+        onGoToStore={(storeId) => {
+          setShowResult(false);
+          router.push({ pathname: '/(tabs)/places', params: { store: storeId } });
         }}
       />
     </View>

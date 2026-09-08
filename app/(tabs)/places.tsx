@@ -1,4 +1,3 @@
-'use client';
 import React, { useMemo, useState } from 'react';
 import {
   FlatList,
@@ -11,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocalSearchParams } from 'expo-router';
 import { useCatalog } from '@/store/catalog';
 import { isOpenNow, Branch } from '@/data/products';
 import { colors, fonts, radius, space } from '@/theme';
@@ -38,7 +38,8 @@ function fmtDist(km: number): string {
 export default function PlacesScreen() {
   const insets = useSafeAreaInsets();
   const { branches, stores, locationGranted, requestLocation, loading } = useCatalog();
-  const [filter, setFilter] = useState<string>('all');
+  const params = useLocalSearchParams<{ store?: string }>();
+  const [filter, setFilter] = useState<string>(params.store ?? 'all');
 
   const filtered = useMemo(
     () =>

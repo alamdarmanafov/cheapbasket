@@ -12,7 +12,7 @@ import { storeLabel } from '@/data/products';
  * Market comparison bottom sheet.
  * Shows all stores ranked by basket total, best store highlighted.
  */
-export function ResultSheet({ visible, onClose, onShowMap }: { visible: boolean; onClose: () => void; onShowMap: () => void }) {
+export function ResultSheet({ visible, onClose, onShowMap, onGoToStore }: { visible: boolean; onClose: () => void; onShowMap: () => void; onGoToStore?: (storeId: string) => void }) {
   const insets = useSafeAreaInsets();
   const { optimization: o, count } = useBasket();
   const [ready, setReady] = useState(false);
@@ -81,6 +81,18 @@ export function ResultSheet({ visible, onClose, onShowMap }: { visible: boolean;
                   {best.missing.length} məhsul mövcud deyil
                 </Txt>
               )}
+              {onGoToStore && (
+                <Pressable
+                  onPress={() => onGoToStore(best.store.id)}
+                  style={({ pressed }) => [styles.goBtn, pressed && { opacity: 0.75 }]}
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="location" size={15} color={colors.white} />
+                  <Txt v="captionStrong" color={colors.white} style={{ marginLeft: 6 }}>
+                    Filiallara bax
+                  </Txt>
+                </Pressable>
+              )}
             </View>
 
             {/* All stores ranked */}
@@ -94,7 +106,12 @@ export function ResultSheet({ visible, onClose, onShowMap }: { visible: boolean;
                   return (
                     <React.Fragment key={r.store.id}>
                       {i > 0 && <Divider />}
-                      <Row style={[styles.rankRow, isBest && styles.rankRowBest]}>
+                      <Pressable
+                        onPress={() => onGoToStore?.(r.store.id)}
+                        style={({ pressed }) => [styles.rankRow, isBest && styles.rankRowBest, pressed && { opacity: 0.7 }]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${r.store.name} filiallarına bax`}
+                      >
                         <Txt v="captionStrong" color={isBest ? colors.success : colors.gray} style={{ width: 18 }}>
                           {i + 1}
                         </Txt>
@@ -108,12 +125,15 @@ export function ResultSheet({ visible, onClose, onShowMap }: { visible: boolean;
                               {r.missing.length} məhsul yoxdur
                             </Txt>
                           )}
-                        </Row>
-                        <View style={{ alignItems: 'flex-end' }}>
-                          <Price value={r.total} size="sm" />
-                          {isBest && <Pill tone="success" text="ən ucuz" />}
                         </View>
-                      </Row>
+                        <View style={{ alignItems: 'flex-end', flexDirection: 'row', gap: 6, alignSelf: 'center' }}>
+                          <View style={{ alignItems: 'flex-end' }}>
+                            <Price value={r.total} size="sm" />
+                            {isBest && <Pill tone="success" text="ən ucuz" />}
+                          </View>
+                          {onGoToStore && <Ionicons name="chevron-forward" size={14} color={colors.gray} />}
+                        </View>
+                      </Pressable>
                     </React.Fragment>
                   );
                 })}
@@ -133,8 +153,7 @@ export function ResultSheet({ visible, onClose, onShowMap }: { visible: boolean;
               </View>
             )}
 
-            <Btn title="Xəritədə göstər" icon="navigate" onPress={onShowMap} style={{ marginTop: space.lg }} />
-            <Btn title="Bağla" variant="ghost" size="md" onPress={onClose} style={{ marginTop: space.xs }} />
+            <Btn title="Bağla" variant="ghost" size="md" onPress={onClose} style={{ marginTop: space.lg }} />
           </ScrollView>
         )}
       </View>
@@ -165,6 +184,16 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     alignItems: 'center',
     gap: 6,
+    flexDirection: 'row',
+  },
+  goBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginTop: space.md,
   },
   rankRowBest: {
     backgroundColor: `${colors.success}10`,
