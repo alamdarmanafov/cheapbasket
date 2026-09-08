@@ -11,7 +11,7 @@ import { BranchList } from '@/components/BranchList';
 import { StateView } from '@/components/states';
 import { suggestSubstitute } from '@/lib/substitute';
 import { PlusTag } from '@/components/PlusLock';
-import { isOpenNow, storeLabel, nearestBranch } from '@/data/products';
+import { isAllDay, isOpenNow, storeLabel, nearestBranch } from '@/data/products';
 import { useBasket } from '@/store/basket';
 import { useCatalog } from '@/store/catalog';
 import { useT } from '@/lib/i18n';
@@ -231,7 +231,7 @@ function BestStoreView({
                 </Txt>
                 {isOpenNow(branch) != null && (
                   <Txt v="captionStrong" color={isOpenNow(branch) ? colors.success : colors.warning} style={{ fontSize: 11 }}>
-                    {branch.alwaysOpen
+                    {isAllDay(branch)
                       ? t('common.allDay')
                       : isOpenNow(branch)
                         ? t('common.openUntil', { time: branch.openUntil ?? '' })

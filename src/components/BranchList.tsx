@@ -2,7 +2,7 @@ import React, { useCallback, useMemo } from 'react';
 import { FlatList, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useCatalog } from '@/store/catalog';
-import { isOpenNow, Branch } from '@/data/products';
+import { isAllDay, isOpenNow, Branch } from '@/data/products';
 import { colors, fonts, radius, space } from '@/theme';
 import { Row, Txt } from './ui';
 import { StoreAvatar } from './product';
@@ -40,6 +40,7 @@ export function BranchList({ filter, onFilterChange }: { filter: string; onFilte
     const store = stores.find((s) => s.id === b.storeId);
     const openState = isOpenNow(b);
     const isOpen = openState === true;
+    const allDay = isAllDay(b);
 
     return (
       <View style={styles.card}>
@@ -69,7 +70,7 @@ export function BranchList({ filter, onFilterChange }: { filter: string; onFilte
               <View style={[styles.badge, { backgroundColor: isOpen ? colors.successSoft : '#FEE2E2' }]}>
                 <View style={[styles.dot, { backgroundColor: isOpen ? colors.success : colors.primary }]} />
                 <Txt v="caption" color={isOpen ? colors.success : colors.primary} style={{ marginLeft: 4, fontFamily: fonts.semibold }}>
-                  {isOpen ? (b.openUntil ? t('common.openUntil', { time: b.openUntil }) : t('common.open')) : t('common.closed')}
+                  {!isOpen ? t('common.closed') : allDay ? t('common.allDay') : b.openUntil ? t('common.openUntil', { time: b.openUntil }) : t('common.open')}
                 </Txt>
               </View>
             )}

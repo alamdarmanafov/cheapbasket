@@ -84,7 +84,9 @@ export default function Profile() {
   const rowValue = (r: RowDef) => {
     if (r.action === 'location') return cat.place ?? t(cat.locationGranted === false ? 'profile.locationOff' : 'profile.locationOn');
     if (r.action === 'language') return LANGS.find((l) => l.id === lang)?.label;
-    if (r.route === '/referral' && auth.profile?.points) return t('profile.pointsValue', { points: auth.profile.points });
+    // The code is issued with the account, so the row can show it outright —
+    // no need to open the screen to find out what to send a friend.
+    if (r.route === '/referral') return auth.profile?.referralCode ?? (auth.profile?.points ? t('profile.pointsValue', { points: auth.profile.points }) : undefined);
     return r.value;
   };
   return (

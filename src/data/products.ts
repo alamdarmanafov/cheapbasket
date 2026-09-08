@@ -59,9 +59,23 @@ export interface Branch {
   alwaysOpen?: boolean;
 }
 
+/**
+ * True when the branch never closes. Either the admin ticked "24 saat", or the
+ * hours were typed as a window that covers the whole day — 00:00 to 23:59 is
+ * how a round-the-clock store usually gets entered, and showing "23:59-dək"
+ * for it reads as a closing time that isn't one.
+ */
+export function isAllDay(b: Branch): boolean {
+  if (b.alwaysOpen) return true;
+  const until = (b.openUntil ?? '').trim();
+  const from = (b.openFrom ?? '').trim();
+  if (!until) return false;
+  return /^0?0:00/.test(from || '00:00') && /^(23:59|00:00|24:00)/.test(until);
+}
+
 /** true/false when hours are known (Baku time), null when the branch has no hours. */
 export function isOpenNow(b: Branch, now = new Date()): boolean | null {
-  if (b.alwaysOpen) return true;
+  if (isAllDay(b)) return true;
   if (!b.openUntil) return null;
   const toMin = (t: string) => {
     const m = t.match(/^(\d{1,2}):(\d{2})/);

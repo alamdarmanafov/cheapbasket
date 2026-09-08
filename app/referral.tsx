@@ -21,7 +21,9 @@ export default function Referral() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const auth = useAuth();
-  const [code, setCode] = useState<string | null>(null);
+  // Seeded from the profile (the code is issued at signup) so the box never
+  // shows placeholder dots while the RPC is in flight.
+  const [code, setCode] = useState<string | null>(auth.profile?.referralCode ?? null);
   const [friend, setFriend] = useState('');
   const [ledger, setLedger] = useState<Ledger[]>([]);
   const [cfg, setCfg] = useState<PointsSettings>({ referral: 100, trip: 10, plus_cost: 300, plus_days: 7 });
@@ -36,6 +38,7 @@ export default function Referral() {
       supabase.from('app_settings').select('value').eq('key', 'points').maybeSingle(),
     ]);
     if (typeof c === 'string') setCode(c);
+    else if (auth.profile?.referralCode) setCode(auth.profile.referralCode);
     setLedger((l ?? []) as Ledger[]);
     if (s?.value) setCfg({ ...cfg, ...(s.value as Partial<PointsSettings>) });
     await auth.refreshProfile();
