@@ -17,8 +17,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "az.cheapbasket.app",
-      "buildNumber": "2",
-      "infoPlist": {
+"infoPlist": {
         "NSCameraUsageDescription": "Barkodu skan etmək və məhsulun şəklini çəkmək üçün kameraya icazə lazımdır."
       },
       "usesAppleSignIn": true
