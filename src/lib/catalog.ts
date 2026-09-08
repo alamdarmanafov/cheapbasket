@@ -55,9 +55,9 @@ function rowToProduct(r: ProductPriceRow, history: number[] = []): Product {
 }
 
 export async function fetchStores(): Promise<Store[]> {
-  const { data, error } = await need().from('stores').select('id, name, color, initial').order('name');
+  const { data, error } = await need().from('stores').select('id, name, color, initial, logo_url').order('name');
   if (error) throw error;
-  return (data ?? []).map((s) => ({ id: s.id, name: s.name, color: s.color ?? '#6B7280', initial: s.initial ?? s.name.slice(0, 1) }));
+  return (data ?? []).map((s) => ({ id: s.id, name: s.name, color: s.color ?? '#6B7280', initial: s.initial ?? s.name.slice(0, 1), logo_url: s.logo_url ?? null }));
 }
 
 export async function fetchProducts(): Promise<Product[]> {

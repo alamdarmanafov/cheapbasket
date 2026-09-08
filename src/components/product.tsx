@@ -32,13 +32,30 @@ export function ProductArt({ product, size = 56, emojiScale = 0.5 }: { product: 
 
 export function StoreAvatar({ store, size = 32 }: { store: Store; size?: number }) {
   if (store.logo_url) {
+    // Logos arrive with their own (often transparent) backgrounds, so they sit on
+    // a white disc with a hairline edge — otherwise they dissolve into the page
+    // and stop reading as the badge the coloured initial version is.
     return (
-      <Image
-        source={{ uri: store.logo_url }}
-        style={{ width: size, height: size, borderRadius: size / 2 }}
-        resizeMode="contain"
-        accessibilityIgnoresInvertColors
-      />
+      <View
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: colors.white,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: colors.line,
+          overflow: 'hidden',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Image
+          source={{ uri: store.logo_url }}
+          style={{ width: size * 0.78, height: size * 0.78 }}
+          resizeMode="contain"
+          accessibilityIgnoresInvertColors
+        />
+      </View>
     );
   }
   return (
