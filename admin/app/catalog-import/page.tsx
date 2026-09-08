@@ -15,6 +15,7 @@ export default function CatalogImportPage() {
   const [pageCount, setPageCount] = useState(0);
   const [renderProgress, setRenderProgress] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [extractProgress, setExtractProgress] = useState(0);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [matched, setMatched] = useState<MatchedProduct[]>([]);
   const [unmatched, setUnmatched] = useState<ExtractedProduct[]>([]);
@@ -72,6 +73,8 @@ export default function CatalogImportPage() {
     renderPdf(file);
   };
 
+  const BATCH = 5; // pages per request to stay under body size limit
+
   const extract = async () => {
     if (!storeId || !pages.length) {
       setMsg({ ok: false, text: 'Market seçin və PDF yükləyin.' });
@@ -79,23 +82,39 @@ export default function CatalogImportPage() {
     }
     setBusy(true);
     setMsg(null);
+    setExtractProgress(0);
+
+    const allMatched: MatchedProduct[] = [];
+    const allUnmatched: ExtractedProduct[] = [];
+    let totalExtracted = 0;
+
     try {
-      const res = await fetch('/api/catalog-import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ store_id: storeId, market_name: marketName, pages }),
-      });
-      const j = await res.json() as { extracted?: number; matched?: MatchedProduct[]; unmatched?: ExtractedProduct[]; error?: string };
-      if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`);
-      const m = j.matched ?? [];
-      setMatched(m);
-      setUnmatched(j.unmatched ?? []);
-      setSelected(new Set(m.map((_, i) => String(i))));
-      setMsg({ ok: true, text: `${j.extracted} məhsul çıxarıldı · ${m.length} uyğunlaşdı · ${j.unmatched?.length ?? 0} tapılmadı` });
+      for (let i = 0; i < pages.length; i += BATCH) {
+        const batch = pages.slice(i, i + BATCH);
+        const res = await fetch('/api/catalog-import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ store_id: storeId, market_name: marketName, pages: batch }),
+        });
+        const text = await res.text();
+        let j: { extracted?: number; matched?: MatchedProduct[]; unmatched?: ExtractedProduct[]; error?: string };
+        try { j = JSON.parse(text); } catch { throw new Error(text.slice(0, 120)); }
+        if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`);
+        totalExtracted += j.extracted ?? 0;
+        allMatched.push(...(j.matched ?? []));
+        allUnmatched.push(...(j.unmatched ?? []));
+        setExtractProgress(Math.min(i + BATCH, pages.length));
+      }
+
+      setMatched(allMatched);
+      setUnmatched(allUnmatched);
+      setSelected(new Set(allMatched.map((_, i) => String(i))));
+      setMsg({ ok: true, text: `${totalExtracted} məhsul çıxarıldı · ${allMatched.length} uyğunlaşdı · ${allUnmatched.length} tapılmadı` });
     } catch (e) {
       setMsg({ ok: false, text: (e as Error).message });
     } finally {
       setBusy(false);
+      setExtractProgress(0);
     }
   };
 
@@ -185,7 +204,9 @@ export default function CatalogImportPage() {
             GPT-4o Vision hər kataloq səhifəsini oxuyur, məhsul adı, qiymət, endirim qiyməti çıxarır və bazada uyğunlaşdırır.
           </p>
           <button className="btn" onClick={extract} disabled={busy || !pages.length || !storeId}>
-            {busy ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> İşlənir…</> : 'Çıxar'}
+            {busy
+              ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Səhifə {extractProgress}/{pageCount}…</>
+              : 'Çıxar'}
           </button>
         </div>
 
