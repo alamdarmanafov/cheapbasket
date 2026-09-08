@@ -16,6 +16,7 @@ import { Freshness, ProductArt, StoreAvatar } from '@/components/product';
 import { StateView } from '@/components/states';
 import { Product, StoreId, catalog, cheapest, findByBarcode, getStore, sortedPrices } from '@/data/products';
 import { useBasket } from '@/store/basket';
+import { useT } from '@/lib/i18n';
 
 type Phase = 'scanning' | 'searching' | 'found' | 'notfound' | 'error';
 
@@ -29,6 +30,7 @@ export default function Scan() {
   const params = useLocalSearchParams<{ store?: string }>();
   const basket = useBasket();
   const auth = useAuth();
+  const t = useT();
   const cat = useCatalog();
   const [permission, requestPermission] = useCameraPermissions();
   const [phase, setPhase] = useState<Phase>('scanning');
@@ -99,14 +101,14 @@ export default function Scan() {
 
       {/* Top bar */}
       <Row style={{ position: 'absolute', top: insets.top + space.sm, left: space.lg, right: space.lg, justifyContent: 'space-between' }}>
-        <IconBtn name="close" bg="rgba(255,255,255,0.15)" color={colors.white} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} label="Bağla" />
+        <IconBtn name="close" bg="rgba(255,255,255,0.15)" color={colors.white} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} label={t('common.close')} />
         <View style={styles.hereChip}>
           <StoreAvatar store={here} size={20} />
           <Txt v="captionStrong" color={colors.white} style={{ marginLeft: 6 }}>
             {here.name}-dasan
           </Txt>
         </View>
-        <IconBtn name={torch ? 'flashlight' : 'flashlight-outline'} bg={torch ? colors.primary : 'rgba(255,255,255,0.15)'} color={colors.white} label="Fənər" onPress={() => (canUseCamera ? setTorch((t) => !t) : notify('Fənər', 'Fənər yalnız telefon tətbiqində, kamera açıq olanda işləyir.'))} />
+        <IconBtn name={torch ? 'flashlight' : 'flashlight-outline'} bg={torch ? colors.primary : 'rgba(255,255,255,0.15)'} color={colors.white} label={t('scan.torch')} onPress={() => (canUseCamera ? setTorch((t) => !t) : notify(t('scan.torch'), t('scan.torchOnlyApp')))} />
       </Row>
 
       {phase === 'scanning' && (
@@ -122,7 +124,7 @@ export default function Scan() {
             {!canUseCamera && (
               <View style={{ width: '100%', alignItems: 'center', gap: space.sm }}>
                 <Txt v="caption" color="rgba(255,255,255,0.8)" center>
-                  {Platform.OS === 'web' ? 'Kamera ilə skan telefon tətbiqindədir. Barkodu əl ilə yaz:' : 'Kameraya icazə yoxdur. Barkodu əl ilə yaz:'}
+                  {Platform.OS === 'web' ? t('scan.webHint') : t('scan.noPermission')}
                 </Txt>
                 <View style={styles.manualRow}>
                   <TextInput
@@ -137,7 +139,7 @@ export default function Scan() {
                   />
                   <Btn title="Tap" size="md" full={false} onPress={submitManual} disabled={manual.replace(/\D/g, '').length < 8} />
                 </View>
-                {Platform.OS !== 'web' && permission && !permission.granted && <Btn title="Kameraya icazə ver" variant="secondary" size="md" full={false} onPress={() => requestPermission()} />}
+                {Platform.OS !== 'web' && permission && !permission.granted && <Btn title={t('scan.allowCamera')} variant="secondary" size="md" full={false} onPress={() => requestPermission()} />}
               </View>
             )}
           </View>
@@ -160,11 +162,11 @@ export default function Scan() {
         <View style={[styles.sheet, { paddingBottom: insets.bottom + space.lg }]}>
           <StateView
             emoji="🤔"
-            title="Məhsul tapılmadı"
-            body={hint ?? 'Bu barkod bazamızda yoxdur. Adı ilə axtar və ya yenidən cəhd et.'}
-            cta="Adı ilə axtar"
+            title={t('scan.notFound')}
+            body={hint ?? t('scan.notFoundBody')}
+            cta={t('scan.searchByName')}
             onCta={() => router.replace('/search')}
-            secondary="Yenidən skan et"
+            secondary={t('scan.again')}
             onSecondary={reset}
           />
         </View>
@@ -209,6 +211,7 @@ function FoundSheet({
   onBasket: () => void;
   bottomInset: number;
 }) {
+  const t = useT();
   const prices = sortedPrices(product);
   const c = cheapest(product);
   const herePrice = product.prices[here];
@@ -216,17 +219,17 @@ function FoundSheet({
   const diff = herePrice != null && c.price != null ? herePrice - c.price : null;
   const verdict: { tone: 'success' | 'warning' | 'neutral'; title: string; body: string } =
     herePrice == null
-      ? { tone: 'neutral', title: `${hereStore.name}-da mövcud deyil`, body: `Ən ucuz ${c.store.name}-da: ${c.price?.toFixed(2)} ₼` }
+      ? { tone: 'neutral', title: t('scan.notSoldHere', { store: hereStore.name }), body: t('scan.cheapestAt', { store: c.store.name, price: c.price?.toFixed(2) ?? '' }) }
       : diff != null && diff <= 0.05
-        ? { tone: 'success', title: 'Burada almaq sərfəlidir ✓', body: `${hereStore.name} bu məhsulda ən ucuzdur.` }
-        : { tone: 'warning', title: 'Burada almaq sərfəli deyil', body: `${c.store.name}-da ${diff?.toFixed(2)} ₼ daha ucuzdur (${c.price?.toFixed(2)} ₼).` };
+        ? { tone: 'success', title: t('scan.goodBuy'), body: t('scan.goodBuyBody', { store: hereStore.name }) }
+        : { tone: 'warning', title: t('scan.badBuy'), body: t('scan.badBuyBody', { store: c.store.name, diff: diff?.toFixed(2) ?? '', price: c.price?.toFixed(2) ?? '' }) };
 
   return (
     <View style={[styles.sheet, { paddingBottom: bottomInset + space.md, maxHeight: '78%' }]}>
       <View style={styles.handle} />
       <ScrollView showsVerticalScrollIndicator={false}>
         <Row gap={6} style={{ justifyContent: 'center' }}>
-          <Pill tone="success" icon="checkmark-circle" text="Məhsul tapıldı" />
+          <Pill tone="success" icon="checkmark-circle" text={t('scan.found')} />
         </Row>
         <Row gap={space.md} style={{ marginTop: space.lg }}>
           <ProductArt product={product} size={80} />
@@ -293,13 +296,13 @@ function FoundSheet({
 
       <View style={{ marginTop: space.md, gap: space.sm }}>
         {added ? (
-          <Btn title="Səbətə əlavə edildi ✓ · Səbətə bax" variant="dark" icon="basket" onPress={onBasket} />
+          <Btn title={t('scan.addedGo')} variant="dark" icon="basket" onPress={onBasket} />
         ) : (
-          <Btn title="Səbətə əlavə et" icon="add" onPress={onAdd} />
+          <Btn title={t('scan.add')} icon="add" onPress={onAdd} />
         )}
         <Row gap={space.sm}>
-          <Btn title="Müqayisəyə bax" variant="secondary" size="md" onPress={onCompare} style={{ flex: 1 }} />
-          <Btn title="Yenidən skan et" variant="ghost" size="md" onPress={onRescan} style={{ flex: 1 }} />
+          <Btn title={t('scan.compare')} variant="secondary" size="md" onPress={onCompare} style={{ flex: 1 }} />
+          <Btn title={t('scan.again')} variant="ghost" size="md" onPress={onRescan} style={{ flex: 1 }} />
         </Row>
       </View>
     </View>

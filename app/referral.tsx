@@ -10,17 +10,19 @@ import { supabase } from '@/lib/supabase';
 import { notify } from '@/lib/confirm';
 import { useRefresh } from '@/lib/useRefresh';
 import { useAuth } from '@/store/auth';
+import { useI18n, type Key } from '@/lib/i18n';
 import { SITE_URL } from '@/lib/links';
 
 interface Ledger { delta: number; reason: string; created_at: string }
 interface PointsSettings { referral: number; trip: number; plus_cost: number; plus_days: number }
-const REASON: Record<string, string> = { referral_received: 'Dəvət kodu ilə qoşuldun', referral_sent: 'Dostun qoşuldu', trip: 'Alış-veriş səfəri', plus_redeem: 'Plus günlərinə çevrildi' };
+const REASON: Record<string, Key> = { referral_received: 'ref.reasonReceived', referral_sent: 'ref.reasonSent', trip: 'ref.reasonTrip', plus_redeem: 'ref.reasonRedeem' };
 
 /** Points & referral: my code, share, enter a friend's code, convert points into Plus days. */
 export default function Referral() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const auth = useAuth();
+  const { t, lang } = useI18n();
   // Seeded from the profile (the code is issued at signup) so the box never
   // shows placeholder dots while the RPC is in flight.
   const [code, setCode] = useState<string | null>(auth.profile?.referralCode ?? null);
@@ -50,11 +52,11 @@ export default function Referral() {
 
   const share = async () => {
     if (!code) return;
-    const message = `Cheap Market AI ilə səbətinin ən ucuz olduğu marketi tap 🧺 Dəvət kodum: ${code} — qeydiyyatdan sonra "Dəvət kodu" bölməsinə yaz, ikimiz də ${cfg.referral} xal qazanaq. ${SITE_URL}`;
+    const message = t('ref.shareText', { code, points: cfg.referral, url: SITE_URL });
     try {
       if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
         await navigator.clipboard.writeText(message);
-        notify('Kopyalandı', 'Dəvət mətni panoya kopyalandı.');
+        notify(t('ref.copied'), t('ref.copiedBody'));
       } else await Share.share({ message });
     } catch {
       /* dismissed */
@@ -65,9 +67,9 @@ export default function Referral() {
     setBusy('apply');
     const { data, error } = await supabase.rpc('apply_referral', { p_code: friend.trim() });
     setBusy(null);
-    if (error) return notify('Kod qəbul olunmadı', error.message.replace(/^.*?: /, ''));
+    if (error) return notify(t('ref.codeRejected'), error.message.replace(/^.*?: /, ''));
     setFriend('');
-    notify('Təbriklər 🎉', `${(data as { points: number }).points} xal qazandın.`);
+    notify(t('ref.congrats'), t('ref.earned', { points: (data as { points: number }).points }));
     load();
   };
   const redeem = async () => {
@@ -75,43 +77,43 @@ export default function Referral() {
     setBusy('redeem');
     const { data, error } = await supabase.rpc('redeem_points_for_plus');
     setBusy(null);
-    if (error) return notify('Olmadı', error.message.replace(/^.*?: /, ''));
+    if (error) return notify(t('ref.failed'), error.message.replace(/^.*?: /, ''));
     const r = data as { days: number; expires_at: string };
-    notify('Plus aktivdir ⭐', `${r.days} gün Plus əlavə olundu. Bitmə: ${new Date(r.expires_at).toLocaleDateString('az-AZ')}`);
+    notify(t('plus.active'), t('plus.daysAdded', { days: r.days, date: new Date(r.expires_at).toLocaleDateString(lang) }));
     load();
   };
 
   if (!auth.user)
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg }}>
-        <ScreenHeader title="Xal və dəvət" />
+        <ScreenHeader title={t('ref.title')} />
         <View style={{ padding: space.lg }}>
-          <Btn title="Daxil ol" onPress={() => router.push('/auth')} />
+          <Btn title={t('profile.signIn')} onPress={() => router.push('/auth')} />
         </View>
       </View>
     );
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <ScreenHeader title="Xal və dəvət" />
+      <ScreenHeader title={t('ref.title')} />
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: insets.bottom + space.xxl }} refreshControl={refresh.control} keyboardShouldPersistTaps="handled">
         <View style={styles.hero}>
           <Txt v="caption" color="rgba(255,255,255,0.8)">
-            Xal balansın
+            {t('ref.balance')}
           </Txt>
           <Txt v="display" color={colors.white} style={{ marginTop: 4 }}>
-            {points} xal
+            {t('ref.points', { points })}
           </Txt>
           <Txt v="caption" color="rgba(255,255,255,0.85)" style={{ marginTop: 6 }}>
-            {cfg.plus_cost} xal = {cfg.plus_days} gün Plus · hər alış-veriş səfəri +{cfg.trip} · hər dəvət +{cfg.referral}
+            {t('ref.rates', { cost: cfg.plus_cost, days: cfg.plus_days, trip: cfg.trip, referral: cfg.referral })}
           </Txt>
-          <Btn title={`${cfg.plus_cost} xalı ${cfg.plus_days} gün Plus-a çevir`} variant="secondary" size="md" loading={busy === 'redeem'} disabled={points < cfg.plus_cost} onPress={redeem} style={{ marginTop: space.md }} />
+          <Btn title={t('ref.redeem', { cost: cfg.plus_cost, days: cfg.plus_days })} variant="secondary" size="md" loading={busy === 'redeem'} disabled={points < cfg.plus_cost} onPress={redeem} style={{ marginTop: space.md }} />
         </View>
 
         <Card style={{ marginTop: space.lg }}>
-          <Txt v="bodyStrong">Dəvət kodun</Txt>
+          <Txt v="bodyStrong">{t('ref.yourCode')}</Txt>
           <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>
-            Dostun qeydiyyatdan sonra bu kodu yazsın: ikiniz də {cfg.referral} xal alırsınız.
+            {t('ref.yourCodeBody', { points: cfg.referral })}
           </Txt>
           <Row gap={space.sm} style={{ marginTop: space.md }}>
             <View style={styles.codeBox}>
@@ -120,24 +122,24 @@ export default function Referral() {
             <Pressable onPress={share} accessibilityRole="button" style={styles.shareBtn}>
               <Ionicons name="share-social" size={20} color={colors.white} />
               <Txt v="captionStrong" color={colors.white} style={{ marginLeft: 6 }}>
-                Paylaş
+                {t('ref.share')}
               </Txt>
             </Pressable>
           </Row>
         </Card>
 
         <Card style={{ marginTop: space.md }}>
-          <Txt v="bodyStrong">Dostunun kodu var?</Txt>
+          <Txt v="bodyStrong">{t('ref.haveCode')}</Txt>
           <Row gap={space.sm} style={{ marginTop: space.md }}>
-            <TextInput value={friend} onChangeText={(t) => setFriend(t.toUpperCase())} placeholder="DƏVƏT KODU" placeholderTextColor={colors.grayLight} autoCapitalize="characters" autoCorrect={false} style={styles.input} returnKeyType="done" onSubmitEditing={apply} />
-            <Btn title="Tətbiq et" size="md" full={false} loading={busy === 'apply'} disabled={friend.trim().length < 4} onPress={apply} />
+            <TextInput value={friend} onChangeText={(t) => setFriend(t.toUpperCase())} placeholder={t('ref.codePlaceholder')} placeholderTextColor={colors.grayLight} autoCapitalize="characters" autoCorrect={false} style={styles.input} returnKeyType="done" onSubmitEditing={apply} />
+            <Btn title={t('ref.apply')} size="md" full={false} loading={busy === 'apply'} disabled={friend.trim().length < 4} onPress={apply} />
           </Row>
         </Card>
 
         {ledger.length > 0 && (
           <>
             <Txt v="bodyStrong" style={{ marginTop: space.xl, marginBottom: space.sm }}>
-              Xal tarixçəsi
+              {t('ref.history')}
             </Txt>
             <Card style={{ paddingVertical: space.xs }}>
               {ledger.map((l, i) => (
@@ -146,10 +148,10 @@ export default function Referral() {
                   <Row style={{ paddingVertical: 10 }}>
                     <View style={{ flex: 1 }}>
                       <Txt v="body" style={{ fontSize: 14 }}>
-                        {REASON[l.reason] ?? l.reason}
+                        {REASON[l.reason] ? t(REASON[l.reason]) : l.reason}
                       </Txt>
                       <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>
-                        {new Date(l.created_at).toLocaleDateString('az-AZ')}
+                        {new Date(l.created_at).toLocaleDateString(lang)}
                       </Txt>
                     </View>
                     <Txt v="bodyStrong" color={l.delta >= 0 ? colors.success : colors.primary}>

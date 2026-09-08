@@ -16,6 +16,30 @@ const STORAGE_KEY = 'cb_lang';
 const FALLBACK: Lang = 'az';
 
 /**
+ * The language the provider is currently on, mirrored outside React.
+ *
+ * Modules that are not components — the assistant, the store-kit wrapper, the
+ * confirm helpers, the relative-time formatter — still produce text a user
+ * reads, and none of them can call a hook. They read through `tr` instead,
+ * which the provider keeps in step with the rendered language below.
+ */
+let currentLang: Lang = FALLBACK;
+
+/** Translate from outside React. Inside a component prefer `useT()`, which re-renders on change. */
+export function tr(key: Key, vars?: Record<string, string | number>): string {
+  return lookup(currentLang, key, vars);
+}
+
+function lookup(lang: Lang, key: Key, vars?: Record<string, string | number>): string {
+  const table = dict[lang] as Partial<Record<Key, string>>;
+  // Azerbaijani is the source language, so it is also the fallback for any
+  // key a translation has not caught up with yet.
+  let s = table[key] ?? dict.az[key] ?? key;
+  if (vars) for (const [k, v] of Object.entries(vars)) s = s.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
+  return s;
+}
+
+/**
  * The device language, read without pulling in a native module: React Native
  * already exposes the locale on both platforms, and expo-localization would
  * cost a pod install for the same answer.
@@ -67,17 +91,12 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem(STORAGE_KEY, l).catch(() => undefined);
   }, []);
 
-  const t = useCallback(
-    (key: Key, vars?: Record<string, string | number>) => {
-      const table = dict[lang] as Partial<Record<Key, string>>;
-      // Azerbaijani is the source language, so it is also the fallback for any
-      // key a translation has not caught up with yet.
-      let s = table[key] ?? dict.az[key] ?? key;
-      if (vars) for (const [k, v] of Object.entries(vars)) s = s.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
-      return s;
-    },
-    [lang],
-  );
+  // Keep the out-of-React translator on the same language as the tree.
+  useEffect(() => {
+    currentLang = lang;
+  }, [lang]);
+
+  const t = useCallback((key: Key, vars?: Record<string, string | number>) => lookup(lang, key, vars), [lang]);
 
   const value = useMemo<I18nState>(() => ({ lang, setLang, t, ready }), [lang, setLang, t, ready]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

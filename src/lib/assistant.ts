@@ -1,3 +1,4 @@
+import { tr } from './i18n';
 import { catalog, Product, cheapest, cheaperAlternatives, getProduct } from '@/data/products';
 
 export type AiCard =
@@ -12,13 +13,30 @@ export interface AiReply {
 }
 
 export const STARTER_PROMPTS = [
-  'Mənə 50 manatlıq həftəlik ərzaq səbəti hazırla',
-  'Bu məhsulun daha ucuz alternativini tap',
-  'Səhər yeməyi üçün nə alım?',
-  'Bu həftə hansı market daha ucuzdur?',
+  tr('ai.suggest1'),
+  tr('ai.chipCheaper'),
+  tr('ai.suggest3'),
+  tr('ai.suggest4'),
 ];
 
 const norm = (s: string) => s.toLowerCase().replace(/ə/g, 'e').replace(/ı/g, 'i').replace(/ş/g, 's').replace(/ç/g, 'c');
+
+/**
+ * Intent keywords in every language the app speaks.
+ *
+ * The suggestion chips are translated, so matching only Azerbaijani would make
+ * every chip fall through to the generic reply for an English, Turkish or
+ * Russian user — the assistant would look broken in three languages out of
+ * four. Typed input is matched the same way, so a question asked in any of them
+ * lands on the right branch.
+ */
+const INTENT = {
+  alternatives: ['alternativ', 'ucuz', 'alternative', 'cheaper', 'alternatif', 'альтернатив', 'дешевле'],
+  breakfast: ['seher', 'breakfast', 'kahvalti', 'завтрак'],
+  stores: ['market', 'hansi', 'store', 'which', 'hangi', 'магазин', 'какой'],
+} as const;
+
+const hits = (q: string, words: readonly string[]) => words.some((w) => q.includes(w));
 
 /** Greedy budget basket: essentials first, then fill with cheapest extras. */
 function budgetBasket(budget: number): { products: Product[]; total: number } {
@@ -46,42 +64,42 @@ function budgetBasket(budget: number): { products: Product[]; total: number } {
 
 export function reply(input: string, context?: { productId?: string }): AiReply {
   const q = norm(input);
-  const budgetMatch = q.match(/(\d+)\s*(manat|azn|₼|man)/);
+  const budgetMatch = q.match(/(\d+)\s*(manat|azn|₼|man|манат)/);
 
   if (budgetMatch) {
     const budget = Number(budgetMatch[1]);
     const { products, total } = budgetBasket(budget);
     return {
-      text: `${budget} ₼ büdcənə uyğun ${products.length} məhsul seçdim. Ən ucuz marketlərdən alsan cəmi ${total.toFixed(2)} ₼ olur.`,
-      card: { kind: 'products', title: 'Həftəlik səbət', products, total, budget },
-      chips: ['Hamısını səbətə əlavə et', 'Daha ucuz variant', 'Ət olmasın'],
+      text: tr('ai.budgetReply', { budget, count: products.length, total: total.toFixed(2) }),
+      card: { kind: 'products', title: tr('ai.weekly'), products, total, budget },
+      chips: [tr('ai.addAll'), tr('ai.cheaperOpt'), tr('ai.noMeat')],
     };
   }
 
-  if (q.includes('alternativ') || q.includes('ucuz')) {
+  if (hits(q, INTENT.alternatives)) {
     const base = (context?.productId ? getProduct(context.productId) : undefined) ?? catalog.products[0];
-    if (!base) return { text: 'Kataloqda hələ məhsul yoxdur.' };
+    if (!base) return { text: tr('ai.emptyCatalog') };
     const alts = cheaperAlternatives(base, 3);
     const list = alts.length > 0 ? alts : catalog.products.filter((p) => p.id !== base.id).slice(0, 3);
     return {
-      text: `${list.length} alternativ tapdım. Fərq ən ucuz qiymətə görə hesablanıb.`,
-      card: { kind: 'alternatives', title: `${base.brand} ${base.name} əvəzinə`, base, products: list },
-      chips: ['Birincini səbətə əlavə et', 'Başqa kateqoriya'],
+      text: tr('ai.altReply', { count: list.length }),
+      card: { kind: 'alternatives', title: tr('ai.insteadOf', { product: `${base.brand} ${base.name}` }), base, products: list },
+      chips: [tr('ai.addFirst'), tr('ai.otherCat')],
     };
   }
 
-  if (q.includes('seher') || q.includes('breakfast')) {
+  if (hits(q, INTENT.breakfast)) {
     const wanted = ['süd', 'yumurta', 'çörək', 'pendir', 'yağ'];
     const products = catalog.products.filter((p) => wanted.some((w) => p.category.toLowerCase().includes(w) || p.name.toLowerCase().includes(w))).slice(0, 6);
     const total = products.reduce((a, p) => a + (cheapest(p).price ?? 0), 0);
     return {
-      text: `Səhər yeməyi üçün ${products.length} məhsul təklif edirəm. Ən ucuz seçimlə cəmi ${total.toFixed(2)} ₼.`,
-      card: { kind: 'products', title: 'Səhər yeməyi', products, total },
-      chips: ['Hamısını səbətə əlavə et', 'Daha sağlam variant'],
+      text: tr('ai.breakfastReply', { count: products.length, total: total.toFixed(2) }),
+      card: { kind: 'products', title: tr('ai.breakfast'), products, total },
+      chips: [tr('ai.addAll'), tr('ai.healthier')],
     };
   }
 
-  if (q.includes('market') || q.includes('hansi')) {
+  if (hits(q, INTENT.stores)) {
     // Count in how many products each store is the cheapest.
     const wins = new Map<string, number>();
     for (const p of catalog.products) {
@@ -89,15 +107,15 @@ export function reply(input: string, context?: { productId?: string }): AiReply 
       if (c.price != null) wins.set(c.store.name, (wins.get(c.store.name) ?? 0) + 1);
     }
     const ranked = [...wins.entries()].sort((a, b) => b[1] - a[1]);
-    if (!ranked.length) return { text: 'Kataloqda hələ qiymət yoxdur.' };
+    if (!ranked.length) return { text: tr('ai.noPrices') };
     return {
-      text: `Hazırda ${ranked.map(([n, c]) => `${n} ${c} məhsulda`).join(', ')} ən ucuzdur. Dəqiq cavab üçün səbətini yığ, bütün səbət üzrə hesablayım.`,
-      chips: ['Ən sərfəli marketi tap', '50 manatlıq səbət hazırla'],
+      text: tr('ai.cheapestNow', { stores: ranked.map(([n, c]) => tr('ai.storeItems', { store: n, count: c })).join(', ') }),
+      chips: [tr('ai.chipFindBest'), tr('ai.chipBudget')],
     };
   }
 
   return {
-    text: 'Başa düşdüm. Büdcə, məhsul adı və ya kateqoriya yaz — sənə ən sərfəli səbəti hazırlayım.',
+    text: tr('ai.fallback'),
     chips: STARTER_PROMPTS.slice(0, 2),
   };
 }
