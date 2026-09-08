@@ -67,6 +67,8 @@ export default function Products() {
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('');
   const [brand, setBrand] = useState('');
+  const [store, setStore] = useState('');
+  const [storeMode, setStoreMode] = useState<'has' | 'missing'>('has');
   const [priceFilter, setPriceFilter] = useState<'' | 'none' | 'partial'>('');
   const [noImageFilter, setNoImageFilter] = useState(false);
   const [page, setPage] = useState(1);
@@ -113,19 +115,29 @@ export default function Products() {
 
   const brands = useMemo(() => [...new Set(products.map((p) => p.brand).filter(Boolean))].sort(), [products]);
 
+  const hasPriceAt = useCallback((pid: string, sid: string) => num(prices[pid]?.[sid]?.price ?? '') != null, [prices]);
+
+  /** How many products each store carries — shown in the store filter. */
+  const storeCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const s of stores) m[s.id] = products.filter((p) => hasPriceAt(p.id, s.id)).length;
+    return m;
+  }, [products, stores, hasPriceAt]);
+
   const filtered = useMemo(() => {
     setPage(1);
     const n = q.trim().toLowerCase();
-    const priced = (p: Product) => stores.filter((s) => num(prices[p.id]?.[s.id]?.price ?? '') != null).length;
+    const priced = (p: Product) => stores.filter((s) => hasPriceAt(p.id, s.id)).length;
     return products.filter(
       (p) =>
         (!cat || p.category === cat) &&
         (!brand || p.brand === brand) &&
+        (!store || (storeMode === 'has' ? hasPriceAt(p.id, store) : !hasPriceAt(p.id, store))) &&
         (!n || `${p.brand} ${p.name} ${p.barcode ?? ''} ${p.category} ${p.size}`.toLowerCase().includes(n)) &&
         (!priceFilter || (priceFilter === 'none' ? priced(p) === 0 : priced(p) > 0 && priced(p) < stores.length)) &&
         (!noImageFilter || !p.image_url),
     );
-  }, [products, q, cat, brand, priceFilter, noImageFilter, prices, stores]);
+  }, [products, q, cat, brand, store, storeMode, priceFilter, noImageFilter, stores, hasPriceAt]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -429,6 +441,16 @@ export default function Products() {
           <option value="">Bütün kateqoriyalar</option>
           {catNames.map((c) => <option key={c}>{c}</option>)}
         </select>
+        <select value={store} onChange={(e) => setStore(e.target.value)} title="Marketə görə süzgəc">
+          <option value="">Bütün marketlər</option>
+          {stores.map((s) => <option key={s.id} value={s.id}>{s.name} ({storeCounts[s.id] ?? 0})</option>)}
+        </select>
+        {store && (
+          <select value={storeMode} onChange={(e) => setStoreMode(e.target.value as 'has' | 'missing')} title="Seçilmiş marketdə qiymət vəziyyəti">
+            <option value="has">Qiyməti var</option>
+            <option value="missing">Qiyməti yoxdur</option>
+          </select>
+        )}
         <select value={priceFilter} onChange={(e) => setPriceFilter(e.target.value as '' | 'none' | 'partial')} title="Qiymət vəziyyəti">
           <option value="">Bütün məhsullar</option>
           <option value="none">Heç bir marketdə qiyməti yoxdur ({noPriceCount})</option>
