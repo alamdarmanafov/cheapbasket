@@ -431,10 +431,13 @@ export default function ImportPage() {
           priceRows.push({ product_id: id, store_id: csvStoreId, price, discount_price: discount ?? null, discount_starts: null, discount_ends: null, updated_at: now });
         }
       }
-      for (let i = 0; i < products.length; i += 200) await db.upsert('products', products.slice(i, i + 200), 'id');
-      for (let i = 0; i < priceRows.length; i += 200) await db.upsert('prices', priceRows.slice(i, i + 200), 'product_id,store_id');
+      // Deduplicate before upsert to avoid ON CONFLICT affecting same row twice
+      const uniqueProducts = [...new Map(products.map((p) => [p.id as string, p])).values()];
+      const uniquePrices = [...new Map(priceRows.map((r) => [`${r.product_id}:${r.store_id}`, r])).values()];
+      for (let i = 0; i < uniqueProducts.length; i += 200) await db.upsert('products', uniqueProducts.slice(i, i + 200), 'id');
+      for (let i = 0; i < uniquePrices.length; i += 200) await db.upsert('prices', uniquePrices.slice(i, i + 200), 'product_id,store_id');
       const storeName = stores.find((s) => s.id === csvStoreId)?.name ?? csvStoreId;
-      setCsvMsg({ ok: true, text: `${priceRows.length} qiymət, ${products.length} yeni məhsul → ${storeName}.` });
+      setCsvMsg({ ok: true, text: `${uniquePrices.length} qiymət, ${uniqueProducts.length} yeni məhsul → ${storeName}.` });
     } catch (e) {
       setCsvMsg({ ok: false, text: (e as Error).message });
     } finally {
