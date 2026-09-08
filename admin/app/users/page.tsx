@@ -2,7 +2,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Ban, CalendarPlus, Search, Star, Trash2, X } from 'lucide-react';
 import { Shell } from '@/components/Shell';
-import { AdminUser, db } from '@/lib/supabase';
+import { AdminUser, IapEvent, db } from '@/lib/supabase';
+import { PaymentSummary, isPaidEvent, isRefundEvent, summarise } from '@/lib/iapEvents';
 
 const DAY = 86400000;
 const PRESETS = [7, 30, 90, 365];
@@ -14,6 +15,7 @@ async function usersApi(body: Record<string, unknown>) {
   return j;
 }
 
+const fmt = (d: string | null) => (d ? new Date(d).toLocaleDateString('az-AZ') : '—');
 const isActivePlus = (u: AdminUser) => u.plan === 'plus' && (!u.plan_expires_at || new Date(u.plan_expires_at) > new Date());
 const daysLeft = (u: AdminUser) => (u.plan_expires_at ? Math.ceil((new Date(u.plan_expires_at).getTime() - Date.now()) / DAY) : null);
 
@@ -25,10 +27,17 @@ export default function Users() {
   const [grant, setGrant] = useState<{ user: AdminUser; days: number | null; custom: string; note: string } | null>(null);
   /** per-row "extend by N days" input (user id → text) */
   const [extend, setExtend] = useState<Record<string, string>>({});
+  /** user id → purchases, renewals and refunds, from iap_events */
+  const [pay, setPay] = useState<Map<string, PaymentSummary>>(new Map());
+  const [payFor, setPayFor] = useState<AdminUser | null>(null);
 
   const load = async () => {
     const data = await db.select<AdminUser>('admin_users', { order: 'created_at', fetchAll: true }).catch((e: Error) => { setMsg({ ok: false, text: e.message }); return []; });
     setRows([...data].reverse());
+    const events = await db
+      .select<IapEvent>('iap_events', { order: 'created_at', fetchAll: true })
+      .catch(() => [] as IapEvent[]);
+    setPay(summarise(events));
   };
   useEffect(() => { load(); }, []);
 
@@ -48,7 +57,9 @@ export default function Users() {
     expiring: rows.filter((u) => isActivePlus(u) && (daysLeft(u) ?? 99) <= 7).length,
     week: rows.filter((u) => Date.now() - new Date(u.created_at).getTime() < 7 * DAY).length,
     blocked: rows.filter((u) => u.blocked).length,
-  }), [rows]);
+    paying: [...pay.values()].filter((p) => p.paid > 0).length,
+    payments: [...pay.values()].reduce((n, p) => n + p.paid, 0),
+  }), [rows, pay]);
 
   const filtered = rows.filter((u) => {
     const text = `${u.email ?? ''} ${u.display_name ?? ''}`.toLowerCase().includes(q.toLowerCase());
@@ -59,13 +70,12 @@ export default function Users() {
     if (filter === 'blocked') return u.blocked;
     return true;
   });
-  const fmt = (d: string | null) => (d ? new Date(d).toLocaleDateString('az-AZ') : '—');
 
   return (
     <Shell title="İstifadəçilər">
       {msg && <div className={`alert ${msg.ok ? 'ok' : 'err'}`}>{msg.text}</div>}
       <div className="grid cols-4" style={{ marginBottom: 16 }}>
-        {[['Cəmi', stats.total, 'all'], ['Aktiv Plus', stats.plus, 'plus'], ['7 gündə bitir', stats.expiring, 'expiring'], ['Bu həftə qeydiyyat', stats.week, 'all']].map(([l, n, f]) => (
+        {[['Cəmi', stats.total, 'all'], ['Aktiv Plus', stats.plus, 'plus'], ['Ödəniş edən', stats.paying, 'plus'], ['Cəmi ödənişli dövr', stats.payments, 'all'], ['7 gündə bitir', stats.expiring, 'expiring'], ['Bu həftə qeydiyyat', stats.week, 'all']].map(([l, n, f]) => (
           <button key={l as string} className="card stat" style={{ textAlign: 'left', cursor: 'pointer', border: filter === f ? '1.5px solid #E53935' : undefined }} onClick={() => setFilter(f as typeof filter)}>
             <b>{n as number}</b><small>{l as string}</small>
           </button>
@@ -79,7 +89,7 @@ export default function Users() {
         </select>
       </div>
       <table>
-        <thead><tr><th>İstifadəçi</th><th>Giriş</th><th>Qeydiyyat</th><th>Son giriş</th><th>Cihaz</th><th>Plan</th><th></th></tr></thead>
+        <thead><tr><th>İstifadəçi</th><th>Giriş</th><th>Qeydiyyat</th><th>Son giriş</th><th>Cihaz</th><th>Ödəniş</th><th>Plan</th><th></th></tr></thead>
         <tbody>
           {filtered.map((u) => {
             const active = isActivePlus(u);
@@ -90,6 +100,23 @@ export default function Users() {
                 <td className="muted">{u.provider}</td>
                 <td className="muted">{fmt(u.created_at)}</td>
                 <td className="muted">{fmt(u.last_sign_in_at)}</td>
+                <td>
+                  {(() => {
+                    const p = pay.get(u.id);
+                    if (!p?.paid) return <span className="muted">—</span>;
+                    return (
+                      <button
+                        className="pill green"
+                        style={{ border: 0, cursor: 'pointer' }}
+                        onClick={() => setPayFor(u)}
+                        title={`Son ödəniş: ${fmt(p.last)}${p.refunds ? ` · ${p.refunds} geri qaytarma` : ''}`}
+                      >
+                        {p.paid}× {p.platform === 'apple' ? 'Apple' : p.platform === 'google' ? 'Google' : ''}
+                        {p.refunds > 0 && ` · ↩${p.refunds}`}
+                      </button>
+                    );
+                  })()}
+                </td>
                 <td className="muted">{u.devices ?? 0}</td>
                 <td>
                   {active ? (
@@ -130,7 +157,7 @@ export default function Users() {
               </tr>
             );
           })}
-          {filtered.length === 0 && <tr><td colSpan={7} className="muted" style={{ textAlign: 'center', padding: 30 }}>İstifadəçi yoxdur.</td></tr>}
+          {filtered.length === 0 && <tr><td colSpan={8} className="muted" style={{ textAlign: 'center', padding: 30 }}>İstifadəçi yoxdur.</td></tr>}
         </tbody>
       </table>
       <p className="note">Müddət bitəndə tətbiq avtomatik Free-yə qayıdır. Mağaza ödənişi (App Store / Google Play) qoşulanda plan avtomatik yenilənəcək.</p>
@@ -158,6 +185,61 @@ export default function Users() {
           </div>
         </div>
       )}
+      {payFor && (
+        <PaymentHistory user={payFor} summary={pay.get(payFor.id)} onClose={() => setPayFor(null)} />
+      )}
     </Shell>
+  );
+}
+
+/** Every store event recorded for one user, newest first. */
+function PaymentHistory({ user, summary, onClose }: { user: AdminUser; summary?: PaymentSummary; onClose: () => void }) {
+  const events = summary?.events ?? [];
+  return (
+    <div className="modal-bg" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 720 }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2 style={{ margin: 0 }}>Ödəniş tarixçəsi</h2>
+          <button className="btn ghost" onClick={onClose}><X size={18} /></button>
+        </div>
+        <p className="muted" style={{ marginTop: 4 }}>
+          {user.display_name ?? user.email} · <b>{summary?.paid ?? 0}</b> ödənişli dövr
+          {summary?.refunds ? ` · ${summary.refunds} geri qaytarma` : ''}
+        </p>
+
+        <div style={{ maxHeight: 400, overflow: 'auto', border: '1px solid #eee', borderRadius: 8, marginTop: 12 }}>
+          <table>
+            <thead><tr><th>Tarix</th><th>Platforma</th><th>Hadisə</th><th>Məhsul</th><th>Bitmə</th></tr></thead>
+            <tbody>
+              {events.map((e) => {
+                const paid = isPaidEvent(e.event);
+                const refund = isRefundEvent(e.event);
+                return (
+                  <tr key={e.id}>
+                    <td className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{fmt(e.created_at)}</td>
+                    <td className="muted">{e.platform}</td>
+                    <td>
+                      <span className={`pill ${paid ? 'green' : refund ? 'red' : 'gray'}`}>{e.event}</span>
+                    </td>
+                    <td className="muted" style={{ fontSize: 12 }}>{e.product_id ?? '—'}</td>
+                    <td className="muted" style={{ fontSize: 12 }}>{e.expires_at ? fmt(e.expires_at) : '—'}</td>
+                  </tr>
+                );
+              })}
+              {events.length === 0 && <tr><td colSpan={5} className="muted" style={{ textAlign: 'center', padding: 24 }}>Bu istifadəçi üçün ödəniş qeydi yoxdur.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+
+        <p className="note">
+          Yalnız yaşıl sətirlər ödənişli dövr sayılır: ilk alış, avtomatik yenilənmə və yenidən abunə olma.
+          “verify” tətbiq hər açılanda və “alışları bərpa et” basılanda da yazılır, ona görə ödəniş kimi sayılmır.
+        </p>
+
+        <div className="actions">
+          <button className="btn secondary" onClick={onClose}>Bağla</button>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -7,7 +7,7 @@ import { adminDb, errText, requireAdmin } from '@/lib/server';
 const TABLES = new Set([
   'stores', 'products', 'prices', 'price_history', 'branches', 'profiles', 'push_tokens',
   'baskets', 'admin_users', 'banners', 'categories', 'feedback', 'promo_codes',
-  'promo_redemptions', 'events', 'popups', 'ai_logs',
+  'promo_redemptions', 'events', 'popups', 'ai_logs', 'iap_events',
 ]);
 
 type Op =
