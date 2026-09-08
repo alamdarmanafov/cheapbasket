@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb, errText, requireAdmin } from '@/lib/server';
+import { adminDb, errText, fetchAll, requireAdmin } from '@/lib/server';
 
 export const maxDuration = 30;
 const DAY = 86400000;
@@ -14,13 +14,13 @@ export async function GET(req: Request) {
     const since7 = new Date(Date.now() - 7 * DAY).toISOString();
     const [{ data: users }, { data: profiles }, { data: events }, { data: products }, { data: stores }, { data: iap }, { data: feedbackNew }, { data: tokens }, { data: promos }] = await Promise.all([
       db.rpc('admin_users_list').select('id, created_at, last_sign_in_at'),
-      db.from('profiles').select('user_id, plan, plan_expires_at, plan_source'),
+      fetchAll<{ user_id: string; plan: string; plan_expires_at: string | null; plan_source: string | null }>((from, to) => db.from('profiles').select('user_id, plan, plan_expires_at, plan_source').range(from, to)).then((data) => ({ data })),
       db.from('events').select('user_id, kind, meta, created_at').gte('created_at', since30).order('created_at', { ascending: false }).limit(20000),
-      db.from('products').select('id, brand, name, size'),
+      fetchAll<{ id: string; brand: string; name: string; size: string }>((from, to) => db.from('products').select('id, brand, name, size').range(from, to)).then((data) => ({ data })),
       db.from('stores').select('id, name, color, initial'),
       db.from('iap_events').select('platform, event, created_at').gte('created_at', since30),
       db.from('feedback').select('id').eq('status', 'new'),
-      db.from('push_tokens').select('user_id'),
+      fetchAll<{ user_id: string }>((from, to) => db.from('push_tokens').select('user_id').range(from, to)).then((data) => ({ data })),
       db.from('promo_redemptions').select('code, created_at').gte('created_at', since30),
     ]);
 

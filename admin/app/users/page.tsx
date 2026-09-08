@@ -27,7 +27,7 @@ export default function Users() {
   const [extend, setExtend] = useState<Record<string, string>>({});
 
   const load = async () => {
-    const data = await db.select<AdminUser>('admin_users', { order: 'created_at' }).catch((e: Error) => { setMsg({ ok: false, text: e.message }); return []; });
+    const data = await db.select<AdminUser>('admin_users', { order: 'created_at', fetchAll: true }).catch((e: Error) => { setMsg({ ok: false, text: e.message }); return []; });
     setRows([...data].reverse());
   };
   useEffect(() => { load(); }, []);
