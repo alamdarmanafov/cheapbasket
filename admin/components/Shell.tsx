@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ArrowLeftRight, Bell, BrainCircuit, Clock, Download, DollarSign, FlaskConical, Image as ImageIcon, MessageSquare, RefreshCw, Tags, Ticket, LayoutDashboard, LogOut, MapPin, Package, Store, Users } from 'lucide-react';
+import { ArrowLeftRight, Bell, BookOpen, BrainCircuit, Clock, Download, DollarSign, FlaskConical, Image as ImageIcon, MessageSquare, RefreshCw, Tags, Ticket, LayoutDashboard, LogOut, MapPin, Package, Store, Users } from 'lucide-react';
 
 const NAV = [
   ['/', 'Panel', LayoutDashboard],
@@ -12,6 +12,7 @@ const NAV = [
   ['/compare', 'Mağaza müqayisəsi', ArrowLeftRight],
   ['/categories', 'Kateqoriyalar', Tags],
   ['/import', 'Saytdan import', Download],
+  ['/catalog-import', 'Kataloq importu', BookOpen],
   ['/sync', 'Avtomatik yeniləmə', RefreshCw],
   ['/pending', 'Növbə', Clock],
   ['/ai', 'AI aktivliyi', BrainCircuit],
