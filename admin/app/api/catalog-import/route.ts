@@ -10,6 +10,9 @@ interface PageProduct {
   price: number | null;
   old_price: number | null;
   unit?: string;
+  barcode?: string | null;
+  brand?: string | null;
+  size?: string | null;
 }
 
 interface ExtractedProduct extends PageProduct {
@@ -40,14 +43,20 @@ export async function POST(req: Request) {
   const model = process.env.OPENAI_MODEL ?? 'gpt-4o';
   const systemPrompt = `You are a grocery price extractor for an Azerbaijani supermarket catalog.
 Extract ALL product entries visible on this catalog page.
-For each product return:
-- name: full product name as shown (include brand, variant, size)
-- price: current selling price as a number (AZN)
-- old_price: crossed-out / before-discount price if shown, else null
-- unit: "kg", "l", "ədəd" if shown, else null
 
-Return a JSON object with a "products" array:
-{"products":[{"name":"...","price":1.99,"old_price":null,"unit":null},...]}
+Required fields (always extract):
+- name: full product name as shown
+- price: current selling price as a number (AZN)
+
+Optional fields (extract only if clearly visible):
+- old_price: crossed-out / before-discount price, else null
+- unit: "kg", "l", "ədəd" if shown, else null
+- barcode: numeric barcode if printed on the product, else null
+- brand: brand/manufacturer name if separate from product name, else null
+- size: weight/volume (e.g. "450g", "1L") if separate from name, else null
+
+Return a JSON object with a "products" array. Skip any entry where name or price is missing:
+{"products":[{"name":"...","price":1.99,"old_price":null,"unit":null,"barcode":null,"brand":null,"size":null},...]}
 If no products are visible, return {"products":[]}.`;
 
   const allExtracted: ExtractedProduct[] = [];
@@ -95,7 +104,7 @@ If no products are visible, return {"products":[]}.`;
   const unmatched: ExtractedProduct[] = [];
 
   for (const p of allExtracted) {
-    const id = match({ name: p.name, barcode: null });
+    const id = match({ name: p.name, barcode: p.barcode ?? null });
     if (id) {
       const prod = productList.find((x) => x.id === id);
       matched.push({ ...p, product_id: id, product_name: prod ? `${prod.brand} ${prod.name} ${prod.size}`.trim() : id });
@@ -116,7 +125,7 @@ export async function PUT(req: Request) {
   const body = (await req.json()) as {
     store_id: string;
     items: Array<{ product_id: string; price: number; old_price: number | null }>;
-    unmatched?: Array<{ name: string; price: number; old_price: number | null; unit?: string }>;
+    unmatched?: Array<{ name: string; price: number; old_price: number | null; unit?: string; barcode?: string | null; brand?: string | null; size?: string | null }>;
   };
   const { store_id, items, unmatched } = body;
   if (!store_id) return NextResponse.json({ error: 'store_id tələb olunur' }, { status: 400 });
@@ -146,17 +155,19 @@ export async function PUT(req: Request) {
 
   // Queue unmatched products into pending_products for review
   let pending = 0;
-  if (unmatched?.length) {
-    const { data: existing } = await db.from('pending_products').select('id');
-    const existingIds = new Set((existing ?? []).map((r: { id: string }) => r.id));
-    const pendingRows = unmatched
-      .map((u) => ({ id: slugify(u.name), name: u.name, store_id, source_name: null }))
-      .filter((r) => r.id && !existingIds.has(r.id));
-    for (let i = 0; i < pendingRows.length; i += 200) {
-      await db.from('pending_products').insert(pendingRows.slice(i, i + 200)).then(() => {}, () => {});
+  try {
+    if (unmatched?.length) {
+      const { data: existing } = await db.from('pending_products').select('id');
+      const existingIds = new Set((existing ?? []).map((r: { id: string }) => r.id));
+      const pendingRows = unmatched
+        .map((u) => { try { return { id: slugify(u.name), name: u.name, brand: u.brand ?? null, barcode: u.barcode ?? null, size: u.size ?? null, store_id, source_name: null }; } catch { return null; } })
+        .filter((r): r is { id: string; name: string; store_id: string; source_name: null } => !!r?.id && !existingIds.has(r.id));
+      for (let i = 0; i < pendingRows.length; i += 200) {
+        await db.from('pending_products').insert(pendingRows.slice(i, i + 200)).then(() => {}, () => {});
+      }
+      pending = pendingRows.length;
     }
-    pending = pendingRows.length;
-  }
+  } catch { /* pending insert failure is non-fatal */ }
 
   return NextResponse.json({ ok: true, updated, pending });
 }
