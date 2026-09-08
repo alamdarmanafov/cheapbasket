@@ -140,9 +140,9 @@ function BestStoreView({
 
   if (lines.length === 0 || !o.best) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center' }}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }} refreshControl={refresh.control}>
         <StateView emoji="🏪" title={t('markets.emptyTitle')} body={t('markets.emptyBody')} cta={t('markets.emptyCta')} onCta={() => router.push('/search')} />
-      </View>
+      </ScrollView>
     );
   }
 

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { FlatList, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useCatalog } from '@/store/catalog';
@@ -7,6 +7,7 @@ import { colors, fonts, radius, space } from '@/theme';
 import { Row, Txt } from './ui';
 import { StoreAvatar } from './product';
 import { useT } from '@/lib/i18n';
+import { useRefresh } from '@/lib/useRefresh';
 
 function openMaps(b: Branch) {
   const url = b.mapsUrl
@@ -26,6 +27,9 @@ function fmtDist(km: number): string {
 export function BranchList({ filter, onFilterChange }: { filter: string; onFilterChange: (storeId: string) => void }) {
   const { branches, stores, requestLocation, loading } = useCatalog();
   const t = useT();
+  // Pulling here should reload the branches themselves, not just re-read the
+  // position — a silent location refresh rides along so distances stay right.
+  const refresh = useRefresh(useCallback(() => requestLocation({ prompt: false }), [requestLocation]));
 
   const filtered = useMemo(
     () => (filter === 'all' ? branches : branches.filter((b) => b.storeId === filter)),
@@ -117,8 +121,7 @@ export function BranchList({ filter, onFilterChange }: { filter: string; onFilte
         keyExtractor={(b) => b.id}
         renderItem={renderBranch}
         contentContainerStyle={styles.list}
-        refreshing={loading}
-        onRefresh={() => requestLocation({ interactive: false })}
+        refreshControl={refresh.control}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Txt v="body" color={colors.gray} center>

@@ -41,7 +41,7 @@ export default function Basket() {
         <Txt v="title" style={{ paddingHorizontal: space.lg }}>
           {t('basket.title')}
         </Txt>
-        <View style={{ flex: 1, justifyContent: 'center' }}>
+        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }} refreshControl={refresh.control}>
           <StateView
             emoji="🧺"
             title={t('basket.emptyTitle')}
@@ -51,7 +51,7 @@ export default function Basket() {
             secondary={t('home.scanBarcode')}
             onSecondary={() => router.push('/scan')}
           />
-        </View>
+        </ScrollView>
       </View>
     );
   }
