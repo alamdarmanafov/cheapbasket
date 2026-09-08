@@ -117,7 +117,7 @@ export default function ImportPage() {
 
   // --- CSV tab state ---
   const [csvStoreId, setCsvStoreId] = useState('');
-  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvFiles, setCsvFiles] = useState<File[]>([]);
   const [csvRows, setCsvRows] = useState<string[][]>([]);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [csvMapping, setCsvMapping] = useState<Record<string, string>>({});
@@ -129,12 +129,12 @@ export default function ImportPage() {
       setStores(s);
       if (s[0]) { setStoreId(s[0].id); setCsvStoreId(s[0].id); }
     }).catch((e: Error) => setMsg({ ok: false, text: e.message }));
-    db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url' }).then(setExisting).catch(() => {});
+    db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url', fetchAll: true }).then(setExisting).catch(() => {});
   }, []);
 
   useEffect(() => {
     if (!storeId) return;
-    db.select<PriceRow>('prices', { columns: 'product_id,price,discount_price', eq: { store_id: storeId } })
+    db.select<PriceRow>('prices', { columns: 'product_id,price,discount_price', eq: { store_id: storeId }, fetchAll: true })
       .then((rows) => {
         const m = new Map<string, number>();
         for (const r of rows) {
@@ -256,7 +256,7 @@ export default function ImportPage() {
     setBusy(true);
     setMsg(null);
     try {
-      const fresh = await db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url' });
+      const fresh = await db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url', fetchAll: true });
       const match = matcher(fresh);
       const products: Record<string, unknown>[] = [];
       const infoUpdates: Record<string, unknown>[] = [];
@@ -307,7 +307,7 @@ export default function ImportPage() {
       if (confirm(`Bu Wolt səhifəsi "${storeName}" üçün mənbə kimi yadda saxlansın?`)) {
         await fetch('/api/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'add', store_id: storeId, url }) }).catch(() => null);
       }
-      const ex = await db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url' });
+      const ex = await db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url', fetchAll: true });
       setExisting(ex);
       const rematch = matcher(ex);
       setRows(rows.map((r) => ({ ...r, existingId: rematch(r) ?? r.existingId })));
@@ -322,35 +322,47 @@ export default function ImportPage() {
   const CSV_FIELDS = ['barcode', 'name', 'brand', 'size', 'category', 'price', 'discount_price'];
   const CSV_LABELS: Record<string, string> = { barcode: 'Barkod', name: 'Ad', brand: 'Brend', size: 'Ölçü', category: 'Kateqoriya', price: 'Qiymət ₼', discount_price: 'Endirim ₼' };
 
-  const handleCSVFile = async (file: File) => {
-    setCsvFile(file);
-    setCsvRows([]);
-    setCsvHeaders([]);
-    setCsvMapping({});
-    setCsvMsg(null);
-    let all: string[][];
-    let sourceLabel: string;
+  const parseOneFile = async (file: File): Promise<{ headers: string[]; rows: string[][] }> => {
     if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type: 'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];
-      all = (XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as unknown[][]).map((row) =>
+      const all = (XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as unknown[][]).map((row) =>
         (row as unknown[]).map((cell) => (cell == null ? '' : String(cell).trim()))
       );
-      sourceLabel = `Excel vərəqi: ${wb.SheetNames[0]}`;
+      return { headers: all[0]?.map((h) => h.trim()) ?? [], rows: all.slice(1) };
     } else {
       const text = await file.text();
       const delim = detectDelimiter(text);
-      all = parseCSV(text, delim);
-      sourceLabel = `ayırıcı: "${delim}"`;
+      const all = parseCSV(text, delim);
+      return { headers: all[0]?.map((h) => h.trim()) ?? [], rows: all.slice(1) };
     }
-    if (all.length < 2) { setCsvMsg({ ok: false, text: 'Fayl oxunmadı. Boş və ya düzgün formatda deyil.' }); return; }
-    const headers = all[0].map((h) => h.trim());
-    const dataRows = all.slice(1);
-    setCsvHeaders(headers);
-    setCsvRows(dataRows);
-    // Auto-map
-    const autoMap: Record<string, string> = {};
+  };
+
+  const handleCSVFiles = async (files: FileList) => {
+    const fileArr = Array.from(files);
+    setCsvFiles(fileArr);
+    setCsvRows([]);
+    setCsvHeaders([]);
+    setCsvMapping({});
+    setCsvMsg(null);
+
+    let baseHeaders: string[] = [];
+    const allRows: string[][] = [];
+    const labels: string[] = [];
+
+    for (const file of fileArr) {
+      const { headers, rows } = await parseOneFile(file);
+      if (!headers.length || !rows.length) { labels.push(`${file.name}: boş`); continue; }
+      if (!baseHeaders.length) baseHeaders = headers;
+      allRows.push(...rows);
+      labels.push(`${file.name} (${rows.length} sətir)`);
+    }
+
+    if (!baseHeaders.length) { setCsvMsg({ ok: false, text: 'Heç bir fayl oxunmadı.' }); return; }
+    setCsvHeaders(baseHeaders);
+    setCsvRows(allRows);
+
     const fieldKeywords: Record<string, string[]> = {
       barcode: ['barcode', 'barkod', 'kod', 'ean', 'upc'],
       name: ['name', 'ad', 'məhsul', 'product'],
@@ -360,13 +372,14 @@ export default function ImportPage() {
       price: ['price', 'qiymət', 'qiymet', 'adi_qiymət'],
       discount_price: ['discount', 'endirim', 'sale', 'discount_price'],
     };
+    const autoMap: Record<string, string> = {};
     for (const field of CSV_FIELDS) {
       const kws = fieldKeywords[field];
-      const idx = headers.findIndex((h) => kws.some((k) => h.toLowerCase().includes(k)));
+      const idx = baseHeaders.findIndex((h) => kws.some((k) => h.toLowerCase().includes(k)));
       if (idx >= 0) autoMap[field] = String(idx);
     }
     setCsvMapping(autoMap);
-    setCsvMsg({ ok: true, text: `${dataRows.length} sətir oxundu (${sourceLabel}). Sütunları uyğunlaşdır, sonra "Import et" düyməsinə bas.` });
+    setCsvMsg({ ok: true, text: `${fileArr.length} fayl, cəmi ${allRows.length} sətir: ${labels.join(' · ')}. Sütunları uyğunlaşdır, sonra "Import et" düyməsinə bas.` });
   };
 
   const getCsvField = (row: string[], field: string): string => {
@@ -384,7 +397,7 @@ export default function ImportPage() {
     setCsvBusy(true);
     setCsvMsg(null);
     try {
-      const fresh = await db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url' });
+      const fresh = await db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url', fetchAll: true });
       const match = buildMatcher(fresh.map((p) => ({ id: p.id, barcode: p.barcode, brand: p.brand, name: p.name, size: p.size })));
       const products: Record<string, unknown>[] = [];
       const priceRows: Record<string, unknown>[] = [];
@@ -560,7 +573,8 @@ export default function ImportPage() {
           <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 14 }}>
             <div>
               <label style={{ marginBottom: 6, display: 'block', fontWeight: 600 }}>CSV faylı seç</label>
-              <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleCSVFile(f); }} />
+              <input type="file" accept=".csv,.xlsx,.xls" multiple onChange={(e) => { if (e.target.files?.length) handleCSVFiles(e.target.files); }} />
+              {csvFiles.length > 1 && <span className="muted" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>{csvFiles.length} fayl seçilib</span>}
             </div>
             <div>
               <label style={{ marginBottom: 6, display: 'block', fontWeight: 600 }}>Market</label>

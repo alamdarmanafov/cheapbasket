@@ -18,8 +18,8 @@ export default function ComparePage() {
       setLoading(true);
       const [s, p, pr] = await Promise.all([
         db.select<Store>('stores', { order: 'name' }),
-        db.select<Product>('products', { columns: 'id,name,brand,size', order: 'name' }),
-        db.select<PriceRow>('prices', { columns: 'product_id,store_id,price,discount_price' }),
+        db.select<Product>('products', { columns: 'id,name,brand,size', order: 'name', fetchAll: true }),
+        db.select<PriceRow>('prices', { columns: 'product_id,store_id,price,discount_price', fetchAll: true }),
       ]);
       setStores(s);
       setProducts(p);

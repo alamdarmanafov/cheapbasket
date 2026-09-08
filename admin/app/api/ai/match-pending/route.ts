@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb, errText, requireAdmin } from '@/lib/server';
+import { adminDb, errText, fetchAll, requireAdmin } from '@/lib/server';
 import { buildMatcher, MatchableProduct } from '@/lib/wolt';
 import { aiMatch, logAiMatch } from '@/lib/ai/productMatcher';
 
@@ -18,13 +18,13 @@ export async function POST(req: Request) {
 
   const db = adminDb();
   try {
-    const [{ data: pending }, { data: products }] = await Promise.all([
-      db.from('pending_products').select('id, name, barcode, brand, size, store_id').is('ai_suggested_id', null).limit(limit),
-      db.from('products').select('id, barcode, brand, name, size'),
+    const [pending, products] = await Promise.all([
+      db.from('pending_products').select('id, name, barcode, brand, size, store_id').is('ai_suggested_id', null).limit(limit).then((r) => r.data ?? []),
+      fetchAll<MatchableProduct>((from, to) => db.from('products').select('id, barcode, brand, name, size').range(from, to)),
     ]);
-    if (!pending?.length) return NextResponse.json({ ok: true, processed: 0, matched: 0, review: 0, rejected: 0 });
+    if (!pending.length) return NextResponse.json({ ok: true, processed: 0, matched: 0, review: 0, rejected: 0 });
 
-    const productList: MatchableProduct[] = products ?? [];
+    const productList: MatchableProduct[] = products;
     const match = buildMatcher(productList);
 
     let matched = 0;

@@ -4,7 +4,7 @@ import { adminDb, errText, requireAdmin } from '@/lib/server';
 const TABLES = new Set(['stores', 'products', 'prices', 'price_history', 'branches', 'profiles', 'push_tokens', 'baskets', 'admin_users', 'banners', 'categories', 'feedback', 'promo_codes', 'promo_redemptions', 'events']);
 
 type Op =
-  | { op: 'select'; table: string; columns?: string; order?: string; eq?: Record<string, unknown>; limit?: number }
+  | { op: 'select'; table: string; columns?: string; order?: string; eq?: Record<string, unknown>; limit?: number; fetchAll?: boolean }
   | { op: 'count'; table: string; eq?: Record<string, unknown> }
   | { op: 'upsert'; table: string; rows: Record<string, unknown>[]; onConflict?: string }
   | { op: 'delete'; table: string; eq: Record<string, unknown> };
@@ -17,11 +17,27 @@ export async function POST(req: Request) {
   try {
     const db = adminDb();
     if (body.op === 'select') {
-      let q = db.from(body.table).select(body.columns ?? '*');
-      for (const [k, v] of Object.entries(body.eq ?? {})) q = q.eq(k, v as never);
-      if (body.order) q = q.order(body.order);
-      if (body.limit) q = q.limit(body.limit);
-      const { data, error } = await q;
+      const buildQ = () => {
+        let q = db.from(body.table).select(body.columns ?? '*');
+        for (const [k, v] of Object.entries(body.eq ?? {})) q = q.eq(k, v as never);
+        if (body.order) q = q.order(body.order);
+        return q;
+      };
+      if (body.fetchAll) {
+        const PAGE = 1000;
+        let offset = 0;
+        const all: unknown[] = [];
+        while (true) {
+          const { data, error } = await buildQ().range(offset, offset + PAGE - 1);
+          if (error) throw error;
+          all.push(...(data ?? []));
+          if (!data || data.length < PAGE) break;
+          offset += PAGE;
+        }
+        return NextResponse.json({ data: all });
+      }
+      const q = buildQ();
+      const { data, error } = await (body.limit ? q.limit(body.limit) : q);
       if (error) throw error;
       return NextResponse.json({ data });
     }

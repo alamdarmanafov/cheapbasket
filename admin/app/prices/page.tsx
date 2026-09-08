@@ -76,8 +76,8 @@ export default function PricesPage() {
     try {
       const [storeRows, productRows, priceRows] = await Promise.all([
         db.select<Store>('stores', { order: 'name' }),
-        db.select<Product>('products', { order: 'name' }),
-        db.select<PriceRow>('prices', { columns: 'product_id,store_id,price,discount_price' }),
+        db.select<Product>('products', { order: 'name', fetchAll: true }),
+        db.select<PriceRow>('prices', { columns: 'product_id,store_id,price,discount_price', fetchAll: true }),
       ]);
       setStores(storeRows);
       setProducts(productRows);

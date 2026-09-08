@@ -13,16 +13,22 @@
 // -- );
 
 import { NextResponse } from 'next/server';
-import { adminDb, errText, requireAdmin } from '@/lib/server';
+import { adminDb, errText, fetchAll, requireAdmin } from '@/lib/server';
 
 export const maxDuration = 30;
 
 /** List all pending products awaiting admin review. */
 export async function GET(req: Request) {
   if (!(await requireAdmin(req))) return NextResponse.json({ error: 'Giriş tələb olunur' }, { status: 401 });
-  const { data, error } = await adminDb().from('pending_products').select('*').order('created_at', { ascending: false }).limit(100000);
-  if (error) return NextResponse.json({ error: errText(error) }, { status: 500 });
-  return NextResponse.json({ data: data ?? [] });
+  try {
+    const db = adminDb();
+    const data = await fetchAll<Record<string, unknown>>((from, to) =>
+      db.from('pending_products').select('*').order('created_at', { ascending: false }).range(from, to)
+    );
+    return NextResponse.json({ data });
+  } catch (e) {
+    return NextResponse.json({ error: errText(e) }, { status: 500 });
+  }
 }
 
 type Body =
@@ -67,8 +73,9 @@ export async function POST(req: Request) {
     }
 
     if (body.op === 'approve_all') {
-      const { data: pending, error: e1 } = await db.from('pending_products').select('*').limit(100000);
-      if (e1) return NextResponse.json({ error: errText(e1) }, { status: 500 });
+      const pending = await fetchAll<Record<string, unknown>>((from, to) =>
+        db.from('pending_products').select('*').range(from, to)
+      );
       if (!pending?.length) return NextResponse.json({ ok: true, count: 0 });
 
       const productRows = pending.map((p: Record<string, unknown>) => ({

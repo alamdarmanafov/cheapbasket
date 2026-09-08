@@ -13,7 +13,7 @@ export default function Categories() {
   const load = async () => {
     const [c, p] = await Promise.all([
       db.select<Category>('categories', { order: 'sort' }),
-      db.select<Product>('products', { columns: 'id, category' }),
+      db.select<Product>('products', { columns: 'id, category', fetchAll: true }),
     ]).catch((e: Error) => { setMsg({ ok: false, text: e.message }); return [[], []] as [Category[], Product[]]; });
     setRows(c);
     const n: Record<string, number> = {};
