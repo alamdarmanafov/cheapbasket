@@ -3,7 +3,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 're
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { colors, fonts, radius, shadow, space } from '@/theme';
-import { Btn, Card, Divider, Pill, Price, Row, Txt } from '@/components/ui';
+import { Btn, Card, Divider, Price, Row, Txt } from '@/components/ui';
 import { ProductRow, StoreAvatar } from '@/components/product';
 import { ProductRowSkeleton } from '@/components/states';
 import { TopBar } from '@/components/TopBar';
@@ -19,7 +19,7 @@ import { useT } from '@/lib/i18n';
 export default function Home() {
   const router = useRouter();
   const basket = useBasket();
-  const { optimization: o, lines } = basket;
+  const { optimization: o } = basket;
   const cat = useCatalog();
   const refresh = useRefresh();
   const t = useT();
@@ -114,32 +114,6 @@ export default function Home() {
 
         {/* Promo banners (admin-managed slider) */}
         <BannerSlider banners={cat.banners} />
-
-        {/* Basket summary — only worth a card once there is something in it.
-            Scanning and search both live in the bar above and the tab bar. */}
-        {lines.length > 0 && (
-          <Pressable onPress={() => router.push('/basket')} style={({ pressed }) => [styles.summary, pressed && { opacity: 0.9 }]}>
-            <View style={{ flex: 1 }}>
-              <Txt v="caption" color={colors.gray}>
-                {t('home.yourBasket')}
-              </Txt>
-              <Txt v="captionStrong" style={{ marginTop: 4 }}>
-                {t('home.itemCount', { count: basket.count })}
-              </Txt>
-              <Price value={o.best?.total ?? 0} size="md" style={{ marginTop: 2 }} />
-              {o.best && (
-                <Row gap={6} style={{ marginTop: 6 }}>
-                  <StoreAvatar store={o.best.store} size={18} />
-                  <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>
-                    {t('home.cheapestAt', { store: o.best.store.name })}
-                  </Txt>
-                  {o.saving > 0 && <Pill tone="success" text={t('home.savingPill', { amount: o.saving.toFixed(2) })} />}
-                </Row>
-              )}
-            </View>
-            <Txt style={{ fontSize: 48, lineHeight: 56 }}>🛒</Txt>
-          </Pressable>
-        )}
 
         {/* Stores (live from admin) */}
         {cat.stores.length > 0 && (
