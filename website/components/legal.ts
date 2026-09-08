@@ -8,8 +8,8 @@ import { PRICING, Lang } from './content';
  */
 export const COMPANY = {
   brand: 'Cheap Market AI',
-  legalName: 'Cheap Market AI',           // TODO: rəsmi hüquqi ad ( fiziki şəxs Ələmdar Manafov)
-  address: 'Bakı, Azərbaycan',            // TODO: rəsmi ünvan
+  legalName: 'Ələmdar Manafov (fiziki şəxs)',
+  address: 'Bakı, Azərbaycan',
   email: 'info@bepositive.az',
   site: 'cheapmarket.app',
   updated: '8 sentyabr 2026',

@@ -8,7 +8,7 @@ export const LINKS = {
   site: 'https://cheapmarket.app',
   instagram: 'https://instagram.com/cheapmarketapp',
   linkedin: 'https://linkedin.com/company/cheapmarket',
-  email: 'mailto:hello@cheapmarket.app',
+  email: 'mailto:info@bepositive.az',
 };
 
 const az = {
