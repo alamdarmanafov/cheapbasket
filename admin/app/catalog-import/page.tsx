@@ -19,7 +19,6 @@ export default function CatalogImportPage() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [matched, setMatched] = useState<MatchedProduct[]>([]);
   const [unmatched, setUnmatched] = useState<ExtractedProduct[]>([]);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [applying, setApplying] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -33,7 +32,6 @@ export default function CatalogImportPage() {
     setPages([]);
     setMatched([]);
     setUnmatched([]);
-    setSelected(new Set());
     setRenderProgress(0);
 
     // Load PDF.js dynamically
@@ -108,8 +106,11 @@ export default function CatalogImportPage() {
 
       setMatched(allMatched);
       setUnmatched(allUnmatched);
-      setSelected(new Set(allMatched.map((_, i) => String(i))));
-      setMsg({ ok: true, text: `${totalExtracted} məhsul çıxarıldı · ${allMatched.length} uyğunlaşdı · ${allUnmatched.length} tapılmadı` });
+      setMsg({ ok: true, text: `${totalExtracted} məhsul çıxarıldı · ${allMatched.length} uyğunlaşdı · tətbiq edilir…` });
+      // Applied straight away: every extracted row was going to be applied anyway,
+      // and the checkbox pass in between only added a click. The table below stays
+      // as the record of what was written.
+      await applyPrices(allMatched, allUnmatched);
     } catch (e) {
       setMsg({ ok: false, text: (e as Error).message });
     } finally {
@@ -118,26 +119,21 @@ export default function CatalogImportPage() {
     }
   };
 
-  const applyPrices = async () => {
-    const items = matched
-      .filter((_, i) => selected.has(String(i)))
-      .map(m => ({ product_id: m.product_id, price: m.price, old_price: m.old_price ?? null }));
+  const applyPrices = async (rows: MatchedProduct[], queue: ExtractedProduct[]) => {
+    const items = rows.map((m) => ({ product_id: m.product_id, price: m.price, old_price: m.old_price ?? null }));
     setApplying(true);
     setMsg(null);
     try {
       const res = await fetch('/api/catalog-import', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ store_id: storeId, items, unmatched }),
+        body: JSON.stringify({ store_id: storeId, items, unmatched: queue }),
       });
       const text = await res.text();
       let j: { updated?: number; pending?: number; error?: string };
       try { j = JSON.parse(text); } catch { throw new Error(text.slice(0, 120)); }
       if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`);
       setMsg({ ok: true, text: `${j.updated ?? 0} qiymət yeniləndi · ${j.pending ?? 0} yeni məhsul Növbəyə əlavə edildi` });
-      setMatched([]);
-      setUnmatched([]);
-      setSelected(new Set());
       setPages([]);
       setPageCount(0);
     } catch (e) {
@@ -145,17 +141,6 @@ export default function CatalogImportPage() {
     } finally {
       setApplying(false);
     }
-  };
-
-  const toggleAll = () => {
-    if (selected.size === matched.length) setSelected(new Set());
-    else setSelected(new Set(matched.map((_, i) => String(i))));
-  };
-
-  const toggleOne = (i: number) => {
-    const s = new Set(selected);
-    if (s.has(String(i))) s.delete(String(i)); else s.add(String(i));
-    setSelected(s);
   };
 
   return (
@@ -213,21 +198,12 @@ export default function CatalogImportPage() {
 
         {matched.length > 0 && (
           <div className="card" style={{ marginBottom: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <h2 style={{ margin: 0 }}>3. Nəticələri yoxlayın ({matched.length} uyğun)</h2>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn ghost" onClick={toggleAll}>
-                  {selected.size === matched.length ? 'Hamısını ləğv et' : 'Hamısını seç'}
-                </button>
-                <button className="btn" onClick={applyPrices} disabled={applying}>
-                  {applying ? 'Tətbiq edilir…' : `${selected.size} qiymət + ${unmatched.length} yenini əlavə et`}
-                </button>
-              </div>
-            </div>
+            <h2 style={{ marginTop: 0, marginBottom: 12 }}>
+              3. Tətbiq edildi ({matched.length} qiymət){applying ? ' — yazılır…' : ''}
+            </h2>
             <table>
               <thead>
                 <tr>
-                  <th style={{ width: 32 }}></th>
                   <th>Kataloqdakı ad</th>
                   <th>DB məhsulu</th>
                   <th style={{ textAlign: 'right' }}>Qiymət</th>
@@ -237,10 +213,7 @@ export default function CatalogImportPage() {
               </thead>
               <tbody>
                 {matched.map((m, i) => (
-                  <tr key={i} style={selected.has(String(i)) ? {} : { opacity: 0.4 }}>
-                    <td>
-                      <input type="checkbox" checked={selected.has(String(i))} onChange={() => toggleOne(i)} />
-                    </td>
+                  <tr key={i}>
                     <td style={{ fontSize: 13 }}>{m.name}</td>
                     <td style={{ fontSize: 12, color: '#6B7280' }}>{m.product_name}</td>
                     <td style={{ textAlign: 'right', fontWeight: 600 }}>{m.price.toFixed(2)} ₼</td>

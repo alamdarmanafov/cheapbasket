@@ -7,13 +7,15 @@ import { colors, fonts, radius, space } from '@/theme';
 import { IconBtn, Row, Txt } from './ui';
 import { LogoMark } from './Logo';
 import { useCatalog } from '@/store/catalog';
+import { useT } from '@/lib/i18n';
 
 /** Brand + location + notifications, as in the design's top bar. */
 export function TopBar() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const cat = useCatalog();
-  const label = cat.place ?? (cat.locationGranted === false ? 'Lokasiya bağlıdır' : cat.locationGranted ? 'Lokasiyan' : 'Lokasiya…');
+  const t = useT();
+  const label = cat.place ?? t(cat.locationGranted === false ? 'topbar.locationOff' : cat.locationGranted ? 'topbar.yourLocation' : 'topbar.locating');
   return (
     <Row style={[styles.bar, { paddingTop: insets.top + space.sm }]} gap={space.sm}>
       <LogoMark size={36} />
@@ -28,7 +30,7 @@ export function TopBar() {
           {label}
         </Txt>
       </Pressable>
-      <IconBtn name="notifications-outline" size={36} label="Bildirişlər" onPress={() => router.push('/notifications')} />
+      <IconBtn name="notifications-outline" size={36} label={t('profile.rowNotifications')} onPress={() => router.push('/notifications')} />
     </Row>
   );
 }

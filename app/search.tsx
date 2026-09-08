@@ -10,6 +10,7 @@ import { ProductRowSkeleton, StateView } from '@/components/states';
 import { Product, catalogCategories, categoryEmoji, searchProducts } from '@/data/products';
 import { useCatalog } from '@/store/catalog';
 import { useRefresh } from '@/lib/useRefresh';
+import { useT } from '@/lib/i18n';
 import { track } from '@/lib/track';
 import { useBasket } from '@/store/basket';
 
@@ -23,6 +24,7 @@ export default function Search() {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Product[] | null>(null);
   const inputRef = useRef<TextInput>(null);
+  const t = useT();
 
   // Simulated network latency so the loading state is visible in the prototype.
   useEffect(() => {
@@ -32,18 +34,18 @@ export default function Search() {
       return;
     }
     setLoading(true);
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       const r = searchProducts(q);
       setResults(r);
       setLoading(false);
       if (q.trim().length >= 3) track('search', { q: q.trim().slice(0, 40), results: r.length });
     }, 350);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [q]);
 
   useEffect(() => {
-    const t = setTimeout(() => inputRef.current?.focus(), 250);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => inputRef.current?.focus(), 250);
+    return () => clearTimeout(timer);
   }, []);
 
   const { products: allProducts } = useCatalog();
@@ -58,21 +60,21 @@ export default function Search() {
             ref={inputRef}
             value={q}
             onChangeText={setQ}
-            placeholder="Məhsul axtar..."
+            placeholder={t('home.searchPlaceholder')}
             placeholderTextColor={colors.grayLight}
             style={styles.input}
             returnKeyType="search"
             autoCorrect={false}
           />
           {q.length > 0 && (
-            <Pressable onPress={() => setQ('')} hitSlop={8} accessibilityLabel="Təmizlə">
+            <Pressable onPress={() => setQ('')} hitSlop={8} accessibilityLabel={t('home.clear')}>
               <Ionicons name="close-circle" size={18} color={colors.grayLight} />
             </Pressable>
           )}
         </View>
         <Pressable onPress={() => router.back()} hitSlop={8}>
           <Txt v="bodyStrong" color={colors.primary}>
-            Bağla
+            {t('common.close')}
           </Txt>
         </Pressable>
       </Row>
@@ -87,7 +89,7 @@ export default function Search() {
               {catalogCategories().length > 0 && (
                 <>
                   <Txt v="captionStrong" color={colors.gray} style={{ marginBottom: space.sm }}>
-                    KATEQORİYALAR
+                    {t('search.categories')}
                   </Txt>
                   <Row gap={8} style={{ flexWrap: 'wrap' }}>
                     {catalogCategories().map((r) => (
@@ -97,13 +99,13 @@ export default function Search() {
                 </>
               )}
               <Txt v="captionStrong" color={colors.gray} style={{ marginTop: space.xl, marginBottom: space.sm }}>
-                BÜTÜN MƏHSULLAR{allProducts.length ? ` · ${allProducts.length}` : ''}
+                {t('search.allProducts')}{allProducts.length ? ` · ${allProducts.length}` : ''}
               </Txt>
             </View>
           }
           renderItem={({ item }) => <ProductRow product={item} />}
           ItemSeparatorComponent={() => <Divider inset={84} />}
-          ListEmptyComponent={<StateView emoji="🗂️" title="Kataloq hələ boşdur" body="Supabase-də products və prices cədvəllərinə məhsul əlavə edəndə burada görünəcək." />}
+          ListEmptyComponent={<StateView emoji="🗂️" title={t('home.catalogEmpty')} body={t('search.emptyCatalogBody')} />}
           contentContainerStyle={{ paddingBottom: insets.bottom + 90 }}
         />
       ) : loading ? (
@@ -121,7 +123,7 @@ export default function Search() {
           ItemSeparatorComponent={() => <Divider inset={84} />}
           ListHeaderComponent={
             <Txt v="caption" color={colors.gray} style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}>
-              {results.length} nəticə
+              {t('search.resultCount', { count: results.length })}
             </Txt>
           }
           contentContainerStyle={{ paddingBottom: insets.bottom + 90 }}
@@ -130,11 +132,11 @@ export default function Search() {
       ) : (
         <StateView
           emoji="🔍"
-          title="Məhsul tapılmadı"
-          body={`“${q}” üzrə nəticə yoxdur. Adı fərqli yaz və ya barkodu skan et.`}
-          cta="Barkodu skan et"
+          title={t('home.notFound')}
+          body={t('search.noResultBody', { q })}
+          cta={t('home.scanBarcode')}
           onCta={() => router.push('/scan')}
-          secondary="Axtarışı təmizlə"
+          secondary={t('search.clearSearch')}
           onSecondary={() => setQ('')}
         />
       )}
@@ -143,10 +145,10 @@ export default function Search() {
         <Pressable onPress={() => router.push('/basket')} style={[styles.basketBar, { bottom: insets.bottom + space.lg }]}>
           <Ionicons name="basket" size={20} color={colors.white} />
           <Txt v="bodyStrong" color={colors.white} style={{ flex: 1, marginLeft: space.sm }}>
-            Səbətdə {basket.count} məhsul
+            {t('search.inBasket', { count: basket.count })}
           </Txt>
           <Txt v="bodyStrong" color={colors.white}>
-            Səbətə bax →
+            {t('search.viewBasket')}
           </Txt>
         </Pressable>
       )}

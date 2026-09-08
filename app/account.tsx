@@ -10,7 +10,6 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { PlusTag } from '@/components/PlusLock';
 import { useAuth } from '@/store/auth';
 import { supabase } from '@/lib/supabase';
-import { confirmAsync } from '@/lib/confirm';
 
 /** "Mənim məlumatlarım": name/surname and city are editable (Apple often hides the name), plus account deletion. */
 export default function Account() {
@@ -59,17 +58,6 @@ export default function Account() {
     setBusy(false);
     setMsg(error ? { ok: false, text: error.message } : { ok: true, text: 'Yadda saxlanıldı' });
     if (!error) auth.refreshProfile();
-  };
-
-  const remove = async () => {
-    const ok = await confirmAsync('Hesabı sil', 'Hesabın, səbətin və bütün məlumatların silinəcək. Bu geri qaytarıla bilməz.', 'Sil', true);
-    if (!ok || !supabase) return;
-    const { error } = await supabase.rpc('delete_own_account');
-    if (error) setMsg({ ok: false, text: error.message });
-    else {
-      await auth.signOut();
-      router.replace('/auth');
-    }
   };
 
   return (
@@ -129,14 +117,6 @@ export default function Account() {
               <Btn title="Plus-a keç" size="md" full={false} icon="star" onPress={() => router.push('/plus')} />
             )}
           </Row>
-        </Card>
-
-        <Card style={{ marginTop: space.lg }}>
-          <Txt v="bodyStrong">Hesabı sil</Txt>
-          <Txt v="caption" color={colors.gray} style={{ marginTop: 4 }}>
-            Hesabın, səbətin, abunəliyin və cihaz məlumatların tamamilə silinir.
-          </Txt>
-          <Btn title="Hesabı sil" variant="secondary" size="md" onPress={remove} style={{ marginTop: space.md }} />
         </Card>
       </ScrollView>
     </KeyboardAvoidingView>

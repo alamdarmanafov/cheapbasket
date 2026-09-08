@@ -8,6 +8,7 @@ import { useRefresh } from '@/lib/useRefresh';
 import { Btn, Pill, Row, Txt } from '@/components/ui';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { PLUS_PRICING } from '@/data/plans';
+import { PLUS_SKUS } from '@/lib/plusStore';
 import { useBasket } from '@/store/basket';
 import { useAuth } from '@/store/auth';
 import { usePlusStore } from '@/lib/iap';
@@ -22,9 +23,7 @@ const FEATURES: Array<[string, string | boolean, string | boolean]> = [
   ['Ən sərfəli market', true, true],
   ['Yaxın filial və xəritə', true, true],
   ['Barkod skanı', true, true],
-  ['Şəkillə məhsul tanıma (AI)', 'Gündə 1', 'Limitsiz'],
   ['AI endirim xəbəri', false, 'Hər gün'],
-  ['Qiymət tarixçəsi', false, true],
   ['Qiymət düşüşü bildirişi', false, true],
   ['AI tövsiyələri', false, true],
   ['Qənaət statistikası', false, true],
@@ -68,6 +67,13 @@ export default function Plus() {
     return PLUS_PRICING[p].label;
   };
 
+  /**
+   * The store connected and finished loading but returned no product for this id.
+   * Without this the button stayed tappable and the purchase failed with nothing
+   * on screen to say why.
+   */
+  const storeMissing = store.available && store.ready && !store.prices[period];
+
   const subscribe = () => {
     if (!auth.user) {
       router.push('/auth');
@@ -91,7 +97,7 @@ export default function Plus() {
             </Txt>
           </Txt>
           <Txt v="body" color={colors.gray} center style={{ marginTop: space.sm, maxWidth: 320 }}>
-            Hər gün endirim xəbəri, qiymət tarixçəsi, düşüş bildirişləri və AI tövsiyələri ilə daha çox qənaət et.
+            Hər gün endirim xəbəri, qiymət düşüşü bildirişləri və AI tövsiyələri ilə daha çox qənaət et.
           </Txt>
           {isPlus && (
             <View style={{ marginTop: space.md }}>
@@ -190,7 +196,19 @@ export default function Plus() {
         {isPlus ? (
           <Btn title={expires ? `Plus · ${expires.toLocaleDateString('az-AZ')} tarixinə qədər` : 'Plus aktivdir'} variant="secondary" onPress={() => router.back()} />
         ) : (
-          <Btn title={store.busy ? 'Gözlə…' : `Plus-a keç · ${priceLabel(period)}`} icon="star" onPress={subscribe} disabled={store.busy} />
+          <>
+            {storeMissing && (
+              <Txt v="caption" color={colors.warning} center style={{ marginBottom: space.sm }}>
+                Bu abunəlik mağazada tapılmadı ({PLUS_SKUS[period]}). App Store Connect-də məhsul ID-si və Paid Applications müqaviləsini yoxla.
+              </Txt>
+            )}
+            <Btn
+              title={store.busy ? 'Gözlə…' : `Plus-a keç · ${priceLabel(period)}`}
+              icon="star"
+              onPress={subscribe}
+              disabled={store.busy || storeMissing}
+            />
+          </>
         )}
       </View>
     </View>

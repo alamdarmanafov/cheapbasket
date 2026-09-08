@@ -11,6 +11,8 @@ import { PlusLock } from '@/components/PlusLock';
 import { AiCard, AiReply, STARTER_PROMPTS, reply } from '@/lib/assistant';
 import { cheapest, getProduct } from '@/data/products';
 import { useBasket } from '@/store/basket';
+import { confirmAsync } from '@/lib/confirm';
+import type { Product } from '@/data/products';
 
 interface Msg {
   id: number;
@@ -69,6 +71,22 @@ export default function Assistant() {
     }, 900);
   };
 
+  /** Adds to the basket and confirms it, offering the basket as the next step. */
+  const addToBasket = async (products: Product[]) => {
+    if (!products.length) return;
+    products.forEach((p) => basket.add(p));
+    const go = await confirmAsync(
+      'Səbətə əlavə edildi ✓',
+      products.length === 1
+        ? `${products[0].brand} ${products[0].name} səbətinə əlavə olundu.`
+        : `${products.length} məhsul səbətinə əlavə olundu.`,
+      'Səbətə keç',
+      false,
+      'Davam et',
+    );
+    if (go) router.push('/(tabs)/basket');
+  };
+
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScreenHeader title="AI köməkçi" closeIcon />
@@ -81,7 +99,7 @@ export default function Assistant() {
                 {m.text}
               </Txt>
             </View>
-            {m.card && <CardView card={m.card} onAddAll={(ps) => ps.forEach((p) => basket.add(p))} onAdd={(p) => basket.add(p)} />}
+            {m.card && <CardView card={m.card} onAddAll={addToBasket} onAdd={(p) => addToBasket([p])} />}
             {m.chips && m.role === 'ai' && (
               <Row gap={8} style={{ flexWrap: 'wrap', marginTop: space.sm, maxWidth: '92%' }}>
                 {m.chips.map((c) => (

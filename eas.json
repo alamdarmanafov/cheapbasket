@@ -9,7 +9,7 @@
       "distribution": "internal",
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://khnctzbktybgcwkrfmhi.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtobmN0emJrdHliZ2N3a3JmbWhpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3MjA3MDYsImV4cCI6MjEwNDI5NjcwNn0.U7o7_ZTUNrPJknq5PPwwKjhkqvnoSCVDXhneFExCKdU",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_Y0Z534gOk2nmyQ2SZXeeBw_b9mIKK7_",
         "EXPO_PUBLIC_AUTH_PROVIDERS": "google,apple",
         "EXPO_PUBLIC_API_URL": "https://cheapbasket-7ae9.vercel.app"
       }
@@ -24,7 +24,7 @@
       },
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://khnctzbktybgcwkrfmhi.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtobmN0emJrdHliZ2N3a3JmbWhpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3MjA3MDYsImV4cCI6MjEwNDI5NjcwNn0.U7o7_ZTUNrPJknq5PPwwKjhkqvnoSCVDXhneFExCKdU",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_Y0Z534gOk2nmyQ2SZXeeBw_b9mIKK7_",
         "EXPO_PUBLIC_AUTH_PROVIDERS": "google,apple",
         "EXPO_PUBLIC_API_URL": "https://cheapbasket-7ae9.vercel.app"
       }
@@ -33,7 +33,7 @@
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://khnctzbktybgcwkrfmhi.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtobmN0emJrdHliZ2N3a3JmbWhpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3MjA3MDYsImV4cCI6MjEwNDI5NjcwNn0.U7o7_ZTUNrPJknq5PPwwKjhkqvnoSCVDXhneFExCKdU",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_Y0Z534gOk2nmyQ2SZXeeBw_b9mIKK7_",
         "EXPO_PUBLIC_AUTH_PROVIDERS": "google,apple",
         "EXPO_PUBLIC_API_URL": "https://cheapbasket-7ae9.vercel.app"
       }

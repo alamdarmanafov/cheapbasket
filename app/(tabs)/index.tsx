@@ -3,7 +3,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 're
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { colors, fonts, radius, shadow, space } from '@/theme';
-import { Btn, Card, Divider, Pill, Price, Row, Txt } from '@/components/ui';
+import { Btn, Card, Divider, Price, Row, Txt } from '@/components/ui';
 import { ProductRow, StoreAvatar } from '@/components/product';
 import { ProductRowSkeleton } from '@/components/states';
 import { TopBar } from '@/components/TopBar';
@@ -13,14 +13,16 @@ import { Product, catalogCategories, categoryEmoji, searchProducts } from '@/dat
 import { useCatalog } from '@/store/catalog';
 import { useRefresh } from '@/lib/useRefresh';
 import { useBasket } from '@/store/basket';
+import { useT } from '@/lib/i18n';
 
 
 export default function Home() {
   const router = useRouter();
   const basket = useBasket();
-  const { optimization: o, lines } = basket;
+  const { optimization: o } = basket;
   const cat = useCatalog();
   const refresh = useRefresh();
+  const t = useT();
   const categories = catalogCategories();
   const [q, setQ] = useState('');
   const [results, setResults] = useState<Product[] | null>(null);
@@ -45,13 +47,13 @@ export default function Home() {
       <TopBar />
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxl }} keyboardShouldPersistTaps="handled" refreshControl={refresh.control}>
         <Txt v="display" style={{ marginTop: space.xs }}>
-          Bu gün{'\n'}
+          {t('home.title1')}{'\n'}
           <Txt v="display" color={colors.primary}>
-            nə alırsan?
+            {t('home.title2')}
           </Txt>
         </Txt>
         <Txt v="caption" color={colors.gray} style={{ marginTop: space.sm, marginBottom: space.lg }}>
-          Alış-verişə getməzdən əvvəl ən sərfəli səbətini hazırla.
+          {t('home.subtitle')}
         </Txt>
 
         {/* Search */}
@@ -60,18 +62,18 @@ export default function Home() {
           <TextInput
             value={q}
             onChangeText={setQ}
-            placeholder="Məhsul axtar..."
+            placeholder={t('home.searchPlaceholder')}
             placeholderTextColor={colors.grayLight}
             style={styles.input}
             returnKeyType="search"
             autoCorrect={false}
           />
           {q ? (
-            <Pressable onPress={() => setQ('')} hitSlop={8} accessibilityLabel="Təmizlə">
+            <Pressable onPress={() => setQ('')} hitSlop={8} accessibilityLabel={t('home.clear')}>
               <Ionicons name="close-circle" size={18} color={colors.grayLight} />
             </Pressable>
           ) : (
-            <Pressable onPress={() => router.push('/scan')} hitSlop={8} accessibilityLabel="Barkodu skan et">
+            <Pressable onPress={() => router.push('/scan')} hitSlop={8} accessibilityLabel={t('home.scanBarcode')}>
               <Ionicons name="barcode-outline" size={20} color={colors.dark} />
             </Pressable>
           )}
@@ -81,7 +83,7 @@ export default function Home() {
         {q.trim() !== '' && (
           <View style={styles.results}>
             <Txt v="bodyStrong" style={{ paddingHorizontal: space.md, paddingTop: space.sm, paddingBottom: space.xs }}>
-              Məhsullar
+              {t('home.results')}
             </Txt>
             {loading ? (
               <>
@@ -99,81 +101,28 @@ export default function Home() {
               <View style={{ alignItems: 'center', padding: space.xl }}>
                 <Txt style={{ fontSize: 32, lineHeight: 40 }}>🔍</Txt>
                 <Txt v="bodyStrong" style={{ marginTop: space.sm }}>
-                  Məhsul tapılmadı
+                  {t('home.notFound')}
                 </Txt>
                 <Txt v="caption" color={colors.gray} center style={{ marginTop: 4 }}>
-                  Adı fərqli yaz və ya barkodu skan et.
+                  {t('home.notFoundBody')}
                 </Txt>
-                <Btn title="Barkodu skan et" size="md" full={false} icon="barcode-outline" onPress={() => router.push('/scan')} style={{ marginTop: space.md }} />
+                <Btn title={t('home.scanBarcode')} size="md" full={false} icon="barcode-outline" onPress={() => router.push('/scan')} style={{ marginTop: space.md }} />
               </View>
             )}
           </View>
         )}
 
-        {/* Scan card */}
-        <Pressable onPress={() => router.push('/scan')} accessibilityRole="button" style={({ pressed }) => [styles.scanCard, pressed && { opacity: 0.92 }]}>
-          <View style={styles.scanSymbol}>
-            <Ionicons name="barcode-outline" size={24} color={colors.white} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Txt v="bodyStrong" color={colors.white}>
-              Barkodu skan et
-            </Txt>
-            <Txt v="caption" color="rgba(255,255,255,0.8)" style={{ fontSize: 11 }}>
-              Məhsulu tanı, ən ucuzunu tap
-            </Txt>
-          </View>
-          <Ionicons name="chevron-forward" size={22} color={colors.white} />
-        </Pressable>
-
-        {/* Quick grid */}
-        <Row gap={10} style={{ marginTop: 10 }}>
-          <QuickTile icon="camera-outline" label="Məhsulun şəklini çək" onPress={() => router.push('/scan?mode=photo')} plus={!basket.isPlus} />
-          <QuickTile icon="list-outline" label="Siyahını əlavə et" onPress={() => router.push('/search')} />
-        </Row>
-
         {/* Promo banners (admin-managed slider) */}
         <BannerSlider banners={cat.banners} />
-
-        {/* Basket summary */}
-        <Pressable onPress={() => router.push('/basket')} style={({ pressed }) => [styles.summary, pressed && { opacity: 0.9 }]}>
-          <View style={{ flex: 1 }}>
-            <Txt v="caption" color={colors.gray}>
-              Sənin səbətin
-            </Txt>
-            <Txt v="captionStrong" style={{ marginTop: 4 }}>
-              {basket.count} məhsul
-            </Txt>
-            {lines.length ? (
-              <>
-                <Price value={o.best?.total ?? 0} size="md" style={{ marginTop: 2 }} />
-                {o.best && (
-                  <Row gap={6} style={{ marginTop: 6 }}>
-                    <StoreAvatar store={o.best.store} size={18} />
-                    <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>
-                      {o.best.store.name}-da ən sərfəli
-                    </Txt>
-                    {o.saving > 0 && <Pill tone="success" text={`${o.saving.toFixed(2)} ₼ qənaət`} />}
-                  </Row>
-                )}
-              </>
-            ) : (
-              <Txt v="caption" color={colors.primary} style={{ marginTop: 2 }}>
-                Məhsul əlavə et →
-              </Txt>
-            )}
-          </View>
-          <Txt style={{ fontSize: 48, lineHeight: 56 }}>🛒</Txt>
-        </Pressable>
 
         {/* Stores (live from admin) */}
         {cat.stores.length > 0 && (
           <>
             <Row style={{ justifyContent: 'space-between', marginTop: 19, marginBottom: 9 }}>
-              <Txt v="bodyStrong">Marketlər</Txt>
+              <Txt v="bodyStrong">{t('home.stores')}</Txt>
               <Pressable onPress={() => router.push('/nearby')} hitSlop={8} accessibilityRole="button">
                 <Txt v="captionStrong" color={colors.primary}>
-                  Yaxınlıqdakılar →
+                  {t('home.nearby')}
                 </Txt>
               </Pressable>
             </Row>
@@ -194,7 +143,7 @@ export default function Home() {
         {categories.length > 0 && (
           <>
             <Txt v="bodyStrong" style={{ marginTop: 19, marginBottom: 9 }}>
-              Kateqoriyalar
+              {t('home.categories')}
             </Txt>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7 }}>
               {categories.map((c) => (
@@ -212,9 +161,9 @@ export default function Home() {
           <View style={[styles.summary, { marginTop: 14 }]}>
             <Txt style={{ fontSize: 28, lineHeight: 34 }}>🗂️</Txt>
             <View style={{ flex: 1, marginLeft: 12 }}>
-              <Txt v="bodyStrong">{cat.error ? 'Kataloq yüklənmədi' : 'Kataloq hələ boşdur'}</Txt>
+              <Txt v="bodyStrong">{t(cat.error ? 'home.catalogFailed' : 'home.catalogEmpty')}</Txt>
               <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>
-                {cat.error ?? 'Admin paneldən məhsul və qiymət əlavə et.'}
+                {cat.error ?? t('home.catalogEmptyBody')}
               </Txt>
             </View>
           </View>
@@ -224,9 +173,9 @@ export default function Home() {
         <Pressable onPress={() => router.push('/deals')} style={({ pressed }) => [styles.summary, { marginTop: 14 }, pressed && { opacity: 0.9 }]}>
           <Txt style={{ fontSize: 28, lineHeight: 34 }}>🔻</Txt>
           <View style={{ flex: 1, marginLeft: 12 }}>
-            <Txt v="bodyStrong">Endirimlər</Txt>
+            <Txt v="bodyStrong">{t('home.deals')}</Txt>
             <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>
-              Ucuzlaşan məhsullar · AI xəbəri {basket.isPlus ? 'hər gün' : 'Plus ilə hər gün'}
+              {t('home.dealsBody', { when: t(basket.isPlus ? 'home.dealsDaily' : 'home.dealsPlus') })}
             </Txt>
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.grayLight} />
@@ -237,11 +186,11 @@ export default function Home() {
           <Ionicons name="sparkles" size={22} color={colors.primary} />
           <View style={{ flex: 1, marginLeft: 10 }}>
             <Row gap={8}>
-              <Txt v="bodyStrong">Ağıllı alış-veriş</Txt>
+              <Txt v="bodyStrong">{t('home.aiTitle')}</Txt>
               {!basket.isPlus && <PlusTag />}
             </Row>
             <Txt v="caption" color={colors.gray} style={{ fontSize: 12 }}>
-              AI köməkçi ilə daha çox qənaət et!
+              {t('home.aiBody')}
             </Txt>
           </View>
           <View style={styles.aiArrow}>
@@ -254,33 +203,17 @@ export default function Home() {
           <Pressable onPress={() => router.push('/savings')} style={({ pressed }) => [styles.savings, pressed && { opacity: 0.9 }]}>
             <View style={{ flex: 1 }}>
               <Txt v="caption" color={colors.gray} style={{ fontSize: 12 }}>
-                Bu səbətdə qənaət edirsən
+                {t('profile.savingNow')}
               </Txt>
               <Price value={o.saving} size="md" color={colors.success} />
             </View>
             <Txt v="captionStrong" color={colors.primary}>
-              Ətraflı →
+              {t('profile.more')}
             </Txt>
           </Pressable>
         )}
       </ScrollView>
     </View>
-  );
-}
-
-function QuickTile({ icon, label, onPress, plus }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; plus?: boolean }) {
-  return (
-    <Pressable onPress={onPress} accessibilityRole="button" style={({ pressed }) => [styles.tile, pressed && { backgroundColor: colors.primarySoft }]}>
-      {plus && (
-        <View style={{ position: 'absolute', top: 8, right: 8 }}>
-          <PlusTag />
-        </View>
-      )}
-      <Ionicons name={icon} size={22} color={colors.primary} />
-      <Txt v="captionStrong" center style={{ fontSize: 11, marginTop: 6 }}>
-        {label}
-      </Txt>
-    </Pressable>
   );
 }
 
@@ -302,26 +235,6 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : {}),
   },
   results: { backgroundColor: colors.white, borderRadius: 15, marginTop: 12, overflow: 'hidden', ...shadow.card },
-  scanCard: {
-    marginTop: 12,
-    borderRadius: 16,
-    backgroundColor: colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 14,
-  },
-  scanSymbol: { width: 42, height: 42, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
-  tile: {
-    flex: 1,
-    borderRadius: 14,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.line,
-    paddingVertical: 13,
-    paddingHorizontal: 8,
-    alignItems: 'center',
-  },
   summary: {
     marginTop: 12,
     borderRadius: 17,

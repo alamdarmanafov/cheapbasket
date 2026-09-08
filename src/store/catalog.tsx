@@ -19,7 +19,8 @@ interface CatalogState {
   error: string | null;
   refresh: () => Promise<void>;
   /** `interactive` = the user tapped; explains a denied permission instead of staying silent. */
-  requestLocation: (opts?: { interactive?: boolean }) => Promise<void>;
+  /** `prompt: false` never shows the OS dialog — it only uses an already-granted permission. */
+  requestLocation: (opts?: { interactive?: boolean; prompt?: boolean }) => Promise<void>;
 }
 
 const Ctx = createContext<CatalogState | null>(null);
@@ -61,16 +62,24 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const requestLocation = useCallback(async (opts: { interactive?: boolean } = {}) => {
+  const requestLocation = useCallback(async (opts: { interactive?: boolean; prompt?: boolean } = {}) => {
+    const prompt = opts.prompt ?? true;
     try {
-      const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync();
-      setLocationGranted(status === 'granted');
+      // Silent mode reads the existing grant; it must never raise the OS dialog.
+      const { status, canAskAgain } = prompt
+        ? await Location.requestForegroundPermissionsAsync()
+        : await Location.getForegroundPermissionsAsync();
       if (status !== 'granted') {
+        // Staying null when we never asked keeps "not decided yet" distinct from
+        // "declined", so the branches view can still put the question once.
+        if (!prompt) return;
+        setLocationGranted(false);
         // Permanently denied → the only way to enable it is the OS settings.
         if (!canAskAgain && Platform.OS !== 'web') Linking.openSettings().catch(() => undefined);
         else if (opts.interactive) notify('Lokasiya bağlıdır', 'Brauzerin ünvan sətrindəki kilid ikonundan lokasiyaya icazə ver, sonra yenidən bas.');
         return;
       }
+      setLocationGranted(true);
       const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       catalog.location = loc;
@@ -85,7 +94,7 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
         if (geo) setPlace([geo.district || geo.subregion, geo.city || geo.region].filter(Boolean).join(', ') || null);
       }
     } catch {
-      setLocationGranted(false);
+      if (prompt) setLocationGranted(false);
     }
   }, []);
 
@@ -97,7 +106,8 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     refresh();
-    requestLocation();
+    // No permission dialog on launch — the branches view asks when it needs it.
+    requestLocation({ prompt: false });
     const db = supabase;
     if (!db) return;
 

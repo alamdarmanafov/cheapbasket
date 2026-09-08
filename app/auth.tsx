@@ -8,6 +8,7 @@ import { Btn, Divider, Row, Txt } from '@/components/ui';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { LogoMark } from '@/components/Logo';
 import { useAuth } from '@/store/auth';
+import { useT, type Key } from '@/lib/i18n';
 
 type Mode = 'signin' | 'signup' | 'reset';
 
@@ -21,12 +22,13 @@ export default function AuthScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const auth = useAuth();
+  const t = useT();
   const [mode, setMode] = useState<Mode>('signin');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(auth.lastError ? translate(auth.lastError) : null);
+  const [error, setError] = useState<string | null>(auth.lastError);
   const [info, setInfo] = useState<string | null>(null);
 
   const done = () => router.replace('/');
@@ -37,16 +39,19 @@ export default function AuthScreen() {
     setInfo(null);
     const r = await fn();
     setBusy(null);
-    if (r.error) setError(`${translate(r.error)}${translate(r.error) !== r.error ? `\n(${r.error})` : ''}`);
-    else if (r.needsConfirm) setInfo('E-poçtuna təsdiq linki göndərdik. Linkə klikləyib girişi tamamla.');
-    else if (mode === 'reset') setInfo('Şifrə sıfırlama linki e-poçtuna göndərildi.');
+    if (r.error) {
+      const k = errorKey(r.error);
+      setError(k ? `${t(k)}\n(${r.error})` : r.error);
+    }
+    else if (r.needsConfirm) setInfo(t('auth.confirmSent'));
+    else if (mode === 'reset') setInfo(t('auth.resetSent'));
     else done();
   };
 
   const submit = () => {
-    if (!email.trim()) return setError('E-poçt ünvanını yaz.');
+    if (!email.trim()) return setError(t('auth.needEmail'));
     if (mode === 'reset') return run('email', () => auth.resetPassword(email.trim()));
-    if (password.length < 6) return setError('Şifrə ən azı 6 simvol olmalıdır.');
+    if (password.length < 6) return setError(t('auth.shortPassword'));
     if (mode === 'signup') return run('email', () => auth.signUpEmail(email.trim(), password, name.trim()));
     return run('email', () => auth.signInEmail(email.trim(), password));
   };
@@ -58,49 +63,25 @@ export default function AuthScreen() {
         <View style={{ alignItems: 'center', marginTop: auth.session ? space.sm : insets.top + space.xxl }}>
           <LogoMark size={56} />
           <Txt v="title" center style={{ marginTop: space.md }}>
-            {mode === 'signup' ? 'Hesab yarat' : mode === 'reset' ? 'Şifrəni sıfırla' : 'Xoş gəldin'}
+            {t(mode === 'signup' ? 'auth.createAccount' : mode === 'reset' ? 'auth.resetTitle' : 'auth.welcome')}
           </Txt>
           <Txt v="caption" color={colors.gray} center style={{ marginTop: 4 }}>
-            {mode === 'signup' ? 'Səbətin və qənaətin bütün cihazlarında sinxron olsun.' : mode === 'reset' ? 'E-poçtuna sıfırlama linki göndərək.' : 'Səbətini, Plus-ı və bildirişləri saxlamaq üçün daxil ol.'}
+            {t(mode === 'signup' ? 'auth.signupBody' : mode === 'reset' ? 'auth.resetBody' : 'auth.welcomeBody')}
           </Txt>
         </View>
 
         {!auth.enabled && (
           <View style={[styles.note, { backgroundColor: colors.warningSoft }]}>
             <Txt v="caption" color={colors.warning}>
-              Demo rejim: Supabase konfiqurasiya olunmayıb, giriş işləmir.
+              {t('auth.demoNote')}
             </Txt>
           </View>
         )}
 
+        {mode === 'signup' && <Field icon="person-outline" placeholder={t('auth.name')} value={name} onChangeText={setName} autoCapitalize="words" style={{ marginTop: space.xl }} />}
+        <Field icon="mail-outline" placeholder={t('auth.email')} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" style={mode === 'signup' ? undefined : { marginTop: space.xl }} />
         {mode !== 'reset' && (
-          <>
-            {SHOW_APPLE && (
-              <Btn title="Apple ilə davam et" variant="dark" icon="logo-apple" loading={busy === 'apple'} onPress={() => run('apple', auth.signInApple)} style={{ marginTop: space.xl }} />
-            )}
-            {SHOW_GOOGLE && (
-              <Btn title="Google ilə davam et" variant="secondary" icon="logo-google" loading={busy === 'google'} onPress={() => run('google', auth.signInGoogle)} style={{ marginTop: SHOW_APPLE ? space.sm : space.xl, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line }} />
-            )}
-            {(SHOW_APPLE || SHOW_GOOGLE) && (
-            <Row gap={space.md} style={{ marginVertical: space.lg }}>
-              <View style={{ flex: 1 }}>
-                <Divider />
-              </View>
-              <Txt v="caption" color={colors.gray}>
-                və ya e-poçt ilə
-              </Txt>
-              <View style={{ flex: 1 }}>
-                <Divider />
-              </View>
-            </Row>
-            )}
-          </>
-        )}
-
-        {mode === 'signup' && <Field icon="person-outline" placeholder="Ad" value={name} onChangeText={setName} autoCapitalize="words" />}
-        <Field icon="mail-outline" placeholder="E-poçt" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
-        {mode !== 'reset' && (
-          <Field icon="lock-closed-outline" placeholder="Şifrə" value={password} onChangeText={setPassword} secureTextEntry autoComplete={mode === 'signup' ? 'new-password' : 'password'} />
+          <Field icon="lock-closed-outline" placeholder={t('auth.password')} value={password} onChangeText={setPassword} secureTextEntry autoComplete={mode === 'signup' ? 'new-password' : 'password'} />
         )}
 
         {error && (
@@ -119,7 +100,7 @@ export default function AuthScreen() {
         )}
 
         <Btn
-          title={mode === 'signup' ? 'Qeydiyyatdan keç' : mode === 'reset' ? 'Link göndər' : 'Daxil ol'}
+          title={t(mode === 'signup' ? 'auth.signUp' : mode === 'reset' ? 'auth.sendLink' : 'profile.signIn')}
           loading={busy === 'email'}
           onPress={submit}
           style={{ marginTop: space.md }}
@@ -128,25 +109,49 @@ export default function AuthScreen() {
         {mode === 'signin' && (
           <Pressable onPress={() => setMode('reset')} style={{ alignSelf: 'center', marginTop: space.md }} hitSlop={8}>
             <Txt v="captionStrong" color={colors.gray}>
-              Şifrəni unutmusan?
+              {t('auth.forgot')}
             </Txt>
           </Pressable>
         )}
 
         <Row gap={6} style={{ justifyContent: 'center', marginTop: space.xl }}>
           <Txt v="caption" color={colors.gray}>
-            {mode === 'signup' ? 'Hesabın var?' : 'Hesabın yoxdur?'}
+            {t(mode === 'signup' ? 'auth.haveAccount' : 'auth.noAccount')}
           </Txt>
           <Pressable onPress={() => setMode(mode === 'signup' ? 'signin' : 'signup')} hitSlop={8}>
             <Txt v="captionStrong" color={colors.primary}>
-              {mode === 'signup' ? 'Daxil ol' : 'Qeydiyyatdan keç'}
+              {t(mode === 'signup' ? 'profile.signIn' : 'auth.signUp')}
             </Txt>
           </Pressable>
         </Row>
 
+        {/* Social sign-in sits under the email form: most people here have an
+            account with us already, so the password path leads. */}
+        {mode !== 'reset' && (SHOW_APPLE || SHOW_GOOGLE) && (
+          <>
+            <Row gap={space.md} style={{ marginVertical: space.lg }}>
+              <View style={{ flex: 1 }}>
+                <Divider />
+              </View>
+              <Txt v="caption" color={colors.gray}>
+                {t('auth.or')}
+              </Txt>
+              <View style={{ flex: 1 }}>
+                <Divider />
+              </View>
+            </Row>
+            {SHOW_APPLE && (
+              <Btn title={t('auth.apple')} variant="dark" icon="logo-apple" loading={busy === 'apple'} onPress={() => run('apple', auth.signInApple)} />
+            )}
+            {SHOW_GOOGLE && (
+              <Btn title={t('auth.google')} variant="secondary" icon="logo-google" loading={busy === 'google'} onPress={() => run('google', auth.signInGoogle)} style={{ marginTop: SHOW_APPLE ? space.sm : 0, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line }} />
+            )}
+          </>
+        )}
+
 
         <Txt v="caption" color={colors.grayLight} center style={{ marginTop: space.xl, fontSize: 11 }}>
-          Davam etməklə İstifadə şərtləri və Məxfilik siyasəti ilə razılaşırsan.
+          {t('auth.terms')}
         </Txt>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -162,23 +167,24 @@ function Field({ icon, ...rest }: { icon: keyof typeof Ionicons.glyphMap } & Rea
   );
 }
 
-function translate(m: string): string {
+/** Maps a Supabase error to a translation key; null when we have no better wording. */
+function errorKey(m: string): Key | null {
   const l = m.toLowerCase();
-  if (l.includes('invalid login credentials')) return 'E-poçt və ya şifrə yanlışdır.';
-  if (l.includes('already registered') || l.includes('already exists')) return 'Bu e-poçt artıq qeydiyyatdadır. Daxil ol.';
-  if (l.includes('email not confirmed')) return 'E-poçtunu təsdiqlə: gələn linkə klik et.';
-  if (l.includes('password should be')) return 'Şifrə ən azı 6 simvol olmalıdır.';
-  if (l.includes('rate limit')) return 'Çox cəhd. Bir az sonra yenidən yoxla.';
-  if (l.includes('provider is not enabled') || l.includes('unsupported provider')) return 'Bu giriş üsulu hələ aktiv edilməyib (Supabase → Auth → Providers).';
-  if (l.includes('signups not allowed') || l.includes('signup is disabled')) return 'Qeydiyyat bağlıdır (Supabase → Auth → Providers → Email → Allow new users to sign up).';
-  if (l.includes('database error saving new user')) return 'Bazada profil yaradıla bilmədi — 0003_auth_and_push.sql migrasiyası işlədilməyib.';
-  if (l.includes('redirect_uri_mismatch')) return 'Google-da redirect URI səhvdir (Google Cloud → Clients → Authorized redirect URIs).';
-  if (l.includes('invalid_client')) return 'Apple Services ID / secret səhvdir (Supabase → Providers → Apple).';
-  if (l.includes('bad_oauth_state') || l.includes('flow state')) return 'Giriş sessiyası itdi — eyni brauzerdə yenidən cəhd et.';
-  if (l.includes('requested path is invalid') || l.includes('redirect')) return 'Redirect URL Supabase-də icazəli deyil (Auth → URL Configuration → Redirect URLs).';
-  if (l.includes('invalid email')) return 'E-poçt ünvanı düzgün deyil.';
-  if (l.includes('blocked')) return 'Bu hesab bloklanıb. Dəstəklə əlaqə saxla.';
-  return m;
+  if (l.includes('invalid login credentials')) return 'auth.errBadCredentials';
+  if (l.includes('already registered') || l.includes('already exists')) return 'auth.errAlreadyRegistered';
+  if (l.includes('email not confirmed')) return 'auth.errNotConfirmed';
+  if (l.includes('password should be')) return 'auth.shortPassword';
+  if (l.includes('rate limit')) return 'auth.errRateLimit';
+  if (l.includes('provider is not enabled') || l.includes('unsupported provider')) return 'auth.errProviderOff';
+  if (l.includes('signups not allowed') || l.includes('signup is disabled')) return 'auth.errSignupsOff';
+  if (l.includes('database error saving new user')) return 'auth.errProfile';
+  if (l.includes('redirect_uri_mismatch')) return 'auth.errRedirect';
+  if (l.includes('invalid_client')) return 'auth.errAppleConfig';
+  if (l.includes('bad_oauth_state') || l.includes('flow state')) return 'auth.errFlowState';
+  if (l.includes('requested path is invalid') || l.includes('redirect')) return 'auth.errRedirect';
+  if (l.includes('invalid email')) return 'auth.errInvalidEmail';
+  if (l.includes('blocked')) return 'auth.errBlocked';
+  return null;
 }
 
 const styles = StyleSheet.create({
