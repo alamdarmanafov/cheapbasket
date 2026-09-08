@@ -4,7 +4,18 @@ import { createClient } from '@supabase/supabase-js';
 export const COOKIE = 'cb_admin';
 
 const enc = new TextEncoder();
-const secret = () => process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_PASSWORD || 'change-me';
+/**
+ * Signing key for the admin session cookie. Falls back to ADMIN_PASSWORD so an
+ * existing deployment keeps working, but never to a constant: a hardcoded
+ * default would let anyone forge an admin cookie and reach every service-role
+ * API route. Set ADMIN_SESSION_SECRET to a long random string so rotating the
+ * password and rotating the session key stay independent.
+ */
+const secret = () => {
+  const s = process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_PASSWORD || '';
+  if (!s) throw new Error('ADMIN_SESSION_SECRET (və ya ADMIN_PASSWORD) təyin edilməyib');
+  return s;
+};
 
 // base64url helpers that work in both the Node and Edge runtimes (no Buffer).
 const b64u = (bytes: Uint8Array) => btoa(Array.from(bytes, (b) => String.fromCharCode(b)).join('')).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -26,7 +37,15 @@ export async function verifySession(token: string | undefined): Promise<{ email:
   if (!token) return null;
   const [payload, sig] = token.split('.');
   if (!payload || !sig) return null;
-  if ((await hmac(payload)) !== sig) return null;
+  // A missing secret means no session can be valid — not that every request
+  // should 500. The login route reports the misconfiguration properly.
+  let expected: string;
+  try {
+    expected = await hmac(payload);
+  } catch {
+    return null;
+  }
+  if (expected !== sig) return null;
   const [email, exp] = fromB64u(payload).split('|');
   if (!email || Number(exp) < Date.now()) return null;
   return { email };

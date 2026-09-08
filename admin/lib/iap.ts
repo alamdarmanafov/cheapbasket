@@ -35,6 +35,17 @@ export async function applySubscription(input: {
   await db.from('iap_events').insert({ user_id: userId, platform: input.platform, event: input.event, product_id: input.productId, transaction_id: input.transactionId, expires_at: input.expiresAt?.toISOString() ?? null, raw: input.raw ?? null });
   if (!userId) return { userId: null, active };
 
+  // One paid subscription, one account. Apple and Google both happily verify a
+  // transaction id for whoever presents it, so without this a single receipt
+  // passed around unlocks Plus on every account it is replayed against. A
+  // partial unique index backs this up in the database.
+  const idColumn = input.platform === 'apple' ? 'apple_original_transaction_id' : 'google_purchase_token';
+  const idValue = input.platform === 'apple' ? input.originalTransactionId : input.purchaseToken;
+  if (idValue) {
+    const { data: claimed } = await db.from('profiles').select('user_id').eq(idColumn, idValue).neq('user_id', userId).maybeSingle();
+    if (claimed) throw new Error('Bu abunəlik artıq başqa hesaba bağlıdır.');
+  }
+
   const patch: Record<string, unknown> = {
     user_id: userId,
     plan: active ? 'plus' : 'free',
