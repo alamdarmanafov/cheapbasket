@@ -2,8 +2,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { CheckCircle, FileText, Loader, Upload, XCircle } from 'lucide-react';
 import { Shell } from '@/components/Shell';
+import { Store, db } from '@/lib/supabase';
 
-interface Store { id: string; name: string }
 interface ExtractedProduct { name: string; price: number; old_price: number | null; unit?: string; page: number }
 interface MatchedProduct extends ExtractedProduct { product_id: string; product_name: string }
 
@@ -23,9 +23,7 @@ export default function CatalogImportPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetch('/api/stores').then(r => r.json()).then((j: { data?: Store[] }) => {
-      setStores(j.data ?? []);
-    }).catch(() => {});
+    db.select<Store>('stores', { order: 'name' }).then(setStores).catch(() => {});
   }, []);
 
   const renderPdf = async (file: File) => {
