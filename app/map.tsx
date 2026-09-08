@@ -6,7 +6,7 @@ import { colors, radius, shadow, space } from '@/theme';
 import { Btn, Chip, IconBtn, Price, Row, Txt } from '@/components/ui';
 import { StoreAvatar } from '@/components/product';
 import { RealMap } from '@/components/RealMap';
-import { StoreId, catalog, getStore, isOpenNow, nearestBranch, storeIds } from '@/data/products';
+import { StoreId, catalog, getStore, isAllDay, isOpenNow, nearestBranch, storeIds } from '@/data/products';
 import { supabase } from '@/lib/supabase';
 import { notify } from '@/lib/confirm';
 import { Ionicons } from '@expo/vector-icons';
@@ -124,7 +124,7 @@ export default function MapScreen() {
             </Txt>
             {(branch.openUntil || branch.alwaysOpen || branch.phone) && (
               <Txt v="caption" color={isOpenNow(branch) === false ? colors.warning : colors.success} style={{ fontSize: 11, marginTop: 2 }}>
-                {branch.alwaysOpen ? '24 saat açıqdır' : isOpenNow(branch) === false ? `Bağlıdır${branch.openFrom ? ` · ${branch.openFrom}-da açılır` : ''}` : branch.openUntil ? `İndi açıqdır · ${branch.openUntil}-a qədər` : ''}
+                {isAllDay(branch) ? '24 saat açıqdır' : isOpenNow(branch) === false ? `Bağlıdır${branch.openFrom ? ` · ${branch.openFrom}-da açılır` : ''}` : branch.openUntil ? `İndi açıqdır · ${branch.openUntil}-a qədər` : ''}
                 {branch.phone ? <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>{` · ${branch.phone}`}</Txt> : null}
               </Txt>
             )}

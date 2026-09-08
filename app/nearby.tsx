@@ -8,7 +8,7 @@ import { Card, Chip, Divider, Pill, Row, Txt } from '@/components/ui';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { StateView } from '@/components/states';
 import { StoreAvatar } from '@/components/product';
-import { Branch, getStore, isOpenNow } from '@/data/products';
+import { Branch, getStore, isAllDay, isOpenNow } from '@/data/products';
 import { useRefresh } from '@/lib/useRefresh';
 import { useCatalog } from '@/store/catalog';
 
@@ -31,7 +31,7 @@ export default function Nearby() {
   const status = (b: Branch) => {
     const o = isOpenNow(b);
     if (o === null) return null;
-    if (b.alwaysOpen) return <Pill tone="success" text="24 saat" />;
+    if (isAllDay(b)) return <Pill tone="success" text="24 saat" />;
     return o ? <Pill tone="success" text={`Açıqdır · ${b.openUntil}-a qədər`} /> : <Pill tone="warning" text={b.openFrom ? `Bağlıdır · ${b.openFrom}-da açılır` : 'Bağlıdır'} />;
   };
 
