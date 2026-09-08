@@ -46,9 +46,9 @@ For each product return:
 - old_price: crossed-out / before-discount price if shown, else null
 - unit: "kg", "l", "ədəd" if shown, else null
 
-Return ONLY a JSON array, no explanation:
-[{"name":"...","price":1.99,"old_price":null,"unit":null}, ...]
-If no products are visible, return [].`;
+Return a JSON object with a "products" array:
+{"products":[{"name":"...","price":1.99,"old_price":null,"unit":null},...]}
+If no products are visible, return {"products":[]}.`;
 
   const allExtracted: ExtractedProduct[] = [];
 
@@ -76,11 +76,11 @@ If no products are visible, return [].`;
           response_format: { type: 'json_object' },
         }),
       });
-      if (!res.ok) continue;
-      const j = await res.json() as { choices: Array<{ message: { content: string } }> };
+      const j = await res.json() as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
+      if (!res.ok) { allExtracted.push({ name: `[API xəta: ${j.error?.message ?? res.status}]`, price: 0, old_price: null, page: i + 1 }); continue; }
       let parsed: PageProduct[] = [];
       try {
-        const raw = JSON.parse(j.choices[0].message.content);
+        const raw = JSON.parse(j.choices![0].message.content);
         parsed = Array.isArray(raw) ? raw : (raw.products ?? raw.items ?? []);
       } catch { continue; }
       for (const p of parsed) {
