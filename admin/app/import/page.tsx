@@ -123,6 +123,7 @@ export default function ImportPage() {
   const [csvMapping, setCsvMapping] = useState<Record<string, string>>({});
   const [csvMsg, setCsvMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [csvBusy, setCsvBusy] = useState(false);
+  const [csvPricesOnly, setCsvPricesOnly] = useState(false);
 
   useEffect(() => {
     db.select<Store>('stores', { order: 'name' }).then((s) => {
@@ -421,6 +422,7 @@ export default function ImportPage() {
 
         const woltLike = { barcode, name: name || barcode || '', brand, size };
         const existingId = match(woltLike as Parameters<typeof match>[0]);
+        if (!existingId && csvPricesOnly) continue;
         let id = existingId ?? barcode ?? `csv-${slugify(name || barcode || '')}`;
         if (!existingId) {
           while (usedIds.has(id)) id = `${id}-x`;
@@ -585,6 +587,10 @@ export default function ImportPage() {
                 {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 24, fontSize: 13 }}>
+              <input type="checkbox" checked={csvPricesOnly} onChange={(e) => setCsvPricesOnly(e.target.checked)} style={{ width: 'auto' }} />
+              Yalnız mövcud məhsulların qiymətini yenilə (yeni məhsul əlavə etmə)
+            </label>
           </div>
 
           <div className="note" style={{ marginBottom: 14 }}>
