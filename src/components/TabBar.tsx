@@ -10,6 +10,7 @@ import { useBasket } from '@/store/basket';
 const META: Record<string, { label: string; icon: keyof typeof Ionicons.glyphMap; active: keyof typeof Ionicons.glyphMap }> = {
   index: { label: 'Ana səhifə', icon: 'home-outline', active: 'home' },
   basket: { label: 'Səbət', icon: 'basket-outline', active: 'basket' },
+  places: { label: 'Məkanlar', icon: 'location-outline', active: 'location' },
   markets: { label: 'Marketlər', icon: 'storefront-outline', active: 'storefront' },
   scan: { label: 'Skan et', icon: 'scan-outline', active: 'scan' },
   profile: { label: 'Profil', icon: 'person-outline', active: 'person' },
