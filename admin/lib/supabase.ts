@@ -17,7 +17,11 @@ export const db = {
   delete: (table: string, eq: Record<string, unknown>) => call<{ ok: true }>({ op: 'delete', table, eq }),
 };
 
-export interface Store { id: string; name: string; color: string; initial: string; logo_url?: string | null }
+export interface Store {
+  id: string; name: string; color: string; initial: string; logo_url?: string | null;
+  /** Hours for the whole chain; a branch may override with its own values. */
+  open_from?: string | null; open_until?: string | null; always_open?: boolean;
+}
 
 /** Announcement popup shown over the app (campaigns, release notes). */
 export interface Popup {

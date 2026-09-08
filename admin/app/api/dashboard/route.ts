@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb, errText, requireAdmin } from '@/lib/server';
+import { adminDb, errText, fetchAll, requireAdmin } from '@/lib/server';
 
 export const maxDuration = 30;
 
@@ -21,9 +21,9 @@ export async function GET(req: Request) {
     ] = await Promise.all([
       db.from('products').select('*', { count: 'exact', head: true }),
       db.from('stores').select('id, name, color, initial'),
-      db.from('prices').select('product_id, store_id'),
+      fetchAll<{ product_id: string; store_id: string }>((from, to) => db.from('prices').select('product_id, store_id').range(from, to)),
       db.from('branches').select('*', { count: 'exact', head: true }),
-      db.from('profiles').select('plan, plan_expires_at'),
+      fetchAll<{ plan: string; plan_expires_at: string | null }>((from, to) => db.from('profiles').select('plan, plan_expires_at').range(from, to)),
       db.from('import_sources')
         .select('id, store_id, name, last_run_at, last_result')
         .order('last_run_at', { ascending: false })
@@ -32,9 +32,9 @@ export async function GET(req: Request) {
 
     const totalProducts = prodRes.count ?? 0;
     const storeList = storesRes.data ?? [];
-    const priceRows = pricesRes.data ?? [];
+    const priceRows = pricesRes;
     const totalBranches = branchRes.count ?? 0;
-    const profiles = profilesRes.data ?? [];
+    const profiles = profilesRes;
 
     const now = Date.now();
     const productsWithPriceSet = new Set(priceRows.map((p) => p.product_id));

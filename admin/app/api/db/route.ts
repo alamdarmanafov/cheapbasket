@@ -1,7 +1,14 @@
 import { NextResponse } from 'next/server';
 import { adminDb, errText, requireAdmin } from '@/lib/server';
 
-const TABLES = new Set(['stores', 'products', 'prices', 'price_history', 'branches', 'profiles', 'push_tokens', 'baskets', 'admin_users', 'banners', 'categories', 'feedback', 'promo_codes', 'promo_redemptions', 'events']);
+// Every table the admin UI may reach through this gateway. A page whose table is
+// missing here fails with "Cədvəl icazəli deyil" on read *and* write, so add the
+// table in the same change that adds the page.
+const TABLES = new Set([
+  'stores', 'products', 'prices', 'price_history', 'branches', 'profiles', 'push_tokens',
+  'baskets', 'admin_users', 'banners', 'categories', 'feedback', 'promo_codes',
+  'promo_redemptions', 'events', 'popups', 'ai_logs',
+]);
 
 type Op =
   | { op: 'select'; table: string; columns?: string; order?: string; eq?: Record<string, unknown>; limit?: number; fetchAll?: boolean }

@@ -10,6 +10,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { PLUS_PRICING } from '@/data/plans';
 import { PLUS_SKUS } from '@/lib/plusStore';
 import { useBasket } from '@/store/basket';
+import { useI18n, type Key } from '@/lib/i18n';
 import { useAuth } from '@/store/auth';
 import { usePlusStore } from '@/lib/iap';
 import { supabase } from '@/lib/supabase';
@@ -17,16 +18,16 @@ import { notify } from '@/lib/confirm';
 import { track } from '@/lib/track';
 
 /** Feature × plan matrix: [label, free, plus] — text means a limited free tier. */
-const FEATURES: Array<[string, string | boolean, string | boolean]> = [
-  ['Səbət', '1 səbət', 'Limitsiz'],
-  ['Qiymət müqayisəsi', true, true],
-  ['Ən sərfəli market', true, true],
-  ['Yaxın filial və xəritə', true, true],
-  ['Barkod skanı', true, true],
-  ['AI endirim xəbəri', false, 'Hər gün'],
-  ['Qiymət düşüşü bildirişi', false, true],
-  ['AI tövsiyələri', false, true],
-  ['Qənaət statistikası', false, true],
+const FEATURES: Array<[Key, Key | boolean, Key | boolean]> = [
+  ['plus.rowBasket', 'plus.oneBasket', 'plus.unlimited'],
+  ['plus.rowCompare', true, true],
+  ['plus.rowBest', true, true],
+  ['plus.rowBranch', true, true],
+  ['plus.rowScan', true, true],
+  ['plus.rowDigest', false, 'plus.everyDay'],
+  ['plus.rowAlert', false, true],
+  ['plus.rowAdvice', false, true],
+  ['plus.rowSavings', false, true],
 ];
 
 export default function Plus() {
@@ -34,6 +35,7 @@ export default function Plus() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isPlus } = useBasket();
+  const { t, lang } = useI18n();
   const auth = useAuth();
   const [period, setPeriod] = useState<'monthly' | 'yearly'>('yearly');
   const expires = auth.profile?.planExpiresAt ? new Date(auth.profile.planExpiresAt) : null;
@@ -53,13 +55,13 @@ export default function Plus() {
     setPromoBusy(true);
     const { data, error } = await supabase.rpc('redeem_promo', { p_code: promo.trim() });
     setPromoBusy(false);
-    if (error) return notify('Kod qəbul olunmadı', error.message.replace(/^.*?: /, ''));
+    if (error) return notify(t('plus.codeRejected'), error.message.replace(/^.*?: /, ''));
     const r = data as { days: number; expires_at: string };
     track('promo', { code: promo.trim().toUpperCase(), days: r.days });
     await auth.refreshProfile();
     setPromo('');
     setPromoOpen(false);
-    notify('Plus aktivdir 🎉', `${r.days} gün Plus əlavə olundu. Bitmə: ${new Date(r.expires_at).toLocaleDateString('az-AZ')}`);
+    notify(t('plus.active'), t('plus.daysAdded', { days: r.days, date: new Date(r.expires_at).toLocaleDateString(lang) }));
   };
   const priceLabel = (p: 'monthly' | 'yearly') => {
     const fromStore = store.prices[p];
@@ -101,7 +103,7 @@ export default function Plus() {
           </Txt>
           {isPlus && (
             <View style={{ marginTop: space.md }}>
-              <Pill tone="success" icon="checkmark-circle" text={daysLeft == null ? 'Plus aktivdir' : `Plus aktivdir · ${daysLeft} gün qalıb`} />
+              <Pill tone="success" icon="checkmark-circle" text={daysLeft == null ? t('profile.plusActive') : t('plus.activeLeft', { days: daysLeft })} />
             </View>
           )}
         </View>
@@ -122,10 +124,10 @@ export default function Plus() {
           {FEATURES.map(([label, free, plus], i) => (
             <Row key={label} style={[styles.tr, i % 2 === 1 && { backgroundColor: colors.bg }]}>
               <Txt v="body" style={{ flex: 1, fontSize: 14 }}>
-                {label}
+                {t(label)}
               </Txt>
-              <Cell v={free} />
-              <Cell v={plus} plus />
+              <Cell v={typeof free === 'string' ? t(free) : free} />
+              <Cell v={typeof plus === 'string' ? t(plus) : plus} plus />
             </Row>
           ))}
         </View>
@@ -140,7 +142,7 @@ export default function Plus() {
                   <Row style={{ justifyContent: 'space-between' }}>
                     <View>
                       <Row gap={6}>
-                        <Txt v="bodyStrong">{p === 'yearly' ? 'İllik' : 'Aylıq'}</Txt>
+                        <Txt v="bodyStrong">{t(p === 'yearly' ? 'plus.yearly' : 'plus.monthly')}</Txt>
                         {p === 'yearly' && <Pill tone="success" text="−58%" />}
                       </Row>
                       <Txt v="caption" color={colors.gray}>
@@ -185,7 +187,7 @@ export default function Plus() {
                   onSubmitEditing={redeem}
                   style={styles.promoInput}
                 />
-                <Btn title="Tətbiq et" size="md" full={false} loading={promoBusy} onPress={redeem} disabled={promo.trim().length < 3} />
+                <Btn title={t('plus.apply')} size="md" full={false} loading={promoBusy} onPress={redeem} disabled={promo.trim().length < 3} />
               </Row>
             )}
           </View>
@@ -194,7 +196,7 @@ export default function Plus() {
 
       <View style={[styles.sticky, { paddingBottom: insets.bottom + space.md }]}>
         {isPlus ? (
-          <Btn title={expires ? `Plus · ${expires.toLocaleDateString('az-AZ')} tarixinə qədər` : 'Plus aktivdir'} variant="secondary" onPress={() => router.back()} />
+          <Btn title={expires ? `Plus · ${t('plus.untilDate', { date: expires.toLocaleDateString(lang) })}` : t('profile.plusActive')} variant="secondary" onPress={() => router.back()} />
         ) : (
           <>
             {storeMissing && (
@@ -203,7 +205,7 @@ export default function Plus() {
               </Txt>
             )}
             <Btn
-              title={store.busy ? 'Gözlə…' : `Plus-a keç · ${priceLabel(period)}`}
+              title={store.busy ? t('plus.wait') : t('plus.goPlus', { price: priceLabel(period) })}
               icon="star"
               onPress={subscribe}
               disabled={store.busy || storeMissing}

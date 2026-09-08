@@ -1,6 +1,20 @@
 import { Product, Branch, Banner, Category, Store, StoreId, LatLng, withDistances } from '@/data/products';
 import { supabase } from './supabase';
 
+interface BranchRow {
+  id: string;
+  store_id: string;
+  name: string;
+  address: string;
+  lat: number | string;
+  lng: number | string;
+  open_until: string | null;
+  maps_url: string | null;
+  phone: string | null;
+  open_from: string | null;
+  always_open: boolean | null;
+}
+
 interface ProductPriceRow {
   id: string;
   barcode: string | null;
@@ -23,6 +37,31 @@ const need = () => {
   if (!supabase) throw new Error('Supabase konfiqurasiya olunmayıb');
   return supabase;
 };
+
+/**
+ * Reads every row of a query, a page at a time.
+ *
+ * PostgREST caps a response at the project's `db-max-rows` (1000 on Supabase by
+ * default) and says nothing when it truncates — the list simply stops. Without
+ * this the app saw only the first 1000 products by name: everything after them
+ * was unsearchable, absent from categories and invisible to the barcode
+ * scanner, while the admin panel (which already paginates) showed the full
+ * catalogue.
+ */
+async function fetchPaged<T>(
+  build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+  page = 1000,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let offset = 0; ; offset += page) {
+    const { data, error } = await build(offset, offset + page - 1);
+    if (error) throw error;
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < page) return out;
+  }
+}
+
 
 function rowToProduct(r: ProductPriceRow, history: number[] = []): Product {
   const prices: Record<StoreId, number | null> = {};
@@ -55,16 +94,25 @@ function rowToProduct(r: ProductPriceRow, history: number[] = []): Product {
 }
 
 export async function fetchStores(): Promise<Store[]> {
-  const { data, error } = await need().from('stores').select('id, name, color, initial, logo_url').order('name');
+  const { data, error } = await need().from('stores').select('id, name, color, initial, logo_url, open_from, open_until, always_open').order('name');
   if (error) throw error;
-  return (data ?? []).map((s) => ({ id: s.id, name: s.name, color: s.color ?? '#6B7280', initial: s.initial ?? s.name.slice(0, 1), logo_url: s.logo_url ?? null }));
+  return (data ?? []).map((s) => ({
+    id: s.id,
+    name: s.name,
+    color: s.color ?? '#6B7280',
+    initial: s.initial ?? s.name.slice(0, 1),
+    logo_url: s.logo_url ?? null,
+    openFrom: s.open_from ?? null,
+    openUntil: s.open_until ?? null,
+    alwaysOpen: !!s.always_open,
+  }));
 }
 
 export async function fetchProducts(): Promise<Product[]> {
-  const { data, error } = await need().from('product_prices').select('*').order('name');
-  if (error) throw error;
+  const db = need();
+  const rows = await fetchPaged<ProductPriceRow>((from, to) => db.from('product_prices').select('*').order('name').range(from, to));
   // Products without a single price are kept in the admin catalogue but hidden from shoppers.
-  return ((data ?? []) as ProductPriceRow[]).map((r) => rowToProduct(r)).filter((p) => Object.values(p.prices).some((v) => v != null));
+  return rows.map((r) => rowToProduct(r)).filter((p) => Object.values(p.prices).some((v) => v != null));
 }
 
 export async function fetchProduct(id: string): Promise<Product | undefined> {
@@ -88,9 +136,9 @@ export async function fetchByBarcode(code: string): Promise<Product | undefined>
 }
 
 export async function fetchBranches(from: LatLng): Promise<Branch[]> {
-  const { data, error } = await need().from('branches').select('*');
-  if (error) throw error;
-  const raw: Branch[] = (data ?? []).map((b) => ({
+  const db = need();
+  const data = await fetchPaged<BranchRow>((a, b) => db.from('branches').select('*').range(a, b));
+  const raw: Branch[] = data.map((b) => ({
     id: b.id,
     storeId: b.store_id,
     name: b.name,

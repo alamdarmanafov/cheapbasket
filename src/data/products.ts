@@ -12,6 +12,28 @@ export interface Store {
   color: string;
   initial: string;
   logo_url?: string | null;
+  /** Chain-wide opening hours; a branch without its own hours inherits these. */
+  openFrom?: string | null;
+  openUntil?: string | null;
+  alwaysOpen?: boolean;
+}
+
+/**
+ * Fills a branch's missing hours from its store.
+ *
+ * Hours are entered once per chain in the admin panel, so most branches carry
+ * none of their own. A branch that does keep its own values wins — that is how
+ * one late-closing shop in a chain stays correct.
+ */
+export function withStoreHours(branches: Branch[], stores: Store[]): Branch[] {
+  const byId = new Map(stores.map((s) => [s.id, s]));
+  return branches.map((b) => {
+    const s = byId.get(b.storeId);
+    if (!s) return b;
+    const hasOwn = b.alwaysOpen || !!b.openUntil || !!b.openFrom;
+    if (hasOwn) return b;
+    return { ...b, openFrom: s.openFrom ?? null, openUntil: s.openUntil ?? '', alwaysOpen: !!s.alwaysOpen };
+  });
 }
 
 export interface Product {

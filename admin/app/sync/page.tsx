@@ -309,7 +309,7 @@ export default function SyncPage() {
     setTrendsLoading(true);
     try {
       const [prices, storeList] = await Promise.all([
-        db.select<{ store_id: string; price: number | null; discount_price: number | null }>('prices', { columns: 'store_id,price,discount_price' }),
+        db.select<{ store_id: string; price: number | null; discount_price: number | null }>('prices', { columns: 'store_id,price,discount_price', fetchAll: true }),
         db.select<Store>('stores', { columns: 'id,name,color' }),
       ]);
       const storeMap = new Map(storeList.map((s) => [s.id, s]));

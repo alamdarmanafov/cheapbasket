@@ -11,6 +11,7 @@ import { PlusLock } from '@/components/PlusLock';
 import { AiCard, AiReply, STARTER_PROMPTS, reply } from '@/lib/assistant';
 import { cheapest, getProduct } from '@/data/products';
 import { useBasket } from '@/store/basket';
+import { useT } from '@/lib/i18n';
 import { confirmAsync } from '@/lib/confirm';
 import type { Product } from '@/data/products';
 
@@ -26,6 +27,7 @@ export default function Assistant() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const basket = useBasket();
+  const t = useT();
   const params = useLocalSearchParams<{ product?: string }>();
   const ctxProduct = params.product ? getProduct(params.product) : undefined;
   const [msgs, setMsgs] = useState<Msg[]>([
@@ -33,9 +35,9 @@ export default function Assistant() {
       id: 0,
       role: 'ai',
       text: ctxProduct
-        ? `${ctxProduct.brand} ${ctxProduct.name} üçün nə edim? Daha ucuz alternativ tapa bilərəm.`
-        : 'Salam! Mən Cheap Market AI köməkçisiyəm. Büdcəni yaz, sənə ən sərfəli səbəti hazırlayım.',
-      chips: ctxProduct ? ['Bu məhsulun daha ucuz alternativini tap'] : STARTER_PROMPTS,
+        ? t('ai.ctxProduct', { product: `${ctxProduct.brand} ${ctxProduct.name}` })
+        : t('ai.greeting'),
+      chips: ctxProduct ? [t('ai.chipCheaper')] : STARTER_PROMPTS,
     },
   ]);
   const [input, setInput] = useState('');
@@ -48,23 +50,27 @@ export default function Assistant() {
     return () => clearTimeout(t);
   }, [msgs, typing]);
 
-  const send = (text: string) => {
-    const t = text.trim();
-    if (!t || typing) return;
+  const send = (raw: string) => {
+    const msg = raw.trim();
+    if (!msg || typing) return;
     setInput('');
-    setMsgs((m) => [...m, { id: idRef.current++, role: 'user', text: t }]);
+    setMsgs((m) => [...m, { id: idRef.current++, role: 'user', text: msg }]);
     setTyping(true);
     setTimeout(() => {
       let r: AiReply;
-      if (/hamısını səbətə/i.test(t)) {
+      // The chips are translated, so recognise them by their current label; the
+      // Azerbaijani phrasing stays matched for anyone who types it by hand.
+      const isAddAll = msg === t('ai.addAll') || /hamısını səbətə/i.test(msg);
+      const isFindBest = msg === t('ai.chipFindBest') || /ən sərfəli marketi tap/i.test(msg);
+      if (isAddAll) {
         const last = [...msgs].reverse().find((m) => m.card?.kind === 'products');
         if (last?.card?.kind === 'products') last.card.products.forEach((p) => basket.add(p));
-        r = { text: last ? `${last.card?.kind === 'products' ? last.card.products.length : 0} məhsul səbətə əlavə edildi ✓ İndi ən sərfəli marketi tapa bilərsən.` : 'Əvvəlcə bir səbət hazırlayaq.', chips: ['Ən sərfəli marketi tap'] };
-      } else if (/ən sərfəli marketi tap/i.test(t)) {
+        r = { text: last ? t('ai.addedCount', { count: last.card?.kind === 'products' ? last.card.products.length : 0 }) : t('ai.buildFirst'), chips: [t('ai.chipFindBest')] };
+      } else if (isFindBest) {
         router.push('/basket?compare=1');
-        r = { text: 'AI nəticəsini açıram…' };
+        r = { text: t('ai.opening') };
       } else {
-        r = reply(t, { productId: ctxProduct?.id });
+        r = reply(msg, { productId: ctxProduct?.id });
       }
       setMsgs((m) => [...m, { id: idRef.current++, role: 'ai', text: r.text, card: r.card, chips: r.chips }]);
       setTyping(false);
@@ -76,11 +82,11 @@ export default function Assistant() {
     if (!products.length) return;
     products.forEach((p) => basket.add(p));
     const go = await confirmAsync(
-      'Səbətə əlavə edildi ✓',
+      t('ai.added'),
       products.length === 1
-        ? `${products[0].brand} ${products[0].name} səbətinə əlavə olundu.`
-        : `${products.length} məhsul səbətinə əlavə olundu.`,
-      'Səbətə keç',
+        ? t('ai.addedOne', { product: `${products[0].brand} ${products[0].name}` })
+        : t('ai.addedMany', { count: products.length }),
+      t('ai.goBasket'),
       false,
       'Davam et',
     );
@@ -89,8 +95,8 @@ export default function Assistant() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScreenHeader title="AI köməkçi" closeIcon />
-      <PlusLock feature="AI tövsiyələri" minHeight={400} fill>
+      <ScreenHeader title={t('ai.title')} closeIcon />
+      <PlusLock feature={t('ai.subtitle')} minHeight={400} fill>
       <ScrollView ref={scrollRef} contentContainerStyle={{ padding: space.lg, gap: space.md, paddingBottom: space.xl }}>
         {msgs.map((m) => (
           <View key={m.id} style={{ alignItems: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
@@ -121,13 +127,13 @@ export default function Assistant() {
         <TextInput
           value={input}
           onChangeText={setInput}
-          placeholder="Məsələn: 50 manatlıq həftəlik səbət"
+          placeholder={t('ai.placeholder')}
           placeholderTextColor={colors.grayLight}
           style={styles.input}
           onSubmitEditing={() => send(input)}
           returnKeyType="send"
         />
-        <Pressable onPress={() => send(input)} style={[styles.send, !input.trim() && { opacity: 0.4 }]} accessibilityLabel="Göndər">
+        <Pressable onPress={() => send(input)} style={[styles.send, !input.trim() && { opacity: 0.4 }]} accessibilityLabel={t('ai.send')}>
           <Ionicons name="arrow-up" size={20} color={colors.white} />
         </Pressable>
       </Row>
@@ -137,6 +143,7 @@ export default function Assistant() {
 }
 
 function CardView({ card, onAddAll, onAdd }: { card: AiCard; onAddAll: (p: AiCard extends { products: infer P } ? P : never) => void; onAdd: (p: AiCard['products'][number]) => void }) {
+  const t = useT();
   const router = useRouter();
   const baseCheapest = card.kind === 'alternatives' ? (cheapest(card.base).price ?? 0) : 0;
   return (
@@ -177,7 +184,7 @@ function CardView({ card, onAddAll, onAdd }: { card: AiCard; onAddAll: (p: AiCar
                   </Txt>
                 )}
               </View>
-              <Pressable onPress={() => onAdd(p)} hitSlop={8} style={styles.miniAdd} accessibilityLabel="Səbətə əlavə et">
+              <Pressable onPress={() => onAdd(p)} hitSlop={8} style={styles.miniAdd} accessibilityLabel={t('ai.addToBasket')}>
                 <Ionicons name="add" size={18} color={colors.primary} />
               </Pressable>
             </Pressable>
@@ -185,7 +192,7 @@ function CardView({ card, onAddAll, onAdd }: { card: AiCard; onAddAll: (p: AiCar
         );
       })}
       {card.kind === 'products' && (
-        <Btn title="Hamısını səbətə əlavə et" size="md" icon="basket" onPress={() => onAddAll(card.products)} style={{ marginTop: space.sm }} />
+        <Btn title={t('ai.addAll')} size="md" icon="basket" onPress={() => onAddAll(card.products)} style={{ marginTop: space.sm }} />
       )}
     </View>
   );
