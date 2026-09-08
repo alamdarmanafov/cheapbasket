@@ -1,8 +1,9 @@
 'use client';
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { Camera, ChevronLeft, ChevronRight, Copy, Plus, Search, Trash2, X } from 'lucide-react';
+import { Camera, ChevronLeft, ChevronRight, Copy, Download, Plus, Search, Trash2, X } from 'lucide-react';
 
 const PAGE_SIZE = 50;
+import * as XLSX from 'xlsx';
 import { Shell } from '@/components/Shell';
 import { CATEGORIES, PriceRow, Product, Store, db, slugify, useCategories } from '@/lib/supabase';
 
@@ -94,6 +95,33 @@ export default function Products() {
   // Image fetch state
   const [imageFetch, setImageFetch] = useState<Record<string, 'loading' | 'error'>>({});
   const [imagePreview, setImagePreview] = useState<ImagePreview>(null);
+
+  /**
+   * Writes the currently filtered products to Excel: identity columns, then one
+   * price column per store. The sheet mirrors the import format, so an exported
+   * file can be corrected and uploaded straight back.
+   */
+  const exportXlsx = () => {
+    const header = ['Barkod', 'Brend', 'Ad', 'Ölçü', 'Kateqoriya', ...stores.map((s2) => s2.name)];
+    const body = filtered.map((p) => [
+      p.barcode ?? '',
+      p.brand,
+      p.name,
+      p.size,
+      p.category,
+      ...stores.map((s2) => {
+        const cell = prices[p.id]?.[s2.id];
+        // The discounted price is what a shopper pays, so it wins when set.
+        const v = cell?.discount || cell?.price || '';
+        return v === '' ? '' : Number(v);
+      }),
+    ]);
+    const ws = XLSX.utils.aoa_to_sheet([header, ...body]);
+    ws['!cols'] = header.map((h, i) => ({ wch: i < 5 ? Math.max(12, h.length + 4) : 11 }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Məhsullar');
+    XLSX.writeFile(wb, `mehsullar-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
 
   const load = async () => {
     const [s, p, pr] = await Promise.all([
@@ -441,6 +469,9 @@ export default function Products() {
           <option value="">Bütün kateqoriyalar</option>
           {catNames.map((c) => <option key={c}>{c}</option>)}
         </select>
+        <button className="btn secondary" onClick={exportXlsx} disabled={!filtered.length} title="Süzgəcdən keçən məhsulları Excel-ə yaz">
+          <Download size={14} /> Excel-ə çıxar
+        </button>
         <select value={store} onChange={(e) => setStore(e.target.value)} title="Marketə görə süzgəc">
           <option value="">Bütün marketlər</option>
           {stores.map((s) => <option key={s.id} value={s.id}>{s.name} ({storeCounts[s.id] ?? 0})</option>)}
