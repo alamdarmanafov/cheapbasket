@@ -14,12 +14,14 @@ import { cheapest, getProduct, maxSaving, sortedPrices } from '@/data/products';
 import { fetchPriceHistory } from '@/lib/catalog';
 import { hasSupabase } from '@/lib/supabase';
 import { useBasket } from '@/store/basket';
+import { useT } from '@/lib/i18n';
 import { useRefresh } from '@/lib/useRefresh';
 import { notify } from '@/lib/confirm';
 import { SITE_URL } from '@/lib/links';
 
 /** Product comparison + detail: one screen, price first. */
 export default function ProductScreen() {
+  const t = useT();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -42,7 +44,7 @@ export default function ProductScreen() {
       <View style={{ flex: 1, backgroundColor: colors.bg }}>
         <ScreenHeader />
         <View style={{ flex: 1, justifyContent: 'center' }}>
-          <StateView emoji="🔍" title="Məhsul tapılmadı" body="Bu məhsul bazamızda yoxdur və ya silinib." cta="Axtarışa qayıt" onCta={() => router.replace('/search')} />
+          <StateView emoji="🔍" title={t('prod.notFound')} body={t('prod.notFoundBody')} cta={t('prod.backToSearch')} onCta={() => router.replace('/search')} />
         </View>
       </View>
     );
@@ -62,13 +64,13 @@ export default function ProductScreen() {
   /** System share sheet: cheapest price + link to the web version of this product. */
   const share = async () => {
     const url = SITE_URL;
-    const message = c.price != null ? `${product.brand} ${product.name} ${product.size} — ən ucuz ${c.store.name}-da ${c.price.toFixed(2)} ₼. Cheap Market AI ilə müqayisə et: ${url}` : `${product.brand} ${product.name} ${product.size} — Cheap Market AI: ${url}`;
+    const message = c.price != null ? t('prod.shareText', { product: `${product.brand} ${product.name} ${product.size}`, store: c.store.name, price: c.price.toFixed(2), url }) : `${product.brand} ${product.name} ${product.size} — Cheap Market AI: ${url}`;
     try {
       if (Platform.OS === 'web' && typeof navigator !== 'undefined' && (navigator as Navigator & { share?: (d: { title: string; text: string; url: string }) => Promise<void> }).share) {
         await (navigator as Navigator & { share: (d: { title: string; text: string; url: string }) => Promise<void> }).share({ title: 'Cheap Market AI', text: message, url });
       } else if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
         await navigator.clipboard.writeText(message);
-        notify('Kopyalandı', 'Məhsul linki panoya kopyalandı.');
+        notify(t('prod.copied'), t('prod.copiedBody'));
       } else {
         await Share.share({ message, url, title: 'Cheap Market AI' });
       }
@@ -81,7 +83,7 @@ export default function ProductScreen() {
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScreenHeader
         title={`${product.brand} ${product.name} ${product.size}`}
-        right={<Pressable hitSlop={8} accessibilityLabel="Paylaş" accessibilityRole="button" onPress={share}><Ionicons name="share-outline" size={22} color={colors.dark} /></Pressable>}
+        right={<Pressable hitSlop={8} accessibilityLabel={t('prod.share')} accessibilityRole="button" onPress={share}><Ionicons name="share-outline" size={22} color={colors.dark} /></Pressable>}
       />
       <ScrollView contentContainerStyle={{ paddingBottom: 140 }} refreshControl={refresh.control}>
         {/* Hero */}
@@ -103,7 +105,7 @@ export default function ProductScreen() {
         {/* Cheapest */}
         <View style={{ alignItems: 'center', marginTop: space.xl }}>
           {unavailableEverywhere ? (
-            <Pill tone="warning" icon="alert-circle" text="Hazırda heç bir marketdə yoxdur" />
+            <Pill tone="warning" icon="alert-circle" text={t('prod.nowhere')} />
           ) : (
             <>
               <Txt v="caption" color={colors.gray}>
@@ -163,7 +165,7 @@ export default function ProductScreen() {
               </Txt>
             </Card>
           ) : (
-          <PlusLock feature="Qiymət tarixçəsi" minHeight={220}>
+          <PlusLock feature={t('prod.history')} minHeight={220}>
           <Card>
             <Row style={{ justifyContent: 'space-between' }}>
               <Txt v="caption" color={colors.gray}>
@@ -173,7 +175,7 @@ export default function ProductScreen() {
             </Row>
             <PriceChart data={h} />
             <Txt v="caption" color={colors.gray} style={{ marginTop: space.sm }}>
-              {delta > 0 ? `Son 30 gündə qiymət ${delta.toFixed(2)} ₼ artıb.` : delta < 0 ? `Son 30 gündə qiymət ${Math.abs(delta).toFixed(2)} ₼ ucuzlaşıb.` : 'Son 30 gündə qiymət dəyişməyib.'}
+              {delta > 0 ? t('prod.up', { n: delta.toFixed(2) }) : delta < 0 ? t('prod.down', { n: Math.abs(delta).toFixed(2) }) : t('prod.flat')}
             </Txt>
           </Card>
           </PlusLock>
@@ -199,11 +201,11 @@ export default function ProductScreen() {
       <View style={[styles.sticky, { paddingBottom: insets.bottom + space.lg }]}>
         {inBasket ? (
           <Row gap={space.sm}>
-            <Btn title={`Səbətdədir · ${basket.lines.find((l) => l.product.id === product.id)?.qty ?? 1} ədəd`} variant="secondary" icon="add" style={{ flex: 1 }} onPress={() => basket.add(product)} />
-            <Btn title="Səbətə bax" variant="dark" style={{ flex: 1 }} onPress={() => router.push('/basket')} />
+            <Btn title={t('prod.inBasket', { n: basket.lines.find((l) => l.product.id === product.id)?.qty ?? 1 })} variant="secondary" icon="add" style={{ flex: 1 }} onPress={() => basket.add(product)} />
+            <Btn title={t('prod.viewBasket')} variant="dark" style={{ flex: 1 }} onPress={() => router.push('/basket')} />
           </Row>
         ) : (
-          <Btn title="Səbətə əlavə et" icon="add" disabled={unavailableEverywhere} onPress={() => basket.add(product)} />
+          <Btn title={t('prod.add')} icon="add" disabled={unavailableEverywhere} onPress={() => basket.add(product)} />
         )}
       </View>
     </View>

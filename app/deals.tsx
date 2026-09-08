@@ -5,6 +5,8 @@ import { colors, radius, shadow, space } from '@/theme';
 import { Card, Divider, Pill, Price, Row, Txt } from '@/components/ui';
 import { ProductArt, StoreAvatar } from '@/components/product';
 import { ScreenHeader } from '@/components/ScreenHeader';
+import { useT } from '@/lib/i18n';
+import { ago } from '@/lib/format';
 import { StateView } from '@/components/states';
 import { getProduct, getStore } from '@/data/products';
 import { supabase } from '@/lib/supabase';
@@ -14,10 +16,11 @@ import { useRefresh } from '@/lib/useRefresh';
 
 interface Drop { product_id: string; store_id: string; new_price: number; old_price: number; drop_amount: number; drop_percent: number; changed_at: string; name: string; brand: string; size: string; emoji: string | null; store_name: string }
 
-/** "Endirimlər": recent price drops, basket items first. Push notifications deep-link here. */
+/** {t('deals.title')}: recent price drops, basket items first. Push notifications deep-link here. */
 export default function Deals() {
   const router = useRouter();
   const { lines, isPlus } = useBasket();
+  const t = useT();
   const auth = useAuth();
   const [drops, setDrops] = useState<Drop[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -36,10 +39,6 @@ export default function Deals() {
   const inBasket = new Set(lines.map((l) => l.product.id));
   const mine = (drops ?? []).filter((d) => inBasket.has(d.product_id));
   const others = (drops ?? []).filter((d) => !inBasket.has(d.product_id));
-  const ago = (iso: string) => {
-    const h = Math.round((Date.now() - new Date(iso).getTime()) / 3600000);
-    return h < 1 ? 'indicə' : h < 24 ? `${h} saat əvvəl` : `${Math.round(h / 24)} gün əvvəl`;
-  };
 
   const Section = ({ title, items }: { title: string; items: Drop[] }) =>
     items.length === 0 ? null : (
@@ -83,15 +82,15 @@ export default function Deals() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <ScreenHeader title="Endirimlər" />
+      <ScreenHeader title={t('deals.title')} />
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxxl }} refreshControl={refresh.control}>
         <View style={styles.banner}>
           <Txt style={{ fontSize: 26, lineHeight: 32 }}>🔻</Txt>
           <View style={{ flex: 1, marginLeft: space.md }}>
             <Txt v="bodyStrong">AI endirim xəbəri</Txt>
             <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>
-              {isPlus ? 'Plus: hər gün səhər ucuzlaşan məhsulları və səbətindəki qiymət düşüşlərini göndəririk.' : 'Plus abunəçiləri hər gün endirim xəbəri və səbətindəki qiymət düşüşü bildirişi alır.'}
-              {auth.user ? '' : ' Daxil ol ki, səbətinə görə göndərək.'}
+              {isPlus ? t('deals.plusBody') : t('deals.freeBody')}
+              {auth.user ? '' : t('deals.signInHint')}
             </Txt>
           </View>
         </View>
@@ -105,11 +104,11 @@ export default function Deals() {
             Yüklənir…
           </Txt>
         ) : drops.length === 0 ? (
-          <StateView emoji="🏷️" title="Hələ endirim yoxdur" body="Qiymət düşəndə burada görünəcək. Səbət yarat ki, sənə uyğun endirimləri birinci göstərək." cta="Məhsul əlavə et" onCta={() => router.push('/search')} />
+          <StateView emoji="🏷️" title={t('deals.none')} body={t('deals.noneBody')} cta={t('deals.addProduct')} onCta={() => router.push('/search')} />
         ) : (
           <>
-            <Section title="Səbətindəki məhsullar" items={mine} />
-            <Section title="Digər endirimlər" items={others} />
+            <Section title={t('deals.inYourBasket')} items={mine} />
+            <Section title={t('deals.others')} items={others} />
           </>
         )}
       </ScrollView>

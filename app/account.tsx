@@ -7,16 +7,18 @@ import { colors, fonts, radius, space } from '@/theme';
 import { useRefresh } from '@/lib/useRefresh';
 import { Btn, Card, Row, Txt } from '@/components/ui';
 import { ScreenHeader } from '@/components/ScreenHeader';
+import { useT } from '@/lib/i18n';
 import { PlusTag } from '@/components/PlusLock';
 import { useAuth } from '@/store/auth';
 import { supabase } from '@/lib/supabase';
 
-/** "Mənim məlumatlarım": name/surname and city are editable (Apple often hides the name), plus account deletion. */
+/** {t('account.title')}: name/surname and city are editable (Apple often hides the name), plus account deletion. */
 export default function Account() {
   const refresh = useRefresh();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const auth = useAuth();
+  const t = useT();
   const meta = auth.user?.user_metadata ?? {};
   const [name, setName] = useState('');
   const [city, setCity] = useState('');
@@ -38,7 +40,7 @@ export default function Account() {
   if (!auth.user) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg }}>
-        <ScreenHeader title="Mənim məlumatlarım" />
+        <ScreenHeader title={t('account.title')} />
         <View style={{ padding: space.lg }}>
           <Btn title="Daxil ol" onPress={() => router.push('/auth')} />
         </View>
@@ -47,7 +49,7 @@ export default function Account() {
   }
 
   const provider = (auth.user.app_metadata?.provider as string) ?? 'email';
-  const providerLabel = provider === 'apple' ? 'Apple' : provider === 'google' ? 'Google' : 'E-poçt';
+  const providerLabel = provider === 'apple' ? 'Apple' : provider === 'google' ? 'Google' : t('account.email');
 
   const save = async () => {
     if (!supabase) return;
@@ -56,23 +58,23 @@ export default function Account() {
     const { error } = await supabase.from('profiles').upsert({ user_id: auth.user!.id, display_name: name.trim() || null, city: city.trim() || null, updated_at: new Date().toISOString() });
     if (!error) await supabase.auth.updateUser({ data: { display_name: name.trim() } }).catch(() => undefined);
     setBusy(false);
-    setMsg(error ? { ok: false, text: error.message } : { ok: true, text: 'Yadda saxlanıldı' });
+    setMsg(error ? { ok: false, text: error.message } : { ok: true, text: t('account.saved') });
     if (!error) auth.refreshProfile();
   };
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScreenHeader title="Mənim məlumatlarım" />
+      <ScreenHeader title={t('account.title')} />
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: insets.bottom + space.xxl }} keyboardShouldPersistTaps="handled" refreshControl={refresh.control}>
         <Card>
           <Txt v="caption" color={colors.gray}>
             Ad, soyad
           </Txt>
-          <TextInput value={name} onChangeText={setName} placeholder="Adın və soyadın" placeholderTextColor={colors.grayLight} style={styles.input} autoCapitalize="words" />
+          <TextInput value={name} onChangeText={setName} placeholder={t('account.namePh')} placeholderTextColor={colors.grayLight} style={styles.input} autoCapitalize="words" />
           <Txt v="caption" color={colors.gray} style={{ marginTop: space.md }}>
             Şəhər
           </Txt>
-          <TextInput value={city} onChangeText={setCity} placeholder="Bakı" placeholderTextColor={colors.grayLight} style={styles.input} />
+          <TextInput value={city} onChangeText={setCity} placeholder={t('account.cityPh')} placeholderTextColor={colors.grayLight} style={styles.input} />
           <Txt v="caption" color={colors.gray} style={{ marginTop: space.md }}>
             E-poçt
           </Txt>
@@ -108,13 +110,13 @@ export default function Account() {
                 {auth.profile?.plan !== 'plus' && <PlusTag />}
               </Row>
               <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>
-                {auth.profile?.plan === 'plus' ? 'Hər gün səhər ucuzlaşan məhsullar və səbətindəki qiymət düşüşləri.' : 'Plus abunəçiləri hər gün səhər ucuzlaşan məhsulları və səbətindəki qiymət düşüşlərini alır.'}
+                {auth.profile?.plan === 'plus' ? t('account.digestPlus') : t('account.digestFree')}
               </Txt>
             </View>
             {auth.profile?.plan === 'plus' ? (
               <Switch value={digest} onValueChange={toggleDigest} trackColor={{ true: colors.primary, false: colors.line }} thumbColor={colors.white} />
             ) : (
-              <Btn title="Plus-a keç" size="md" full={false} icon="star" onPress={() => router.push('/plus')} />
+              <Btn title={t('account.goPlus')} size="md" full={false} icon="star" onPress={() => router.push('/plus')} />
             )}
           </Row>
         </Card>

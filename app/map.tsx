@@ -11,10 +11,12 @@ import { supabase } from '@/lib/supabase';
 import { notify } from '@/lib/confirm';
 import { Ionicons } from '@expo/vector-icons';
 import { useBasket } from '@/store/basket';
+import { useT } from '@/lib/i18n';
 import { track } from '@/lib/track';
 
 /** Full-screen map: the user, the nearest branch of the chosen store, and directions. */
 export default function MapScreen() {
+  const t = useT();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -55,7 +57,7 @@ export default function MapScreen() {
         .rpc('record_trip', { p_store_id: storeId, p_branch_id: branch.id, p_total: Number(total.toFixed(2)), p_saving: Number(saving.toFixed(2)), p_items: count })
         .then(({ data }) => {
           const earned = (data as { points_earned?: number } | null)?.points_earned ?? 0;
-          if (earned > 0) notify(`+${earned} xal 🎉`, 'Alış-veriş səfəri qeydə alındı. Xalları Plus günlərinə çevirə bilərsən.');
+          if (earned > 0) notify(t('map.earned', { n: earned }), t('map.tripLogged'));
         });
     }
   };
@@ -124,7 +126,7 @@ export default function MapScreen() {
             </Txt>
             {(branch.openUntil || branch.alwaysOpen || branch.phone) && (
               <Txt v="caption" color={isOpenNow(branch) === false ? colors.warning : colors.success} style={{ fontSize: 11, marginTop: 2 }}>
-                {isAllDay(branch) ? '24 saat açıqdır' : isOpenNow(branch) === false ? `Bağlıdır${branch.openFrom ? ` · ${branch.openFrom}-da açılır` : ''}` : branch.openUntil ? `İndi açıqdır · ${branch.openUntil}-a qədər` : ''}
+                {isAllDay(branch) ? t('map.allDayOpen') : isOpenNow(branch) === false ? (branch.openFrom ? t('map.closedOpensAt', { time: branch.openFrom }) : t('common.closed')) : branch.openUntil ? t('map.openUntil', { time: branch.openUntil }) : ''}
                 {branch.phone ? <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>{` · ${branch.phone}`}</Txt> : null}
               </Txt>
             )}
@@ -175,14 +177,14 @@ export default function MapScreen() {
         </View>
 
         <Row gap={space.sm} style={{ marginTop: space.md }}>
-          <Btn title="Marşruta bax" icon="navigate" onPress={openDirections} style={{ flex: 1 }} />
-          <Pressable onPress={openPlace} accessibilityRole="button" accessibilityLabel="Google Maps-də aç" style={styles.mapsBtn}>
+          <Btn title={t('map.route')} icon="navigate" onPress={openDirections} style={{ flex: 1 }} />
+          <Pressable onPress={openPlace} accessibilityRole="button" accessibilityLabel={t('map.openMaps')} style={styles.mapsBtn}>
             <Ionicons name="map-outline" size={22} color={colors.dark} />
           </Pressable>
         </Row>
         <Pressable onPress={() => router.push('/nearby')} accessibilityRole="button" style={{ alignSelf: 'center', marginTop: space.sm, padding: 4 }}>
           <Txt v="captionStrong" color={colors.primary} center style={{ fontSize: 12 }}>
-            {storeBranches.length > 1 ? `${getStore(storeId).name}-ın ${storeBranches.length} filialı · ` : ''}Yaxınlıqdakı bütün marketlər →
+            {storeBranches.length > 1 ? t('map.branchCount', { store: getStore(storeId).name, n: storeBranches.length }) : ''}Yaxınlıqdakı bütün marketlər →
           </Txt>
         </Pressable>
       </View>

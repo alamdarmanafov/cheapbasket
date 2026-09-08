@@ -6,6 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, space } from '@/theme';
 import { Card, Divider, Pill, Row, Txt } from '@/components/ui';
 import { ScreenHeader } from '@/components/ScreenHeader';
+import { useT } from '@/lib/i18n';
+import { ago } from '@/lib/format';
 import { StateView } from '@/components/states';
 import { ProductArt, StoreAvatar } from '@/components/product';
 import { PlusTag } from '@/components/PlusLock';
@@ -25,6 +27,7 @@ export default function Notifications() {
   const insets = useSafeAreaInsets();
   const auth = useAuth();
   const { isPlus, lines } = useBasket();
+  const t = useT();
   const [push, setPush] = useState(false);
   const [busy, setBusy] = useState(false);
   const [drops, setDrops] = useState<Drop[] | null>(null);
@@ -45,8 +48,8 @@ export default function Notifications() {
     if (v) {
       const r = await registerForPush(auth.user?.id ?? null);
       if (r.status === 'granted') setPush(true);
-      else if (r.status === 'unsupported') notify('Bildirişlər', 'Push bildirişlər yalnız telefon tətbiqində (iOS/Android) işləyir.');
-      else notify('Bildirişlər', 'İcazə verilmədi. Telefonun Ayarlarından bildirişləri aç.');
+      else if (r.status === 'unsupported') notify(t('notif.title'), t('notif.webOnly'));
+      else notify(t('notif.title'), t('notif.denied'));
     } else {
       await unregisterPush(auth.user?.id ?? null);
       setPush(false);
@@ -55,21 +58,17 @@ export default function Notifications() {
   };
 
   const inBasket = new Set(lines.map((l) => l.product.id));
-  const ago = (iso: string) => {
-    const h = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 3600000));
-    return h < 1 ? 'indicə' : h < 24 ? `${h} saat əvvəl` : `${Math.round(h / 24)} gün əvvəl`;
-  };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <ScreenHeader title="Bildirişlər" />
+      <ScreenHeader title={t('notif.title')} />
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: insets.bottom + space.xxl }} refreshControl={refresh.control}>
         <Card>
           <Row style={{ justifyContent: 'space-between' }}>
             <View style={{ flex: 1, marginRight: space.md }}>
               <Txt v="bodyStrong">Push bildirişlər</Txt>
               <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>
-                AI endirim xəbəri və səbətindəki qiymət düşüşləri{isPlus ? ' (hər gün)' : ' — Plus funksiyası'}
+                AI endirim xəbəri və səbətindəki qiymət düşüşləri{isPlus ? t('notif.everyDay') : t('notif.plusFeature')}
               </Txt>
             </View>
             <Switch value={push} disabled={busy} onValueChange={togglePush} trackColor={{ true: colors.primary, false: colors.line }} thumbColor={colors.white} />
@@ -102,7 +101,7 @@ export default function Notifications() {
             Yüklənir…
           </Txt>
         ) : drops.length === 0 ? (
-          <StateView emoji="🔕" title="Hələ bildiriş yoxdur" body="Marketlərdə qiymət düşəndə burada görünəcək." />
+          <StateView emoji="🔕" title={t('notif.none')} body={t('notif.noneBody')} />
         ) : (
           <Card style={{ paddingVertical: space.xs }}>
             {drops.map((d, i) => {
@@ -118,7 +117,7 @@ export default function Notifications() {
                           <Txt v="bodyStrong" numberOfLines={1} style={{ flexShrink: 1 }}>
                             {d.brand} {d.name}
                           </Txt>
-                          {inBasket.has(d.product_id) && <Pill tone="success" text="səbətində" />}
+                          {inBasket.has(d.product_id) && <Pill tone="success" text={t('notif.inBasket')} />}
                         </Row>
                         <Row gap={6} style={{ marginTop: 2 }}>
                           <StoreAvatar store={getStore(d.store_id)} size={14} />
