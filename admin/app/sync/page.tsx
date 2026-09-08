@@ -221,11 +221,27 @@ export default function SyncPage() {
     syncStartRef.current = new Date().toISOString();
     await captureSnapshot();
     try {
-      const r = (await api({ op: 'run', id })) as { results: Array<Result & { store_id: string }>; alerts: { users: number; sent: number } | null };
-      const upd = r.results.reduce((a, x) => a + x.updated, 0);
-      const pend = r.results.reduce((a, x) => a + (x.pending ?? 0), 0);
-      const bad = r.results.filter((x) => !x.ok);
-      setMsg({ ok: bad.length === 0, text: `${r.results.length} mənbə yoxlanıldı · ${upd} qiymət dəyişdi${pend ? ` · ${pend} məhsul növbəyə əlavə edildi` : ''}${r.alerts ? ` · ${r.alerts.users} istifadəçiyə bildiriş (${r.alerts.sent} cihaz)` : ''}${bad.length ? ` · xəta: ${bad.map((b) => b.error).join('; ')}` : ''}` });
+      let results: Array<Result & { store_id: string }>;
+      if (id) {
+        // Single source — one API call
+        const r = (await api({ op: 'run', id })) as { results: Array<Result & { store_id: string }>; alerts: null };
+        results = r.results;
+      } else {
+        // All sources — call each individually in parallel to stay within Vercel function timeout
+        const enabled = sources.filter((s) => s.enabled);
+        const settled = await Promise.allSettled(
+          enabled.map((s) => (api({ op: 'run', id: s.id }) as Promise<{ results: Array<Result & { store_id: string }> }>).then((r) => r.results[0]))
+        );
+        results = settled.map((r, i) =>
+          r.status === 'fulfilled' && r.value
+            ? r.value
+            : { ok: false, found: 0, matched: 0, created: 0, updated: 0, unchanged: 0, removed: 0, pending: 0, store_id: enabled[i].store_id, error: r.status === 'rejected' ? String(r.reason) : 'naməlum xəta', at: new Date().toISOString() }
+        );
+      }
+      const upd = results.reduce((a, x) => a + x.updated, 0);
+      const pend = results.reduce((a, x) => a + (x.pending ?? 0), 0);
+      const bad = results.filter((x) => !x.ok);
+      setMsg({ ok: bad.length === 0, text: `${results.length} mənbə yoxlanıldı · ${upd} qiymət dəyişdi${pend ? ` · ${pend} məhsul növbəyə əlavə edildi` : ''}${bad.length ? ` · xəta: ${bad.map((b) => b.error).join('; ')}` : ''}` });
       const storeMap = new Map(stores.map((s) => [s.id, s.name]));
       await detectAnomalies(storeMap);
       await detectDiscounts(storeMap);

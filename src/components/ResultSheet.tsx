@@ -1,16 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { Animated, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, space } from '@/theme';
-import { Btn, Pill, Price, Row, Txt } from './ui';
+import { Btn, Divider, Pill, Price, Row, Txt } from './ui';
 import { StoreAvatar } from './product';
 import { useBasket } from '@/store/basket';
 import { storeLabel } from '@/data/products';
 
 /**
- * AI result bottom sheet (from the design): one best store for the whole basket.
- * Shows a short "analysing" state first so the AI moment feels deliberate.
+ * Market comparison bottom sheet.
+ * Shows all stores ranked by basket total, best store highlighted.
  */
 export function ResultSheet({ visible, onClose, onShowMap }: { visible: boolean; onClose: () => void; onShowMap: () => void }) {
   const insets = useSafeAreaInsets();
@@ -23,7 +23,7 @@ export function ResultSheet({ visible, onClose, onShowMap }: { visible: boolean;
       setReady(false);
       return;
     }
-    const t = setTimeout(() => setReady(true), 1300);
+    const t = setTimeout(() => setReady(true), 1200);
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(scale, { toValue: 1.1, duration: 500, useNativeDriver: true }),
@@ -45,50 +45,97 @@ export function ResultSheet({ visible, onClose, onShowMap }: { visible: boolean;
       <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Bağla" />
       <View style={[styles.sheet, { paddingBottom: insets.bottom + space.xl }]}>
         <View style={styles.handle} />
+
         {!ready || !best ? (
+          /* Loading state */
           <View style={{ alignItems: 'center', paddingVertical: space.xl }}>
             <Animated.View style={[styles.icon, { backgroundColor: colors.primarySoft, transform: [{ scale }] }]}>
               <Ionicons name="sparkles" size={26} color={colors.primary} />
             </Animated.View>
             <Txt v="title" center style={{ marginTop: space.md }}>
-              AI səbətini analiz edir
+              Qiymətlər müqayisə edilir
             </Txt>
             <Txt v="caption" color={colors.gray} center style={{ marginTop: 4 }}>
-              {count} məhsul · 4 marketdə qiymətlər yoxlanılır…
+              {count} məhsul · marketlərdə qiymətlər yoxlanılır…
             </Txt>
           </View>
         ) : (
-          <View style={{ alignItems: 'center' }}>
-            <View style={[styles.icon, { backgroundColor: colors.successSoft }]}>
-              <Ionicons name="checkmark-circle" size={30} color={colors.success} />
-            </View>
-            <Pill tone="success" text="AI nəticəsi" />
-            <Txt v="bodyStrong" center style={{ marginTop: space.md }}>
-              Sənin üçün ən sərfəli seçim
-            </Txt>
-            <Row gap={space.sm} style={{ marginTop: 6 }}>
-              <StoreAvatar store={best.store} size={28} />
-              <Txt v="display" style={{ fontSize: 28, lineHeight: 34 }}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: space.lg }}>
+            {/* Best store header */}
+            <View style={{ alignItems: 'center', marginBottom: space.lg }}>
+              <View style={[styles.icon, { backgroundColor: colors.successSoft }]}>
+                <Ionicons name="checkmark-circle" size={30} color={colors.success} />
+              </View>
+              <Pill tone="success" text="Ən sərfəli seçim" />
+              <Txt v="bodyStrong" center style={{ marginTop: space.sm }}>
                 {storeLabel(best.store)}
               </Txt>
-            </Row>
-            <Price value={best.total} size="xl" style={{ marginTop: 4 }} />
-            <Txt v="caption" color={colors.gray} center style={{ marginTop: space.sm }}>
-              {count} məhsullu səbətin üçün {storeLabel(best.store)} daha sərfəlidir.
-            </Txt>
-            {best.missing.length > 0 && (
-              <Txt v="caption" color={colors.warning} center style={{ marginTop: 4 }}>
-                {best.missing.length} məhsul heç bir marketdə tam mövcud deyil.
-              </Txt>
+              <Price value={best.total} size="xl" style={{ marginTop: 2 }} />
+              {worst && o.saving > 0 && (
+                <Txt v="captionStrong" color={colors.success} center style={{ marginTop: 4 }}>
+                  💚 {worst.store.name}-dan {o.saving.toFixed(2)} ₼ ucuz
+                </Txt>
+              )}
+              {best.missing.length > 0 && (
+                <Txt v="caption" color={colors.warning} center style={{ marginTop: 4 }}>
+                  {best.missing.length} məhsul mövcud deyil
+                </Txt>
+              )}
+            </View>
+
+            {/* All stores ranked */}
+            {o.ranked.length > 1 && (
+              <View style={styles.rankCard}>
+                <Txt v="captionStrong" color={colors.gray} style={{ marginBottom: space.sm }}>
+                  BÜTÜN MARKETLƏRİN MÜQAYİSƏSİ
+                </Txt>
+                {o.ranked.map((r, i) => {
+                  const isBest = r.store.id === best.store.id;
+                  return (
+                    <React.Fragment key={r.store.id}>
+                      {i > 0 && <Divider />}
+                      <Row style={[styles.rankRow, isBest && styles.rankRowBest]}>
+                        <Txt v="captionStrong" color={isBest ? colors.success : colors.gray} style={{ width: 18 }}>
+                          {i + 1}
+                        </Txt>
+                        <StoreAvatar store={r.store} size={26} />
+                        <View style={{ flex: 1, marginLeft: 8 }}>
+                          <Txt v="captionStrong" style={{ fontSize: 13 }}>
+                            {storeLabel(r.store)}
+                          </Txt>
+                          {r.missing.length > 0 && (
+                            <Txt v="caption" color={colors.warning} style={{ fontSize: 11 }}>
+                              {r.missing.length} məhsul yoxdur
+                            </Txt>
+                          )}
+                        </Row>
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Price value={r.total} size="sm" />
+                          {isBest && <Pill tone="success" text="ən ucuz" />}
+                        </View>
+                      </Row>
+                    </React.Fragment>
+                  );
+                })}
+              </View>
             )}
-            {worst && o.saving > 0 && (
-              <Txt v="captionStrong" color={colors.success} center style={{ marginTop: space.sm }}>
-                💚 {worst.store.name}-dan {o.saving.toFixed(2)} ₼ daha ucuzdur
-              </Txt>
+
+            {/* Multi-store split total */}
+            {o.cheapestSplitTotal > 0 && o.cheapestSplitTotal < (best.total * 0.95) && (
+              <View style={[styles.rankCard, { marginTop: space.sm, backgroundColor: colors.fill }]}>
+                <Row style={{ justifyContent: 'space-between' }}>
+                  <View style={{ flex: 1 }}>
+                    <Txt v="captionStrong" style={{ fontSize: 12 }}>Hər məhsulu ayrıca ən ucuz marketdən alsan</Txt>
+                    <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>Çox markete getmək lazımdır</Txt>
+                  </View>
+                  <Price value={o.cheapestSplitTotal} size="sm" />
+                </Row>
+              </View>
             )}
+
             <Btn title="Xəritədə göstər" icon="navigate" onPress={onShowMap} style={{ marginTop: space.lg }} />
-            <Btn title="Marketləri müqayisə et" variant="ghost" size="md" onPress={onClose} style={{ marginTop: space.xs }} />
-          </View>
+            <Btn title="Bağla" variant="ghost" size="md" onPress={onClose} style={{ marginTop: space.xs }} />
+          </ScrollView>
         )}
       </View>
     </Modal>
@@ -103,7 +150,26 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 26,
     padding: space.xl,
     paddingTop: space.sm,
+    maxHeight: '85%',
   },
   handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.line, alignSelf: 'center', marginBottom: space.md },
   icon: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', marginBottom: space.md },
+  rankCard: {
+    backgroundColor: colors.white,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: space.md,
+  },
+  rankRow: {
+    paddingVertical: 10,
+    alignItems: 'center',
+    gap: 6,
+  },
+  rankRowBest: {
+    backgroundColor: `${colors.success}10`,
+    marginHorizontal: -space.md,
+    paddingHorizontal: space.md,
+    borderRadius: 10,
+  },
 });
