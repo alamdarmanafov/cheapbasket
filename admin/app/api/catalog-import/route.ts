@@ -108,35 +108,55 @@ If no products are visible, return {"products":[]}.`;
 }
 
 /**
- * PUT /api/catalog-import — apply matched prices to the DB
- * Body: { store_id: string; items: Array<{ product_id, price, old_price }> }
+ * PUT /api/catalog-import — apply matched prices + queue unmatched to pending_products
+ * Body: { store_id: string; items: Array<{ product_id, price, old_price }>; unmatched?: ExtractedProduct[] }
  */
 export async function PUT(req: Request) {
   if (!(await requireAdmin(req))) return NextResponse.json({ error: 'Giriş tələb olunur' }, { status: 401 });
-  const body = (await req.json()) as { store_id: string; items: Array<{ product_id: string; price: number; old_price: number | null }> };
-  const { store_id, items } = body;
-  if (!store_id || !items?.length) return NextResponse.json({ error: 'store_id və items tələb olunur' }, { status: 400 });
+  const body = (await req.json()) as {
+    store_id: string;
+    items: Array<{ product_id: string; price: number; old_price: number | null }>;
+    unmatched?: Array<{ name: string; price: number; old_price: number | null; unit?: string }>;
+  };
+  const { store_id, items, unmatched } = body;
+  if (!store_id) return NextResponse.json({ error: 'store_id tələb olunur' }, { status: 400 });
 
   const db = adminDb();
   const at = new Date().toISOString();
-  const rows = items.map((it) => ({
-    product_id: it.product_id,
-    store_id,
-    price: it.old_price ?? it.price,
-    discount_price: it.old_price != null ? it.price : null,
-    updated_at: at,
-  }));
+  let updated = 0;
 
-  for (let i = 0; i < rows.length; i += 200) {
-    const { error } = await db.from('prices').upsert(rows.slice(i, i + 200), { onConflict: 'product_id,store_id' });
-    if (error) return NextResponse.json({ error: errText(error) }, { status: 500 });
+  if (items?.length) {
+    const rows = items.map((it) => ({
+      product_id: it.product_id,
+      store_id,
+      price: it.old_price ?? it.price,
+      discount_price: it.old_price != null ? it.price : null,
+      updated_at: at,
+    }));
+    for (let i = 0; i < rows.length; i += 200) {
+      const { error } = await db.from('prices').upsert(rows.slice(i, i + 200), { onConflict: 'product_id,store_id' });
+      if (error) return NextResponse.json({ error: errText(error) }, { status: 500 });
+    }
+    const history = rows.map((r) => ({ ...r, recorded_at: at }));
+    for (let i = 0; i < history.length; i += 200) {
+      await db.from('price_history').insert(history.slice(i, i + 200)).then(() => {}, () => {});
+    }
+    updated = rows.length;
   }
 
-  // Price history
-  const history = rows.map((r) => ({ ...r, recorded_at: at }));
-  for (let i = 0; i < history.length; i += 200) {
-    await db.from('price_history').insert(history.slice(i, i + 200)).then(() => {}, () => {});
+  // Queue unmatched products into pending_products for review
+  let pending = 0;
+  if (unmatched?.length) {
+    const { data: existing } = await db.from('pending_products').select('id');
+    const existingIds = new Set((existing ?? []).map((r: { id: string }) => r.id));
+    const pendingRows = unmatched
+      .map((u) => ({ id: slugify(u.name), name: u.name, store_id, source_name: null }))
+      .filter((r) => r.id && !existingIds.has(r.id));
+    for (let i = 0; i < pendingRows.length; i += 200) {
+      await db.from('pending_products').insert(pendingRows.slice(i, i + 200)).then(() => {}, () => {});
+    }
+    pending = pendingRows.length;
   }
 
-  return NextResponse.json({ ok: true, updated: rows.length });
+  return NextResponse.json({ ok: true, updated, pending });
 }
