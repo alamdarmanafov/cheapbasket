@@ -400,9 +400,11 @@ export default function ImportPage() {
         const priceRaw = getCsvField(row, 'price');
         const discountRaw = getCsvField(row, 'discount_price');
         if (!name && !barcode) continue;
-        const price = priceRaw ? Number(priceRaw.replace(',', '.')) : null;
-        const discount = discountRaw ? Number(discountRaw.replace(',', '.')) : null;
-        if (price != null && isNaN(price)) continue;
+        const parseNum = (s: string) => { const n = Number(s.replace(/[^\d.,]/g, '').replace(',', '.')); return isNaN(n) || n === 0 ? null : n; };
+        let price = priceRaw ? parseNum(priceRaw) : null;
+        let discount = discountRaw ? parseNum(discountRaw) : null;
+        // If only one price value is provided, use it as the regular price
+        if (price == null && discount != null) { price = discount; discount = null; }
 
         const woltLike = { barcode, name: name || barcode || '', brand, size };
         const existingId = match(woltLike as Parameters<typeof match>[0]);
