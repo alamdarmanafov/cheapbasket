@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle, Trash2 } from 'lucide-react';
 import { SiteFooter, SiteHeader } from '@/components/Chrome';
-import { Lang } from '@/components/content';
+import { useLang } from '@/components/LangContext';
 import { DELETE_COPY } from '@/components/legal-delete';
 
 const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/$/, '');
@@ -17,7 +17,7 @@ const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/$/, '');
  * sign-in plus one delete is not worth shipping a client library for.
  */
 export function DeleteAccount() {
-  const [lang, setLang] = useState<Lang>('az');
+  const { lang } = useLang();
   const t = DELETE_COPY[lang];
 
   const [email, setEmail] = useState('');
@@ -101,7 +101,7 @@ export function DeleteAccount() {
 
   return (
     <main id="top">
-      <SiteHeader lang={lang} setLang={setLang} />
+      <SiteHeader />
 
       <article className="legal">
         <div className="container legal-inner narrow">
@@ -179,7 +179,7 @@ export function DeleteAccount() {
         </div>
       </article>
 
-      <SiteFooter lang={lang} />
+      <SiteFooter />
     </main>
   );
 }

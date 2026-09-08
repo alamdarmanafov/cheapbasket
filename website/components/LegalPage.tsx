@@ -1,19 +1,18 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { SiteFooter, SiteHeader } from '@/components/Chrome';
-import { type Lang } from '@/components/content';
+import { useLang } from '@/components/LangContext';
 import { LEGAL, Slug } from '@/components/legal';
 
 /** Shared chrome for the four legal pages: same header, language toggle and footer as the home page. */
 export function LegalPage({ slug }: { slug: Slug }) {
-  const [lang, setLang] = useState<Lang>('az');
+  const { lang } = useLang();
   const doc = LEGAL[lang][slug];
 
   return (
     <main id="top">
-      <SiteHeader lang={lang} setLang={setLang} />
+      <SiteHeader />
 
       <article className="legal">
         <div className="container legal-inner">
@@ -49,7 +48,7 @@ export function LegalPage({ slug }: { slug: Slug }) {
         </div>
       </article>
 
-      <SiteFooter lang={lang} />
+      <SiteFooter />
     </main>
   );
 }

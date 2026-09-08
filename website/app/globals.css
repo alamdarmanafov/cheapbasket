@@ -302,3 +302,53 @@ img{display:block;max-width:100%}
   color: #9ca3af !important;
   margin: 4px 0 10px !important;
 }
+
+/* ---- Language picker ---- */
+.lang-wrap {
+  position: relative;
+}
+.lang {
+  cursor: pointer;
+}
+.lang-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 50;
+  min-width: 178px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: #fff;
+  border: 1px solid #ececed;
+  border-radius: 14px;
+  box-shadow: 0 12px 34px #0000001f;
+}
+.lang-menu li {
+  margin: 0;
+}
+.lang-menu button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 11px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2937;
+  cursor: pointer;
+  text-align: left;
+}
+.lang-menu button:hover {
+  background: #f6f6f6;
+}
+.lang-menu button[aria-selected='true'] {
+  color: #e53935;
+}
+.lang-label {
+  flex: 1;
+}

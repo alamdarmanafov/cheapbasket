@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { SiteFooter, SiteHeader } from '@/components/Chrome';
-import { Lang } from '@/components/content';
+import { useLang } from '@/components/LangContext';
 
 const COPY = {
   az: {
@@ -31,7 +31,7 @@ const COPY = {
  * are read only to tell success from failure — nothing is stored.
  */
 export function AuthCallback() {
-  const [lang, setLang] = useState<Lang>('az');
+  const { lang } = useLang();
   const [ok, setOk] = useState<boolean | null>(null);
   const t = COPY[lang];
 
@@ -47,7 +47,7 @@ export function AuthCallback() {
 
   return (
     <main id="top">
-      <SiteHeader lang={lang} setLang={setLang} />
+      <SiteHeader />
       <article className="legal">
         <div className="container legal-inner narrow" style={{ textAlign: 'center', paddingTop: 20 }}>
           {ok === null ? null : ok ? (
@@ -71,7 +71,7 @@ export function AuthCallback() {
           )}
         </div>
       </article>
-      <SiteFooter lang={lang} />
+      <SiteFooter />
     </main>
   );
 }

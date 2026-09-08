@@ -1,13 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { ChevronDown } from 'lucide-react';
 import { Logo } from '@/components/Logo';
-import { CONTENT, LINKS, Lang } from '@/components/content';
+import { LINKS } from '@/components/content';
+import { LangPicker } from '@/components/LangPicker';
+import { useLang } from '@/components/LangContext';
 
 /** Header and footer shared by every page except the home page, which owns its own scroll-spy nav. */
-export function SiteHeader({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
-  const t = CONTENT[lang];
+export function SiteHeader() {
+  const { t } = useLang();
   return (
     <header className="nav">
       <div className="container nav-inner">
@@ -21,9 +22,7 @@ export function SiteHeader({ lang, setLang }: { lang: Lang; setLang: (l: Lang) =
           <Link href="/#faq">{t.nav.faq}</Link>
         </nav>
         <div className="nav-actions">
-          <button className="lang" onClick={() => setLang(lang === 'az' ? 'en' : 'az')} aria-label="Language">
-            {lang.toUpperCase()} <ChevronDown size={14} />
-          </button>
+          <LangPicker />
           <Link className="download" href="/#download">
             {t.nav.download}
           </Link>
@@ -33,8 +32,8 @@ export function SiteHeader({ lang, setLang }: { lang: Lang; setLang: (l: Lang) =
   );
 }
 
-export function SiteFooter({ lang }: { lang: Lang }) {
-  const t = CONTENT[lang];
+export function SiteFooter() {
+  const { t } = useLang();
   return (
     <footer>
       <div className="container footer-grid">
