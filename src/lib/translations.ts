@@ -360,6 +360,8 @@ const az = {
   'fb.send': 'Göndər',
   'lists.saveCurrent': 'Cari səbəti yadda saxla',
   'fb.question': 'Sual',
+  'branches.showMore': 'Daha 10 filial göstər',
+  'branches.shownOf': '{shown} / {total} filial',
 } as const;
 
 export type Key = keyof typeof az;
@@ -703,6 +705,8 @@ const en: Table = {
   'fb.send': 'Send',
   'lists.saveCurrent': 'Save the current basket',
   'fb.question': 'Question',
+  'branches.showMore': 'Show 10 more branches',
+  'branches.shownOf': '{shown} of {total} branches',
 };
 
 const tr: Table = {
@@ -1043,6 +1047,8 @@ const tr: Table = {
   'fb.send': 'Gönder',
   'lists.saveCurrent': 'Mevcut sepeti kaydet',
   'fb.question': 'Soru',
+  'branches.showMore': '10 şube daha göster',
+  'branches.shownOf': '{shown} / {total} şube',
 };
 
 const ru: Table = {
@@ -1383,6 +1389,8 @@ const ru: Table = {
   'fb.send': 'Отправить',
   'lists.saveCurrent': 'Сохранить текущую корзину',
   'fb.question': 'Вопрос',
+  'branches.showMore': 'Показать ещё 10 филиалов',
+  'branches.shownOf': '{shown} из {total} филиалов',
 };
 
 export const dict = { az, en, tr, ru } satisfies Record<Lang, Table>;

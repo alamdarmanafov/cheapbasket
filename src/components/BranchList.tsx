@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useCatalog } from '@/store/catalog';
@@ -19,6 +19,9 @@ function openMaps(b: Branch) {
   Linking.openURL(url!).catch(() => Linking.openURL(`https://maps.google.com/?q=${b.lat},${b.lng}`));
 }
 
+/** How many branches one tap reveals. */
+const PAGE = 10;
+
 function fmtDist(km: number): string {
   return km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`;
 }
@@ -35,6 +38,14 @@ export function BranchList({ filter, onFilterChange }: { filter: string; onFilte
     () => (filter === 'all' ? branches : branches.filter((b) => b.storeId === filter)),
     [branches, filter],
   );
+
+  // A city can hold far more branches than anyone scrolls, and the nearest ones
+  // sort first, so start at one page and grow on demand.
+  const [shown, setShown] = useState(PAGE);
+  // A new filter is a new list — showing page 3 of it would be arbitrary.
+  useEffect(() => setShown(PAGE), [filter]);
+  const visible = useMemo(() => filtered.slice(0, shown), [filtered, shown]);
+  const more = filtered.length - visible.length;
 
   const renderBranch = ({ item: b }: { item: Branch }) => {
     const store = stores.find((s) => s.id === b.storeId);
@@ -118,7 +129,7 @@ export function BranchList({ filter, onFilterChange }: { filter: string; onFilte
       )}
 
       <FlatList
-        data={filtered}
+        data={visible}
         keyExtractor={(b) => b.id}
         renderItem={renderBranch}
         contentContainerStyle={styles.list}
@@ -131,6 +142,18 @@ export function BranchList({ filter, onFilterChange }: { filter: string; onFilte
           </View>
         }
         ItemSeparatorComponent={() => <View style={styles.sep} />}
+        ListFooterComponent={
+          more > 0 ? (
+            <Pressable onPress={() => setShown((n) => n + PAGE)} style={({ pressed }) => [styles.more, pressed && { opacity: 0.85 }]} accessibilityRole="button">
+              <Txt v="captionStrong" color={colors.primary}>
+                {t('branches.showMore')}
+              </Txt>
+              <Txt v="caption" color={colors.gray} style={{ fontSize: 11, marginTop: 2 }}>
+                {t('branches.shownOf', { shown: visible.length, total: filtered.length })}
+              </Txt>
+            </Pressable>
+          ) : null
+        }
       />
     </View>
   );
@@ -144,6 +167,7 @@ const styles = StyleSheet.create({
   chip: { paddingHorizontal: space.md, paddingVertical: 7, borderRadius: radius.pill, backgroundColor: colors.fill },
   chipActive: { backgroundColor: colors.primary, borderWidth: 0 },
   list: { paddingHorizontal: space.lg, paddingBottom: space.xxxl },
+  more: { alignItems: 'center', paddingVertical: space.md, marginTop: space.sm, backgroundColor: colors.white, borderRadius: radius.md },
   card: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.white, borderRadius: radius.md, padding: space.md, gap: space.md },
   cardBody: { flex: 1, minWidth: 0 },
   avatar: { width: 48, height: 48, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },

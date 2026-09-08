@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { Clock, Map, MapPin, Plus, RefreshCw, Search, Table, Trash2, X } from 'lucide-react';
+import { Clock, FileSpreadsheet, Map, MapPin, Plus, RefreshCw, Search, Table, Trash2, X } from 'lucide-react';
 import { Shell } from '@/components/Shell';
+import { BranchImport } from '@/components/BranchImport';
 import { Branch, Store, db, slugify } from '@/lib/supabase';
 import type { WoltVenue } from '@/lib/wolt';
 
@@ -53,6 +54,7 @@ export default function Branches() {
   const [bulkHoursUntil, setBulkHoursUntil] = useState('23:00');
   const [bulkHoursAlways, setBulkHoursAlways] = useState(false);
   const [bulkHoursApplying, setBulkHoursApplying] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   // Wolt name autosuggest (in edit form)
   const [woltSuggestVenues, setWoltSuggestVenues] = useState<WoltVenue[]>([]);
@@ -430,6 +432,9 @@ export default function Branches() {
           <button className="btn secondary" style={{ gap: 4 }} onClick={() => setBulkHoursOpen((o) => !o)}>
             <Clock size={14} /> Toplu iş saatları
           </button>
+          <button className="btn secondary" disabled={!stores.length} onClick={() => setImportOpen(true)}>
+            <FileSpreadsheet size={14} /> Excel ilə idxal
+          </button>
           <button className="btn secondary" disabled={!stores.length} onClick={() => { setWoltOpen((o) => !o); setBulk([]); setWoltVenues([]); setWoltSelected(new Set()); setWoltError(''); setWoltStoreId(stores[0]?.id ?? ''); setWoltQuery(stores[0]?.name ?? ''); }}>
             <Search size={14} /> Wolt-dan çək
           </button>
@@ -438,6 +443,14 @@ export default function Branches() {
           </button>
         </div>
       </div>
+
+      {importOpen && (
+        <BranchImport
+          stores={stores}
+          onClose={() => setImportOpen(false)}
+          onDone={(text, ok) => { setMsg({ ok, text }); if (ok) load(); }}
+        />
+      )}
 
       {/* ── Bulk hours panel ─────────────────────────────────────────────────── */}
       {bulkHoursOpen && (

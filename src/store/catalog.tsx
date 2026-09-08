@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Linking, Platform } from 'react-native';
 import * as Location from 'expo-location';
-import { Product, Branch, Banner, Category, Store, LatLng, DEFAULT_LOCATION, catalog, withDistances } from '@/data/products';
+import { Product, Branch, Banner, Category, Store, LatLng, DEFAULT_LOCATION, catalog, withDistances, withStoreHours } from '@/data/products';
 import { fetchBanners, fetchBranches, fetchCategories, fetchProducts, fetchStores } from '@/lib/catalog';
 import { hasSupabase, supabase } from '@/lib/supabase';
 import { notify } from '@/lib/confirm';
@@ -47,13 +47,16 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
         Promise.all([fetchStores(), fetchProducts(), fetchBranches(catalog.location), fetchBanners().catch(() => [] as Banner[]), fetchCategories().catch(() => [] as Category[])]),
         timeout,
       ]);
+      // Hours live on the store; branches without their own inherit them here,
+      // so every screen can keep reading them straight off the branch.
+      const branches = withStoreHours(b, s);
       catalog.categories = cs;
       catalog.stores = s;
       catalog.products = p;
-      catalog.branches = b;
+      catalog.branches = branches;
       setStores(s);
       setProducts(p);
-      setBranches(b);
+      setBranches(branches);
       setBanners(bn);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
