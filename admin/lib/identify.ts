@@ -1,4 +1,4 @@
-import { adminDb } from './server';
+import { adminDb, fetchAll } from './server';
 
 export interface Identified { brand: string | null; name: string | null; size: string | null; barcode: string | null; query: string }
 export interface Candidate { id: string; brand: string; name: string; size: string; score: number }
@@ -42,13 +42,15 @@ export async function matchProducts(id: Identified, limit = 5): Promise<Candidat
     const { data } = await db.from('products').select('id, brand, name, size').eq('barcode', id.barcode).maybeSingle();
     if (data) return [{ ...data, score: 100 }];
   }
-  const { data } = await db.from('products').select('id, brand, name, size, category');
+  const data = await fetchAll<{ id: string; brand: string; name: string; size: string; category: string }>(
+    (from, to) => db.from('products').select('id, brand, name, size, category').range(from, to)
+  );
   const q = tokens(id.query);
   const brandT = id.brand ? tokens(id.brand) : [];
   const nameT = id.name ? tokens(id.name) : [];
   const sizeN = id.size ? norm(id.size).replace(/\s/g, '') : '';
   const out: Candidate[] = [];
-  for (const p of data ?? []) {
+  for (const p of data) {
     const full = `${p.brand} ${p.name} ${p.size} ${p.category ?? ''}`;
     const ft = new Set(tokens(full));
     let score = 0;

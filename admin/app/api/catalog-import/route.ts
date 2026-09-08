@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb, errText, requireAdmin } from '@/lib/server';
+import { adminDb, errText, fetchAll, requireAdmin } from '@/lib/server';
 import { buildMatcher, MatchableProduct } from '@/lib/wolt';
 import { slugify } from '@/lib/supabase';
 
@@ -36,8 +36,9 @@ export async function POST(req: Request) {
   if (!store_id || !pages?.length) return NextResponse.json({ error: 'store_id və pages tələb olunur' }, { status: 400 });
 
   const db = adminDb();
-  const { data: products } = await db.from('products').select('id, barcode, brand, name, size');
-  const productList: MatchableProduct[] = products ?? [];
+  const productList: MatchableProduct[] = await fetchAll(
+    (from, to) => db.from('products').select('id, barcode, brand, name, size').range(from, to)
+  );
   const match = buildMatcher(productList);
 
   const model = process.env.OPENAI_MODEL ?? 'gpt-4o';
@@ -135,6 +136,7 @@ export async function PUT(req: Request) {
     const at = new Date().toISOString();
     let updated = 0;
 
+
     if (items?.length) {
       const rows = items.map((it) => ({
         product_id: it.product_id,
@@ -158,8 +160,8 @@ export async function PUT(req: Request) {
     let pending = 0;
     try {
       if (unmatched?.length) {
-        const { data: existing } = await db.from('pending_products').select('id');
-        const existingIds = new Set((existing ?? []).map((r: { id: string }) => r.id));
+        const existing = await fetchAll<{ id: string }>((from, to) => db.from('pending_products').select('id').range(from, to));
+        const existingIds = new Set(existing.map((r) => r.id));
         const pendingRows = unmatched
           .map((u) => { try { return { id: slugify(u.name), name: u.name, brand: u.brand ?? null, barcode: u.barcode ?? null, size: u.size ?? null, store_id, source_name: null }; } catch { return null; } })
           .filter((r): r is { id: string; name: string; brand: string | null; barcode: string | null; size: string | null; store_id: string; source_name: null } => !!r?.id && !existingIds.has(r.id));

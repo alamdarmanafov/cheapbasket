@@ -56,6 +56,24 @@ export async function requireAdmin(req: Request): Promise<{ email: string } | nu
   return verifySession(m?.[1]);
 }
 
+/** Paginate through all rows bypassing PostgREST's default 1000-row cap.
+ *  Pass a factory: (from, to) => supabaseQuery.range(from, to) */
+export async function fetchAll<T>(
+  makeQuery: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>
+): Promise<T[]> {
+  const PAGE = 1000;
+  let offset = 0;
+  const all: T[] = [];
+  while (true) {
+    const { data, error } = await makeQuery(offset, offset + PAGE - 1);
+    if (error) throw error;
+    all.push(...(data ?? []));
+    if (!data || data.length < PAGE) break;
+    offset += PAGE;
+  }
+  return all;
+}
+
 /** Supabase errors are plain objects (not Error instances); normalise to text. */
 export function errText(e: unknown): string {
   if (e instanceof Error) return e.message;

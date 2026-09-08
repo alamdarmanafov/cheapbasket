@@ -130,14 +130,14 @@ export default function SyncPage() {
 
   const captureSnapshot = async () => {
     try {
-      const snap = await db.select<PriceSnap>('prices', { columns: 'product_id,store_id,price,discount_price' });
+      const snap = await db.select<PriceSnap>('prices', { columns: 'product_id,store_id,price,discount_price', fetchAll: true });
       priceSnapshot.current = snap;
     } catch { /* ignore */ }
   };
 
   const detectAnomalies = async (storeMap: Map<string, string>) => {
     try {
-      const after = await db.select<PriceSnap>('prices', { columns: 'product_id,store_id,price,discount_price' });
+      const after = await db.select<PriceSnap>('prices', { columns: 'product_id,store_id,price,discount_price', fetchAll: true });
       const beforeMap = new Map(priceSnapshot.current.map((p) => [`${p.product_id}:${p.store_id}`, p]));
       const found: Anomaly[] = [];
       for (const p of after) {
@@ -167,7 +167,7 @@ export default function SyncPage() {
 
   const detectDiscounts = async (storeMap: Map<string, string>) => {
     try {
-      const after = await db.select<PriceSnap>('prices', { columns: 'product_id,store_id,price,discount_price' });
+      const after = await db.select<PriceSnap>('prices', { columns: 'product_id,store_id,price,discount_price', fetchAll: true });
       const beforeMap = new Map(priceSnapshot.current.map((p) => [`${p.product_id}:${p.store_id}`, p]));
       const found: NewDiscount[] = [];
       for (const p of after) {

@@ -10,7 +10,7 @@ async function call<T>(body: unknown): Promise<T> {
 }
 
 export const db = {
-  select: <T = any>(table: string, o: { columns?: string; order?: string; eq?: Record<string, unknown>; limit?: number } = {}) =>
+  select: <T = any>(table: string, o: { columns?: string; order?: string; eq?: Record<string, unknown>; limit?: number; fetchAll?: boolean } = {}) =>
     call<{ data: T[] }>({ op: 'select', table, ...o }).then((r) => r.data),
   count: (table: string, eq?: Record<string, unknown>) => call<{ count: number }>({ op: 'count', table, eq }).then((r) => r.count),
   upsert: (table: string, rows: Record<string, unknown>[], onConflict?: string) => call<{ ok: true }>({ op: 'upsert', table, rows, onConflict }),

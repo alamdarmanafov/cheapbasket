@@ -129,12 +129,12 @@ export default function ImportPage() {
       setStores(s);
       if (s[0]) { setStoreId(s[0].id); setCsvStoreId(s[0].id); }
     }).catch((e: Error) => setMsg({ ok: false, text: e.message }));
-    db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url' }).then(setExisting).catch(() => {});
+    db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url', fetchAll: true }).then(setExisting).catch(() => {});
   }, []);
 
   useEffect(() => {
     if (!storeId) return;
-    db.select<PriceRow>('prices', { columns: 'product_id,price,discount_price', eq: { store_id: storeId } })
+    db.select<PriceRow>('prices', { columns: 'product_id,price,discount_price', eq: { store_id: storeId }, fetchAll: true })
       .then((rows) => {
         const m = new Map<string, number>();
         for (const r of rows) {
@@ -256,7 +256,7 @@ export default function ImportPage() {
     setBusy(true);
     setMsg(null);
     try {
-      const fresh = await db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url' });
+      const fresh = await db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url', fetchAll: true });
       const match = matcher(fresh);
       const products: Record<string, unknown>[] = [];
       const infoUpdates: Record<string, unknown>[] = [];
@@ -307,7 +307,7 @@ export default function ImportPage() {
       if (confirm(`Bu Wolt səhifəsi "${storeName}" üçün mənbə kimi yadda saxlansın?`)) {
         await fetch('/api/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'add', store_id: storeId, url }) }).catch(() => null);
       }
-      const ex = await db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url' });
+      const ex = await db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url', fetchAll: true });
       setExisting(ex);
       const rematch = matcher(ex);
       setRows(rows.map((r) => ({ ...r, existingId: rematch(r) ?? r.existingId })));
@@ -384,7 +384,7 @@ export default function ImportPage() {
     setCsvBusy(true);
     setCsvMsg(null);
     try {
-      const fresh = await db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url' });
+      const fresh = await db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url', fetchAll: true });
       const match = buildMatcher(fresh.map((p) => ({ id: p.id, barcode: p.barcode, brand: p.brand, name: p.name, size: p.size })));
       const products: Record<string, unknown>[] = [];
       const priceRows: Record<string, unknown>[] = [];

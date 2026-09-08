@@ -1,4 +1,4 @@
-import { adminDb } from './server';
+import { adminDb, fetchAll } from './server';
 import { buildMatcher, fetchAnySource, WoltItem, MatchableProduct } from './wolt';
 import { notifyRecentDrops } from './alerts';
 import { slugify } from './supabase';
@@ -18,20 +18,26 @@ export async function syncSource(src: { id: string; store_id: string; url: strin
   const at = new Date().toISOString();
   try {
     const venue = await fetchAnySource(src.url);
-    const [{ data: products }, { data: prices }, { data: pendingData }] = await Promise.all([
-      db.from('products').select('id, barcode, brand, name, size, image_url'),
-      db.from('prices').select('product_id, price, discount_price').eq('store_id', src.store_id),
-      db.from('pending_products').select('id'),
+    const [products, prices, pendingData] = await Promise.all([
+      fetchAll<{ id: string; barcode: string | null; brand: string; name: string; size: string; image_url: string | null }>(
+        (from, to) => db.from('products').select('id, barcode, brand, name, size, image_url').range(from, to)
+      ),
+      fetchAll<{ product_id: string; price: unknown; discount_price: unknown }>(
+        (from, to) => db.from('prices').select('product_id, price, discount_price').eq('store_id', src.store_id).range(from, to)
+      ),
+      fetchAll<{ id: string }>(
+        (from, to) => db.from('pending_products').select('id').range(from, to)
+      ),
     ]);
-    const productList: MatchableProduct[] = products ?? [];
+    const productList: MatchableProduct[] = products;
     const match = buildMatcher(productList);
-    const current = new Map((prices ?? []).map((p: { product_id: string; price: unknown; discount_price: unknown }) => [p.product_id, { price: Number(p.price), discount: p.discount_price == null ? null : Number(p.discount_price) }]));
+    const current = new Map(prices.map((p) => [p.product_id, { price: Number(p.price), discount: p.discount_price == null ? null : Number(p.discount_price) }]));
     const next = new Map<string, { price: number; discount: number | null }>();
-    const noPhoto = new Set((products ?? []).filter((p: { image_url: unknown }) => !p.image_url).map((p: { id: string }) => p.id));
+    const noPhoto = new Set(products.filter((p) => !p.image_url).map((p) => p.id));
     const photos = new Map<string, string>();
 
-    const productIds = new Set((products ?? []).map((p: { id: string }) => p.id));
-    const pendingIds = new Set((pendingData ?? []).map((p: { id: string }) => p.id));
+    const productIds = new Set(products.map((p) => p.id));
+    const pendingIds = new Set(pendingData.map((p) => p.id));
     const pendingInserts: Record<string, unknown>[] = [];
 
     const brand = venue.venue || '';
