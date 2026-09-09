@@ -50,9 +50,6 @@ export default function Branches() {
   // Bulk hours
   const [bulkHoursOpen, setBulkHoursOpen] = useState(false);
   const [bulkHoursStoreId, setBulkHoursStoreId] = useState('');
-  const [bulkHoursFrom, setBulkHoursFrom] = useState('08:00');
-  const [bulkHoursUntil, setBulkHoursUntil] = useState('23:00');
-  const [bulkHoursAlways, setBulkHoursAlways] = useState(false);
   const [bulkHoursApplying, setBulkHoursApplying] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
 
@@ -383,18 +380,23 @@ export default function Branches() {
     setEdit({ ...edit, store_id: nextId, ...(untouched ? storeHours(nextId) : {}) });
   };
 
-  const applyBulkHours = async () => {
-    const targets = bulkHoursStoreId ? rows.filter((r) => r.store_id === bulkHoursStoreId) : rows;
-    if (!targets.length) { setMsg({ ok: false, text: 'Tətbiq ediləcək filial yoxdur' }); return; }
+  /**
+   * Clears a branch's own hours so it falls back to its store's.
+   *
+   * This replaces the old bulk-apply, which wrote explicit hours onto every
+   * branch — exactly what now blocks inheritance: a branch carrying its own
+   * hours ignores the store, so changing the chain's hours later would leave
+   * those branches behind.
+   */
+  const resetToStoreHours = async () => {
+    const scope = bulkHoursStoreId ? rows.filter((r) => r.store_id === bulkHoursStoreId) : rows;
+    const targets = scope.filter((r) => r.open_from || r.open_until);
+    if (!targets.length) { setMsg({ ok: true, text: 'Bu marketin filiallarının hamısı onsuz da marketin saatını işlədir.' }); return; }
+    if (!confirm(`${targets.length} filialın öz iş saatı silinəcək və onlar marketin saatını işlədəcək. Davam edilsin?`)) return;
     setBulkHoursApplying(true);
     try {
-      const updated: Record<string, unknown>[] = targets.map((r) => ({
-        ...r,
-        open_from: bulkHoursAlways ? '00:00' : (bulkHoursFrom || null),
-        open_until: bulkHoursAlways ? '23:59' : (bulkHoursUntil || null),
-      }));
-      await db.upsert('branches', updated, 'id');
-      setMsg({ ok: true, text: `${updated.length} filiala iş saatları tətbiq edildi` });
+      await db.upsert('branches', targets.map((r) => ({ ...r, open_from: null, open_until: null })), 'id');
+      setMsg({ ok: true, text: `${targets.length} filial marketin saatına keçirildi` });
       setBulkHoursOpen(false);
       load();
     } catch (e) {
@@ -449,7 +451,7 @@ export default function Branches() {
             </button>
           </div>
           <button className="btn secondary" style={{ gap: 4 }} onClick={() => setBulkHoursOpen((o) => !o)}>
-            <Clock size={14} /> Toplu iş saatları
+            <Clock size={14} /> Saatları markete bağla
           </button>
           <button className="btn secondary" disabled={!stores.length} onClick={() => setImportOpen(true)}>
             <FileSpreadsheet size={14} /> Excel ilə idxal
@@ -471,13 +473,18 @@ export default function Branches() {
         />
       )}
 
-      {/* ── Bulk hours panel ─────────────────────────────────────────────────── */}
+      {/* ── Reset-to-store-hours panel ───────────────────────────────────────── */}
       {bulkHoursOpen && (
         <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 12, padding: 16, marginBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <b style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Clock size={15} /> Toplu iş saatları</b>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <b style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Clock size={15} /> Saatları markete bağla</b>
             <button className="btn ghost" onClick={() => setBulkHoursOpen(false)}><X size={14} /></button>
           </div>
+          <p style={{ fontSize: 13, color: '#92400E', margin: '0 0 12px' }}>
+            İş saatı artıq Marketlər səhifəsində bir dəfə yazılır və filiallar onu miras alır.
+            Öz saatı yazılmış filial isə marketin saatını görmür — sonradan marketin saatını dəyişsən, o filiallar köhnə saatda qalar.
+            Bu düymə həmin filialların öz saatını silir ki, hamısı markete bağlansın.
+          </p>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#6B7280' }}>
               Market
@@ -486,26 +493,19 @@ export default function Branches() {
                 {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#6B7280' }}>
-              Açılış
-              <input value={bulkHoursFrom} onChange={(e) => setBulkHoursFrom(e.target.value)} placeholder="08:00" disabled={bulkHoursAlways} style={{ width: 90 }} />
-            </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#6B7280' }}>
-              Bağlanış
-              <input value={bulkHoursUntil} onChange={(e) => setBulkHoursUntil(e.target.value)} placeholder="23:00" disabled={bulkHoursAlways} style={{ width: 90 }} />
-            </label>
-            <label style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, fontSize: 13 }}>
-              <input type="checkbox" checked={bulkHoursAlways} onChange={(e) => setBulkHoursAlways(e.target.checked)} style={{ width: 'auto' }} />
-              24 saat açıqdır
-            </label>
-            <button className="btn" disabled={bulkHoursApplying} onClick={applyBulkHours} style={{ alignSelf: 'flex-end' }}>
-              {bulkHoursApplying ? 'Tətbiq edilir…' : 'Bu markete aid bütün filiallara tətbiq et'}
+            <button className="btn" disabled={bulkHoursApplying} onClick={resetToStoreHours}>
+              {bulkHoursApplying ? 'Tətbiq edilir…' : 'Öz saatını sil, marketdən götürsün'}
             </button>
           </div>
           <div style={{ fontSize: 12, color: '#92400E', marginTop: 10 }}>
-            {bulkHoursStoreId
-              ? `"${stores.find((s) => s.id === bulkHoursStoreId)?.name ?? ''}" marketinin ${rows.filter((r) => r.store_id === bulkHoursStoreId).length} filialına tətbiq ediləcək`
-              : `Bütün marketlərin ${rows.length} filialına tətbiq ediləcək`}
+            {(() => {
+              const scope = bulkHoursStoreId ? rows.filter((r) => r.store_id === bulkHoursStoreId) : rows;
+              const own = scope.filter((r) => r.open_from || r.open_until).length;
+              const name = bulkHoursStoreId ? `"${stores.find((s) => s.id === bulkHoursStoreId)?.name ?? ''}" marketinin` : 'Bütün marketlərin';
+              return own
+                ? `${name} ${own} filialının öz saatı var — onlar markete bağlanacaq (qalan ${scope.length - own} filial onsuz da markete bağlıdır).`
+                : `${name} bütün filialları onsuz da marketin saatını işlədir.`;
+            })()}
           </div>
         </div>
       )}
