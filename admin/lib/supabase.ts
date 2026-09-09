@@ -43,6 +43,18 @@ export interface Popup {
 }
 export type PopupLang = 'az' | 'en' | 'tr' | 'ru';
 export type PopupTranslations = Partial<Record<Exclude<PopupLang, 'az'>, { title?: string; body?: string; cta_label?: string }>>;
+/** One row of iap_events: a store purchase, renewal, refund or a restore check. */
+export interface IapEvent {
+  id: string;
+  user_id: string | null;
+  platform: 'apple' | 'google' | string;
+  event: string;
+  product_id: string | null;
+  transaction_id: string | null;
+  expires_at: string | null;
+  created_at: string;
+}
+
 export interface Product {
   id: string; barcode: string | null; name: string; brand: string; size: string; category: string;
   emoji: string | null; tint: string | null; image_url: string | null; rating: number | null;

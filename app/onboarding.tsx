@@ -5,20 +5,22 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, radius, space } from '@/theme';
 import { Row, Txt } from '@/components/ui';
+import { useT, type Key } from '@/lib/i18n';
 import { LogoMark } from '@/components/Logo';
 import { useAuth } from '@/store/auth';
 
 const SLIDES = [
-  { key: '1', line1: 'Səbətini', line2: 'yarat', body: 'Almaq istədiyin məhsulları səbətə at. Axtar, barkodu skan et və ya şəklini çək.', note: 'Sərin səbətin\nhəmişə yanında!', img: require('../assets/onboarding/1.png'), ratio: 327 / 470 },
-  { key: '2', line1: 'Qiymətləri', line2: 'müqayisə et', body: 'Eyni səbət müxtəlif marketlərdə neçədir? Cheap Market AI sənin üçün hesablayır.', note: 'Sən seç,\nbiz müqayisə edək!', img: require('../assets/onboarding/2.png'), ratio: 328 / 505 },
-  { key: '3', line1: 'Ən sərfəli', line2: 'marketi tap', body: 'Sənə ən yaxın filialı xəritədə görürsən, marşruta bax və rahat alış-veriş et. Qiymət düşəndə xəbər veririk.', note: 'Daha ağıllı al,\ndaha çox qənaət et!', img: require('../assets/onboarding/3.png'), ratio: 330 / 435 },
-];
+  { key: '1', line1: 'onb.1line1', line2: 'onb.1line2', body: 'onb.1body', note: 'onb.1note', img: require('../assets/onboarding/1.png'), ratio: 327 / 470 },
+  { key: '2', line1: 'onb.2line1', line2: 'onb.2line2', body: 'onb.2body', note: 'onb.2note', img: require('../assets/onboarding/2.png'), ratio: 328 / 505 },
+  { key: '3', line1: 'onb.3line1', line2: 'onb.3line2', body: 'onb.3body', note: 'onb.3note', img: require('../assets/onboarding/3.png'), ratio: 330 / 435 },
+] satisfies Array<{ key: string; line1: Key; line2: Key; body: Key; note: Key; img: number; ratio: number }>;
 
 /** First-launch walkthrough (3 slides with illustrations), then the sign-in screen. */
 export default function Onboarding() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const auth = useAuth();
+  const t = useT();
   const { height } = useWindowDimensions();
   // Measure the real container (inside the web phone frame the window is much wider than the screen).
   const [w, setW] = useState(0);
@@ -67,18 +69,18 @@ export default function Onboarding() {
         {w > 0 && SLIDES.map((s) => (
           <View key={s.key} style={{ width: w, paddingHorizontal: space.xl, alignItems: 'center' }}>
             <Txt style={styles.h1} center>
-              {s.line1}
+              {t(s.line1)}
             </Txt>
             <Txt style={[styles.h1, { color: colors.primary, marginTop: 0 }]} center>
-              {s.line2}
+              {t(s.line2)}
             </Txt>
             <Txt v="body" color={colors.gray} center style={{ marginTop: space.md, maxWidth: 300 }}>
-              {s.body}
+              {t(s.body)}
             </Txt>
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%' }}>
               <Image source={s.img} style={{ width: Math.min(w - 72, imgH * s.ratio), height: Math.min(imgH, (w - 72) / s.ratio) }} resizeMode="contain" accessibilityIgnoresInvertColors />
             </View>
-            <Txt style={styles.note}>{s.note}</Txt>
+            <Txt style={styles.note}>{t(s.note)}</Txt>
           </View>
         ))}
       </ScrollView>
@@ -92,7 +94,7 @@ export default function Onboarding() {
         <Pressable onPress={next} accessibilityRole="button" style={({ pressed }) => [styles.btn, pressed && { opacity: 0.9 }]}>
           {!last && <Ionicons name="arrow-forward" size={20} color={colors.white} style={{ marginRight: 8 }} />}
           <Txt v="bodyStrong" color={colors.white} style={{ fontSize: 17 }}>
-            {last ? 'Başla' : 'Növbəti'}
+            {last ? t('onb.start') : t('onb.next')}
           </Txt>
           {last && <Ionicons name="arrow-forward" size={20} color={colors.white} style={{ marginLeft: 8 }} />}
         </Pressable>

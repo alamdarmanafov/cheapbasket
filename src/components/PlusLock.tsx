@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { colors, radius, space } from '@/theme';
+import { useT } from '@/lib/i18n';
 import { Btn, Txt } from './ui';
 import { useBasket } from '@/store/basket';
 
@@ -20,6 +21,7 @@ export function PlusTag() {
  * with a single upgrade action; Plus users see the content as-is.
  */
 export function PlusLock({ feature, children, minHeight = 160, fill = false }: { feature: string; children: React.ReactNode; minHeight?: number; fill?: boolean }) {
+  const t = useT();
   const { isPlus } = useBasket();
   const router = useRouter();
   if (isPlus) return <>{children}</>;
@@ -28,7 +30,7 @@ export function PlusLock({ feature, children, minHeight = 160, fill = false }: {
       <View pointerEvents="none" style={[{ opacity: 0.35 }, fill && { flex: 1 }]}>
         {children}
       </View>
-      <Pressable onPress={() => router.push('/plus')} style={styles.overlay} accessibilityRole="button" accessibilityLabel={`${feature} — Plus ilə aç`}>
+      <Pressable onPress={() => router.push('/plus')} style={styles.overlay} accessibilityRole="button" accessibilityLabel={t('plusLock.unlock', { feature })}>
         <View style={styles.lockIcon}>
           <Ionicons name="lock-closed" size={18} color={colors.primary} />
         </View>
@@ -38,7 +40,7 @@ export function PlusLock({ feature, children, minHeight = 160, fill = false }: {
         <Txt v="caption" color={colors.gray} center style={{ marginTop: 2 }}>
           Cheap Market AI Plus ilə açılır · 1.99 $ / ay
         </Txt>
-        <Btn title="Plus-a keç" size="md" full={false} icon="star" onPress={() => router.push('/plus')} style={{ marginTop: space.md, minWidth: 160 }} />
+        <Btn title={t('plusLock.goPlus')} size="md" full={false} icon="star" onPress={() => router.push('/plus')} style={{ marginTop: space.md, minWidth: 160 }} />
       </Pressable>
     </View>
   );

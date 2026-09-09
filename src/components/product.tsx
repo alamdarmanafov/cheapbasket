@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Product, Store, cheapest, StorePrice } from '@/data/products';
 import { colors, radius, space } from '@/theme';
+import { useT } from '@/lib/i18n';
 import { Price, Row, Txt } from './ui';
 import { useBasket } from '@/store/basket';
 import { freshness, freshnessLevel } from '@/lib/format';
@@ -78,6 +79,7 @@ export function StoreAvatar({ store, size = 32 }: { store: Store; size?: number 
 
 /** A product row with cheapest price and a one-tap add button. */
 export function ProductRow({ product, showStore = true }: { product: Product; showStore?: boolean }) {
+  const t = useT();
   const router = useRouter();
   const basket = useBasket();
   const c = cheapest(product);
@@ -115,7 +117,7 @@ export function ProductRow({ product, showStore = true }: { product: Product; sh
           basket.add(product);
         }}
         hitSlop={8}
-        accessibilityLabel="Səbətə əlavə et"
+        accessibilityLabel={t('product.addToBasket')}
         style={({ pressed }) => [
           styles.add,
           inBasket && { backgroundColor: colors.successSoft },

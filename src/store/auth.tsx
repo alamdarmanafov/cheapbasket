@@ -8,6 +8,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, hasSupabase } from '@/lib/supabase';
 import { PlanId } from '@/data/plans';
+import { tr } from '@/lib/i18n';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -135,7 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const oauth = async (provider: 'google' | 'apple') => {
-    if (!supabase) return { error: 'Supabase konfiqurasiya olunmayıb' };
+    if (!supabase) return { error: tr('err.noSupabase') };
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
@@ -143,10 +144,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       if (error) throw error;
       if (Platform.OS === 'web') return {}; // browser navigates away; detectSessionInUrl finishes it
-      if (!data.url) throw new Error('OAuth URL alınmadı');
+      if (!data.url) throw new Error(tr('err.noOauthUrl'));
       const res = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
       if (res.type === 'success') await completeFromUrl(res.url);
-      else if (res.type === 'cancel' || res.type === 'dismiss') return { error: 'Giriş ləğv edildi' };
+      else if (res.type === 'cancel' || res.type === 'dismiss') return { error: tr('err.cancelled') };
       return {};
     } catch (e) {
       return { error: msg(e) };
@@ -154,7 +155,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInApple = async () => {
-    if (!supabase) return { error: 'Supabase konfiqurasiya olunmayıb' };
+    if (!supabase) return { error: tr('err.noSupabase') };
     // Native Sign in with Apple on iOS; Supabase-hosted OAuth elsewhere.
     if (Platform.OS !== 'ios') return oauth('apple');
     try {
@@ -164,7 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         requestedScopes: [AppleAuthentication.AppleAuthenticationScope.FULL_NAME, AppleAuthentication.AppleAuthenticationScope.EMAIL],
         nonce: hashedNonce,
       });
-      if (!cred.identityToken) throw new Error('Apple identity token alınmadı');
+      if (!cred.identityToken) throw new Error(tr('err.noAppleToken'));
       const { data, error } = await supabase.auth.signInWithIdToken({ provider: 'apple', token: cred.identityToken, nonce: rawNonce });
       if (error) throw error;
       // Apple only sends the name on the first sign-in — store it.
@@ -173,7 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return {};
     } catch (e) {
       const m = msg(e);
-      return m.includes('ERR_REQUEST_CANCELED') ? { error: 'Giriş ləğv edildi' } : { error: m };
+      return m.includes('ERR_REQUEST_CANCELED') ? { error: tr('err.cancelled') } : { error: m };
     }
   };
 
@@ -185,20 +186,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user: session?.user ?? null,
       profile,
       async signUpEmail(email, password, name) {
-        if (!supabase) return { error: 'Supabase konfiqurasiya olunmayıb' };
+        if (!supabase) return { error: tr('err.noSupabase') };
         const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { display_name: name }, emailRedirectTo: redirectTo } });
         if (error) return { error: error.message };
         return { needsConfirm: !data.session };
       },
       async signInEmail(email, password) {
-        if (!supabase) return { error: 'Supabase konfiqurasiya olunmayıb' };
+        if (!supabase) return { error: tr('err.noSupabase') };
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         return error ? { error: error.message } : {};
       },
       signInApple,
       signInGoogle: () => oauth('google'),
       async resetPassword(email) {
-        if (!supabase) return { error: 'Supabase konfiqurasiya olunmayıb' };
+        if (!supabase) return { error: tr('err.noSupabase') };
         const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
         return error ? { error: error.message } : {};
       },
@@ -207,13 +208,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setProfile(null);
       },
       async deleteAccount() {
-        if (!supabase) return { error: 'Supabase konfiqurasiya olunmayıb' };
+        if (!supabase) return { error: tr('err.noSupabase') };
         const api = process.env.EXPO_PUBLIC_API_URL;
-        if (!api) return { error: 'Server ünvanı təyin edilməyib' };
+        if (!api) return { error: tr('err.noApiUrl') };
         try {
           const { data } = await supabase.auth.getSession();
           const token = data.session?.access_token;
-          if (!token) return { error: 'Sessiya tapılmadı — yenidən daxil ol' };
+          if (!token) return { error: tr('err.noSession') };
           const res = await fetch(`${api}/api/account/delete`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
           const body = (await res.json().catch(() => null)) as { error?: string } | null;
           if (!res.ok) return { error: body?.error ?? `Server xətası (${res.status})` };

@@ -1,3 +1,4 @@
+import { tr } from './i18n';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { ErrorCode, useIAP, type Purchase, type ProductSubscription } from 'expo-iap';
@@ -38,8 +39,8 @@ export function usePlusStore(): PlusStore {
         const r = await verifyWithServer(verifyBody(purchase));
         await finishTransaction({ purchase });
         await auth.refreshProfile();
-        if (r.active) notify('Plus aktivdir 🎉', 'Abunəliyin uğurla aktivləşdi. Bütün Plus funksiyaları açıqdır.');
-        else setError('Ödəniş qeydə alındı, amma abunəlik hələ aktiv görünmür. Bir az sonra "Alışları bərpa et" düyməsini sına.');
+        if (r.active) notify(tr('iap.activeTitle'), tr('iap.activeBody'));
+        else setError(tr('iap.pendingBody'));
       } catch (e) {
         setError((e as Error).message);
       } finally {
@@ -49,7 +50,7 @@ export function usePlusStore(): PlusStore {
     onPurchaseError: (e) => {
       setBusy(false);
       if (e.code === ErrorCode.UserCancelled) return;
-      setError(e.message || 'Ödəniş alınmadı');
+      setError(e.message || tr('iap.failed'));
     },
     onError: (e) => setError(e.message),
   });
@@ -72,11 +73,11 @@ export function usePlusStore(): PlusStore {
       const sku = PLUS_SKUS[period];
       setError(null);
       if (!connected) {
-        setError('Mağaza ilə əlaqə yoxdur. İnternetini yoxla və yenidən cəhd et.');
+        setError(tr('iap.noStore'));
         return;
       }
       if (!API_URL) {
-        setError('Ödəniş serveri konfiqurasiya olunmayıb (EXPO_PUBLIC_API_URL).');
+        setError(tr('iap.noServer'));
         return;
       }
       setBusy(true);
@@ -104,7 +105,7 @@ export function usePlusStore(): PlusStore {
     async (purchases: Purchase[], silent: boolean) => {
       const mine = purchases.filter((p) => isPlusSku(p.productId));
       if (!mine.length) {
-        if (!silent) notify('Alış tapılmadı', 'Bu App Store / Google Play hesabında Plus abunəliyi yoxdur.');
+        if (!silent) notify(tr('iap.noPurchase'), tr('iap.noPurchaseBody'));
         return;
       }
       let active = false;
@@ -119,16 +120,16 @@ export function usePlusStore(): PlusStore {
       }
       await auth.refreshProfile();
       if (silent) return;
-      if (active) notify('Bərpa edildi', 'Plus abunəliyin bərpa olundu.');
+      if (active) notify(tr('iap.restored'), tr('iap.restoredBody'));
       else if (lastErr) setError(lastErr);
-      else notify('Aktiv abunəlik yoxdur', 'Bu hesabın Plus abunəliyi bitib və ya ləğv edilib.');
+      else notify(tr('iap.notActive'), tr('iap.notActiveBody'));
     },
     [auth],
   );
 
   const restore = useCallback(async () => {
     if (!connected || !auth.user) {
-      setError(auth.user ? 'Mağaza ilə əlaqə yoxdur.' : 'Əvvəlcə hesabına daxil ol.');
+      setError(auth.user ? tr('iap.noStoreShort') : tr('iap.signInFirst'));
       return;
     }
     setError(null);

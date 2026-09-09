@@ -1,3 +1,4 @@
+import { tr } from './i18n';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -27,7 +28,7 @@ export async function registerForPush(userId: string | null): Promise<{ status: 
   try {
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('price-drops', {
-        name: 'Qiymət düşüşləri',
+        name: tr('notif.channel'),
         importance: Notifications.AndroidImportance.DEFAULT,
         lightColor: '#E53935',
       });

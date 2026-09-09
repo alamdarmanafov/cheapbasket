@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, space } from '@/theme';
 import { Card, Chip, Divider, Pill, Row, Txt } from '@/components/ui';
 import { ScreenHeader } from '@/components/ScreenHeader';
+import { useT } from '@/lib/i18n';
 import { StateView } from '@/components/states';
 import { StoreAvatar } from '@/components/product';
 import { Branch, getStore, isAllDay, isOpenNow } from '@/data/products';
@@ -18,6 +19,7 @@ export default function Nearby() {
   const insets = useSafeAreaInsets();
   const cat = useCatalog();
   const refresh = useRefresh();
+  const t = useT();
   const [storeFilter, setStoreFilter] = useState<string | null>(null);
   const [openOnly, setOpenOnly] = useState(false);
 
@@ -31,32 +33,32 @@ export default function Nearby() {
   const status = (b: Branch) => {
     const o = isOpenNow(b);
     if (o === null) return null;
-    if (isAllDay(b)) return <Pill tone="success" text="24 saat" />;
-    return o ? <Pill tone="success" text={`Açıqdır · ${b.openUntil}-a qədər`} /> : <Pill tone="warning" text={b.openFrom ? `Bağlıdır · ${b.openFrom}-da açılır` : 'Bağlıdır'} />;
+    if (isAllDay(b)) return <Pill tone="success" text={t('nearby.allDay')} />;
+    return o ? <Pill tone="success" text={t('nearby.openUntil', { time: b.openUntil })} /> : <Pill tone="warning" text={b.openFrom ? t('nearby.closedFrom', { time: b.openFrom }) : t('common.closed')} />;
   };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <ScreenHeader title="Yaxınlıqdakı marketlər" />
+      <ScreenHeader title={t('nearby.title')} />
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: insets.bottom + space.xxl }} refreshControl={refresh.control}>
         <Pressable onPress={() => cat.requestLocation({ interactive: true })} style={styles.locRow} accessibilityRole="button">
           <Ionicons name={cat.locationGranted ? 'locate' : 'locate-outline'} size={18} color={cat.locationGranted ? colors.success : colors.primary} />
           <Txt v="caption" color={colors.gray} style={{ marginLeft: 8, flex: 1 }}>
-            {cat.locationGranted ? `Yerin: ${cat.place ?? 'təyin olundu'} · məsafələr buna görədir` : 'Lokasiyanı aç ki, sənə ən yaxın filiallar çıxsın'}
+            {cat.locationGranted ? t('nearby.basedOn', { place: cat.place ?? t('nearby.located') }) : t('nearby.enableLoc')}
           </Txt>
           <Ionicons name="chevron-forward" size={16} color={colors.grayLight} />
         </Pressable>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: space.md }}>
-          <Chip text="Hamısı" active={!storeFilter} onPress={() => setStoreFilter(null)} />
+          <Chip text={t('nearby.all')} active={!storeFilter} onPress={() => setStoreFilter(null)} />
           {cat.stores.map((s) => (
             <Chip key={s.id} text={s.name} active={storeFilter === s.id} onPress={() => setStoreFilter(s.id)} />
           ))}
-          <Chip text="🕐 İndi açıq" active={openOnly} onPress={() => setOpenOnly((v) => !v)} />
+          <Chip text={t('nearby.openNow')} active={openOnly} onPress={() => setOpenOnly((v) => !v)} />
         </ScrollView>
 
         {list.length === 0 ? (
-          <StateView emoji="🏪" title="Filial tapılmadı" body={openOnly ? 'Hazırda açıq filial yoxdur.' : 'Bu market üçün filial əlavə edilməyib.'} />
+          <StateView emoji="🏪" title={t('nearby.noBranch')} body={openOnly ? t('nearby.noneOpen') : t('nearby.noneForStore')} />
         ) : (
           <Card style={{ paddingVertical: space.xs }}>
             {list.map((b, i) => (
