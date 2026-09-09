@@ -153,7 +153,9 @@ function BestStoreView({
   const isBest = chosen.store.id === best.store.id;
   const branch = nearestBranch(chosen.store.id);
   const worst = o.worst;
-  const maxTotal = Math.max(...o.ranked.map((r) => r.total));
+  // Scale the bars against the dearest store that can supply the whole basket;
+  // a store missing everything totals zero and would otherwise flatten them all.
+  const fullMax = Math.max(0, ...o.ranked.filter((r) => r.missing.length === 0).map((r) => r.total));
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: space.xxl }} refreshControl={refresh.control}>
@@ -182,37 +184,70 @@ function BestStoreView({
           </Txt>
         )}
 
-        {/* Mini markets grid — tap to pick a different store */}
-        <Row gap={7} style={{ marginTop: 14, alignItems: 'stretch' }}>
+        {/*
+          * Every store, one per line, best first.
+          *
+          * These were eight tiles squeezed across the width of a phone: the names
+          * came out as "Ne…", the totals wrapped mid-number ("8.7 / 8 ₼") and the
+          * difference was unreadable — which defeats a comparison. A row each
+          * fits the whole name, the whole price and the difference from the best,
+          * and the bar makes the gap visible without doing arithmetic.
+          */}
+        <View style={{ marginTop: 14 }}>
           {o.ranked.map((r, i) => {
             const active = r.store.id === chosen.store.id;
+            const complete = r.missing.length === 0;
+            const first = i === 0;
             return (
               <Pressable
                 key={r.store.id}
                 onPress={() => setChosenStore(r.store.id)}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: active }}
-                style={({ pressed }) => [styles.mini, active && styles.miniActive, pressed && { opacity: 0.8 }]}
+                style={({ pressed }) => [
+                  styles.rank,
+                  i < o.ranked.length - 1 && styles.rankLine,
+                  active && styles.rankOn,
+                  pressed && { opacity: 0.85 },
+                ]}
               >
-                <StoreAvatar store={r.store} size={22} />
-                <Txt v="captionStrong" style={{ fontSize: 10, marginTop: 6 }} numberOfLines={1}>
-                  {r.store.name}
-                </Txt>
-                <Txt v="captionStrong" num style={{ fontSize: 12, marginTop: 2 }}>
-                  {r.total.toFixed(2)} ₼
-                </Txt>
-                <Txt v="caption" color={r.missing.length ? colors.warning : i === 0 ? colors.success : colors.gray} style={{ fontSize: 9, marginTop: 2 }} numberOfLines={1}>
-                  {r.missing.length
-                    ? t('markets.missingCount', { count: r.missing.length })
-                    : i === 0
-                      ? t('markets.segBest')
-                      : t('markets.plusAmount', { amount: (r.total - best.total).toFixed(2) })}
-                </Txt>
-                <View style={[styles.miniBar, { width: `${Math.max(10, (r.total / maxTotal) * 100)}%`, backgroundColor: i === 0 ? colors.success : colors.line }]} />
+                <StoreAvatar store={r.store} size={28} />
+                <View style={{ flex: 1, marginLeft: 10, minWidth: 0 }}>
+                  <Txt v="captionStrong" numberOfLines={1} style={{ fontSize: 13 }}>
+                    {storeLabel(r.store)}
+                  </Txt>
+                  <View style={styles.rankBar}>
+                    <View
+                      style={[
+                        styles.rankFill,
+                        {
+                          width: `${complete && fullMax > 0 ? Math.max(8, (r.total / fullMax) * 100) : 0}%`,
+                          backgroundColor: first ? colors.success : colors.grayLight,
+                        },
+                      ]}
+                    />
+                  </View>
+                </View>
+                <View style={{ alignItems: 'flex-end', marginLeft: 10 }}>
+                  <Txt v="captionStrong" num style={{ fontSize: 15, color: complete ? colors.dark : colors.grayLight }}>
+                    {complete ? `${r.total.toFixed(2)} ₼` : '—'}
+                  </Txt>
+                  <Txt
+                    v="caption"
+                    style={{ fontSize: 11, marginTop: 1, color: !complete ? colors.warning : first ? colors.success : colors.gray }}
+                    numberOfLines={1}
+                  >
+                    {!complete
+                      ? t('markets.missingCount', { count: r.missing.length })
+                      : first
+                        ? t('markets.segBest')
+                        : t('markets.plusAmount', { amount: (r.total - best.total).toFixed(2) })}
+                  </Txt>
+                </View>
               </Pressable>
             );
           })}
-        </Row>
+        </View>
       </View>
 
       {/* Nearest branch of the chosen store */}
@@ -318,9 +353,11 @@ function BestStoreView({
 const styles = StyleSheet.create({
   altRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primarySoft, borderRadius: radius.sm, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 6 },
   hero: { backgroundColor: colors.white, borderRadius: 20, padding: 18, marginTop: 14, alignItems: 'center', ...shadow.card },
-  mini: { flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: 11, paddingVertical: 9, paddingHorizontal: 4, alignItems: 'center', overflow: 'hidden' },
-  miniActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  miniBar: { height: 3, borderRadius: 2, marginTop: 6, alignSelf: 'flex-start', marginLeft: 4 },
+  rank: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 8, borderRadius: 12 },
+  rankLine: { borderBottomWidth: 1, borderBottomColor: colors.line },
+  rankOn: { backgroundColor: colors.primarySoft, borderBottomColor: 'transparent' },
+  rankBar: { height: 4, borderRadius: 3, backgroundColor: colors.line, marginTop: 5, overflow: 'hidden' },
+  rankFill: { height: '100%', borderRadius: 3 },
   branchCard: { backgroundColor: colors.white, borderRadius: 18, ...shadow.card },
   navBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   gpsBtn: { width: 40, height: 40, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
