@@ -50,7 +50,13 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
       ]);
       // Hours live on the store; branches without their own inherit them here,
       // so every screen can keep reading them straight off the branch.
-      const branches = withStoreHours(b, s);
+      //
+      // Distances are recomputed from the location as it stands *now*, not as it
+      // stood when the fetch began. The two run in parallel on launch, and when
+      // the position arrived mid-fetch its recompute was immediately overwritten
+      // by this result — leaving every distance measured from the default point
+      // in the city centre rather than from where the person actually is.
+      const branches = withDistances(withStoreHours(b, s), catalog.location);
       catalog.categories = cs;
       catalog.stores = s;
       catalog.products = p;
