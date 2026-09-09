@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { Shell } from '@/components/Shell';
+import { Pager, usePager } from '@/components/Pager';
 import { db, Store, Product, PriceRow } from '@/lib/supabase';
 
 interface WoltVenue { slug: string; name: string; address: string | null; url: string }
@@ -111,6 +112,8 @@ export default function PricesPage() {
     return list;
   }, [products, search, onlyMissing, missingFilterStore, stores, priceMap]);
 
+  const { page, setPage, totalPages, paged } = usePager(filteredProducts);
+
   // Missing counts per store
   const missingPerStore = useMemo(() => {
     return stores.map((s) => ({
@@ -197,7 +200,7 @@ export default function PricesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredProducts.slice(0, 500).map((p) => {
+                  {paged.map((p) => {
                     const storeMap = priceMap.get(p.id);
                     // Find cheapest store price
                     let cheapestStoreId: string | null = null;
@@ -246,11 +249,9 @@ export default function PricesPage() {
                       </tr>
                     );
                   })}
-                  {filteredProducts.length > 500 && (
-                    <tr><td colSpan={stores.length + 3} className="muted" style={{ textAlign: 'center', padding: 12 }}>Göstərilən: 500 / {filteredProducts.length} — axtarış ilə daralt</td></tr>
-                  )}
                 </tbody>
               </table>
+              <Pager page={page} setPage={setPage} totalPages={totalPages} total={filteredProducts.length} unit="məhsul" />
             </div>
           )}
         </>

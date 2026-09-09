@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Clock, FileSpreadsheet, Map, MapPin, Plus, RefreshCw, Search, Table, Trash2, X } from 'lucide-react';
 import { Shell } from '@/components/Shell';
+import { Pager, usePager } from '@/components/Pager';
 import { BranchImport, branchId } from '@/components/BranchImport';
 import { Branch, Store, db } from '@/lib/supabase';
 import type { WoltVenue } from '@/lib/wolt';
@@ -388,6 +389,9 @@ export default function Branches() {
     return base.filter((r) => `${r.name} ${r.address} ${r.id}`.toLowerCase().includes(needle));
   })();
 
+  /** Fifty branches to a page, the same as every other admin list. */
+  const { page, setPage, totalPages, paged } = usePager(shown);
+
   /**
    * Deletes every selected branch.
    *
@@ -740,7 +744,7 @@ export default function Branches() {
             <th style={{ width: 32 }}>
               <input
                 type="checkbox"
-                title="Hamısını seç"
+                title="Süzgəcdən keçən bütün filialları seçir — təkcə bu səhifədəkiləri yox"
                 checked={shown.length > 0 && shown.every((b) => selected.has(b.id))}
                 onChange={(e) => setSelected(e.target.checked ? new Set(shown.map((b) => b.id)) : new Set())}
               />
@@ -748,7 +752,7 @@ export default function Branches() {
             <th>Market</th><th>Filial</th><th>Ünvan</th><th>Koordinat</th><th>Açıq</th><th></th>
           </tr></thead>
           <tbody>
-            {shown.map((b) => (
+            {paged.map((b) => (
               <tr key={b.id} style={selected.has(b.id) ? { background: '#EFF6FF' } : undefined}>
                 <td>
                   <input
@@ -786,6 +790,7 @@ export default function Branches() {
             {shown.length === 0 && <tr><td colSpan={7} className="muted" style={{ textAlign: 'center', padding: 30 }}>{rows.length ? 'Bu marketin filialı yoxdur.' : 'Filial yoxdur. Tətbiqdə xəritə və "ən yaxın filial" buradan gəlir.'}</td></tr>}
           </tbody>
         </table>
+        <Pager page={page} setPage={setPage} totalPages={totalPages} total={shown.length} unit="filial" />
         </>
       )}
 

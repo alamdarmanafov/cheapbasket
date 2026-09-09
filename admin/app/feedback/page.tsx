@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Check, Trash2 } from 'lucide-react';
 import { Shell } from '@/components/Shell';
+import { Pager, usePager } from '@/components/Pager';
 import { db } from '@/lib/supabase';
 
 interface Feedback { id: string; user_id: string | null; email: string | null; kind: string; message: string; platform: string | null; status: string; admin_note: string | null; created_at: string }
@@ -17,6 +18,7 @@ export default function FeedbackPage() {
   const note = async (f: Feedback, admin_note: string) => { await db.upsert('feedback', [{ ...f, admin_note }], 'id').catch((e: Error) => setMsg(e.message)); };
   const remove = async (f: Feedback) => { if (!confirm('Silinsin?')) return; await db.delete('feedback', { id: f.id }).catch((e: Error) => setMsg(e.message)); load(); };
   const shown = rows.filter((r) => !filter || r.status === filter);
+  const { page, setPage, totalPages, paged } = usePager(shown);
   return (
     <Shell title="Rəylər və şikayətlər">
       {msg && <div className="alert err">{msg}</div>}
@@ -30,7 +32,7 @@ export default function FeedbackPage() {
       <table>
         <thead><tr><th>Tarix</th><th>Növ</th><th>Mesaj</th><th>Kimdən</th><th>Qeyd</th><th></th></tr></thead>
         <tbody>
-          {shown.map((f) => (
+          {paged.map((f) => (
             <tr key={f.id}>
               <td className="muted" style={{ whiteSpace: 'nowrap', fontSize: 12 }}>{new Date(f.created_at).toLocaleString('az-AZ')}<div>{f.platform}</div></td>
               <td><span className={`pill ${f.kind === 'complaint' ? 'red' : f.kind === 'suggestion' ? 'green' : 'gray'}`}>{KIND[f.kind] ?? f.kind}</span></td>
@@ -46,6 +48,7 @@ export default function FeedbackPage() {
           {shown.length === 0 && <tr><td colSpan={6} className="muted" style={{ textAlign: 'center', padding: 30 }}>Mesaj yoxdur.</td></tr>}
         </tbody>
       </table>
+      <Pager page={page} setPage={setPage} totalPages={totalPages} total={shown.length} unit="mesaj" />
     </Shell>
   );
 }

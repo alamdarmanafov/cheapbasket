@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Ban, CalendarPlus, Search, Star, Trash2, X } from 'lucide-react';
 import { Shell } from '@/components/Shell';
+import { Pager, usePager } from '@/components/Pager';
 import { AdminUser, IapEvent, db } from '@/lib/supabase';
 import { PaymentSummary, isPaidEvent, isRefundEvent, summarise } from '@/lib/iapEvents';
 
@@ -71,6 +72,8 @@ export default function Users() {
     return true;
   });
 
+  const { page, setPage, totalPages, paged } = usePager(filtered);
+
   return (
     <Shell title="İstifadəçilər">
       {msg && <div className={`alert ${msg.ok ? 'ok' : 'err'}`}>{msg.text}</div>}
@@ -91,7 +94,7 @@ export default function Users() {
       <table>
         <thead><tr><th>İstifadəçi</th><th>Giriş</th><th>Qeydiyyat</th><th>Son giriş</th><th>Cihaz</th><th>Ödəniş</th><th>Plan</th><th></th></tr></thead>
         <tbody>
-          {filtered.map((u) => {
+          {paged.map((u) => {
             const active = isActivePlus(u);
             const left = daysLeft(u);
             return (
@@ -160,6 +163,7 @@ export default function Users() {
           {filtered.length === 0 && <tr><td colSpan={8} className="muted" style={{ textAlign: 'center', padding: 30 }}>İstifadəçi yoxdur.</td></tr>}
         </tbody>
       </table>
+      <Pager page={page} setPage={setPage} totalPages={totalPages} total={filtered.length} unit="istifadəçi" />
       <p className="note">Müddət bitəndə tətbiq avtomatik Free-yə qayıdır. Mağaza ödənişi (App Store / Google Play) qoşulanda plan avtomatik yenilənəcək.</p>
 
       {grant && (

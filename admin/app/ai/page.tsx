@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { BrainCircuit, CheckCircle, Clock, HelpCircle, XCircle } from 'lucide-react';
 import { Shell } from '@/components/Shell';
+import { Pager, usePager } from '@/components/Pager';
 import { db } from '@/lib/supabase';
 
 interface AiLog {
@@ -17,6 +18,7 @@ interface AiLog {
 
 export default function AiPage() {
   const [logs, setLogs] = useState<AiLog[]>([]);
+  const { page, setPage, totalPages, paged } = usePager(logs);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -107,7 +109,7 @@ export default function AiPage() {
                 </tr>
               </thead>
               <tbody>
-                {logs.map((l) => (
+                {paged.map((l) => (
                   <tr key={l.id}>
                     <td style={{ fontSize: 13 }}>{l.query_name}</td>
                     <td className="muted" style={{ fontSize: 12 }}>{l.query_barcode ?? '—'}</td>
@@ -128,6 +130,7 @@ export default function AiPage() {
                 ))}
               </tbody>
             </table>
+            <Pager page={page} setPage={setPage} totalPages={totalPages} total={logs.length} unit="qeyd" />
           </div>
         )}
       </div>
