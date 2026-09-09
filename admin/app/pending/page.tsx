@@ -128,7 +128,7 @@ export default function PendingPage() {
     setMsg(null);
     try {
       const r = await api({ op: 'approve_all' });
-      setMsg({ ok: true, text: `${r.count} məhsul qəbul edildi.` });
+      setMsg({ ok: true, text: `${r.count} məhsul qəbul edildi.${r.skipped ? ` ${r.skipped} sətir adsız olduğu üçün növbədə qaldı.` : ''}` });
       load();
     } catch (e) {
       setMsg({ ok: false, text: (e as Error).message });

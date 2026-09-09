@@ -281,7 +281,11 @@ export default function ImportPage() {
           if (r.updateInfo && !infoUpdates.some((u) => u.id === id)) infoUpdates.push({ id, name: r.title.trim(), brand: r.brand.trim(), size: r.size.trim() || '—', category: r.appCategory, image_url: r.image_url });
           else if (!r.updateInfo && r.image_url && !photoUpdates.some((u) => u.id === id)) {
             const fp = fresh.find((p) => p.id === id);
-            if (fp && !fp.image_url) photoUpdates.push({ id, image_url: r.image_url });
+            // Carry the whole product, not just { id, image_url }. This goes out as
+            // INSERT ... ON CONFLICT, and Postgres checks NOT NULL on the proposed
+            // row *before* it looks for the conflict — so a two-column payload fails
+            // with "null value in column name" even though the row already exists.
+            if (fp && !fp.image_url) photoUpdates.push({ ...fp, image_url: r.image_url });
           }
         }
         if (productsOnly || num(r.priceText) == null) continue;

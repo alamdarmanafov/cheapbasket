@@ -78,7 +78,12 @@ export async function POST(req: Request) {
       );
       if (!pending?.length) return NextResponse.json({ ok: true, count: 0 });
 
-      const productRows = pending.map((p: Record<string, unknown>) => ({
+      // A pending row without a name cannot become a product (name is NOT NULL),
+      // and one bad row would otherwise fail the whole batch.
+      const nameless = pending.filter((p: Record<string, unknown>) => !String(p.name ?? '').trim()).length;
+      const productRows = pending
+        .filter((p: Record<string, unknown>) => String(p.name ?? '').trim())
+        .map((p: Record<string, unknown>) => ({
         id: p.id,
         name: p.name,
         brand: p.brand ?? '',
@@ -97,12 +102,15 @@ export async function POST(req: Request) {
         if (error) return NextResponse.json({ error: errText(error) }, { status: 500 });
       }
 
-      // Delete all approved items
-      const ids = pending.map((p: Record<string, unknown>) => p.id as string);
-      const { error: e3 } = await db.from('pending_products').delete().in('id', ids);
-      if (e3) return NextResponse.json({ error: errText(e3) }, { status: 500 });
+      // Remove only what actually became a product. A nameless row stays in the
+      // queue so it can be fixed or rejected, rather than vanishing unapproved.
+      const ids = productRows.map((p) => p.id as string);
+      if (ids.length) {
+        const { error: e3 } = await db.from('pending_products').delete().in('id', ids);
+        if (e3) return NextResponse.json({ error: errText(e3) }, { status: 500 });
+      }
 
-      return NextResponse.json({ ok: true, count: pending.length });
+      return NextResponse.json({ ok: true, count: productRows.length, skipped: nameless });
     }
 
     return NextResponse.json({ error: 'Naməlum əməliyyat' }, { status: 400 });
