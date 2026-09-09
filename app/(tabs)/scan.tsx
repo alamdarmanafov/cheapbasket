@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Animated, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -82,7 +82,9 @@ export default function Scan() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#0B0B0B' }}>
+    // Without a camera the barcode is typed in by hand, and the keyboard covered
+    // the field.
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: '#0B0B0B' }}>
       {/* Viewfinder */}
       {canUseCamera ? (
         <CameraView
@@ -188,7 +190,7 @@ export default function Scan() {
           bottomInset={insets.bottom}
         />
       )}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

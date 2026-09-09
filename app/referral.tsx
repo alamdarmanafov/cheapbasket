@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Platform, Pressable, ScrollView, Share, StyleSheet, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Share, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -94,7 +94,9 @@ export default function Referral() {
     );
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+    // The friend's-code box sits low on the screen, so the keyboard covered the
+    // very field it was opened for.
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScreenHeader title={t('ref.title')} />
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: insets.bottom + space.xxl }} refreshControl={refresh.control} keyboardShouldPersistTaps="handled">
         <View style={styles.hero}>
@@ -116,9 +118,9 @@ export default function Referral() {
             {t('ref.yourCodeBody', { points: cfg.referral })}
           </Txt>
           <Row gap={space.sm} style={{ marginTop: space.md }}>
-            <View style={styles.codeBox}>
-              <Txt style={{ fontFamily: fonts.extrabold, fontSize: 24, letterSpacing: 4, color: colors.dark }}>{code ?? '……'}</Txt>
-            </View>
+            <Pressable onPress={share} accessibilityRole="button" style={({ pressed }) => [styles.codeBox, pressed && { opacity: 0.9 }]}>
+              <Txt style={{ fontFamily: fonts.extrabold, fontSize: 22, letterSpacing: 2, color: colors.white }}>{code ?? '……'}</Txt>
+            </Pressable>
             <Pressable onPress={share} accessibilityRole="button" style={styles.shareBtn}>
               <Ionicons name="share-social" size={20} color={colors.white} />
               <Txt v="captionStrong" color={colors.white} style={{ marginLeft: 6 }}>
@@ -165,13 +167,16 @@ export default function Referral() {
           </>
         )}
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   hero: { backgroundColor: colors.dark, borderRadius: radius.xl, padding: space.xl },
-  codeBox: { flex: 1, backgroundColor: colors.fill, borderRadius: radius.md, height: 52, alignItems: 'center', justifyContent: 'center' },
+  // The code is the thing to read on this screen, so it is set on the dark
+  // ground the app uses for emphasis rather than the grey fill, which made it
+  // look like a disabled field.
+  codeBox: { flex: 1, backgroundColor: colors.dark, borderRadius: radius.md, height: 52, alignItems: 'center', justifyContent: 'center' },
   shareBtn: { backgroundColor: colors.primary, borderRadius: radius.md, height: 52, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center' },
   input: { flex: 1, backgroundColor: colors.fill, borderRadius: radius.md, paddingHorizontal: 14, height: 48, fontFamily: fonts.semibold, fontSize: 16, letterSpacing: 2, color: colors.dark },
 });
