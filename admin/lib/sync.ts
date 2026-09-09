@@ -3,7 +3,7 @@ import { buildMatcher, fetchAnySource, WoltItem, MatchableProduct } from './wolt
 import { notifyRecentDrops } from './alerts';
 import { slugify } from './supabase';
 
-export interface SyncSource { id: string; store_id: string; url: string; name: string | null; enabled: boolean; last_run_at: string | null; last_result: SyncResult | null }
+export interface SyncSource { id: string; store_id: string; url: string; name: string | null; enabled: boolean; sync_products: boolean; sync_prices: boolean; last_run_at: string | null; last_result: SyncResult | null }
 export interface SyncResult { ok: boolean; venue?: string; found: number; matched: number; created: number; updated: number; unchanged: number; removed: number; pending: number; photos?: number; error?: string; at: string }
 
 function itemToProduct(it: WoltItem, brand: string) {
@@ -12,8 +12,16 @@ function itemToProduct(it: WoltItem, brand: string) {
   return { id, name: it.name, brand, barcode: it.barcode ?? null, size: '', image_url: it.image_url ?? null };
 }
 
-/** Re-read one Wolt venue, queue new products for review, and upsert prices for existing products. */
-export async function syncSource(src: { id: string; store_id: string; url: string }): Promise<SyncResult> {
+/**
+ * Re-read one venue: queue new products for review and upsert prices for the
+ * ones already in the catalogue.
+ *
+ * `sync_products` and `sync_prices` decide which half runs. Both default to
+ * true, so a source that has never been configured behaves exactly as before.
+ */
+export async function syncSource(src: { id: string; store_id: string; url: string; sync_products?: boolean; sync_prices?: boolean }): Promise<SyncResult> {
+  const wantProducts = src.sync_products !== false;
+  const wantPrices = src.sync_prices !== false;
   const db = adminDb();
   const at = new Date().toISOString();
   try {
@@ -48,6 +56,7 @@ export async function syncSource(src: { id: string; store_id: string; url: strin
       const matchedId = match(it);
       if (!matchedId) {
         // Queue unmatched items for admin review (AI matching runs separately via /api/ai/match-pending)
+        if (!wantProducts) continue;
         const np = itemToProduct(it, brand);
         if (!productIds.has(np.id) && !pendingIds.has(np.id)) {
           pendingInserts.push({
@@ -78,7 +87,7 @@ export async function syncSource(src: { id: string; store_id: string; url: strin
 
     const rows: Record<string, unknown>[] = [];
     let unchanged = 0;
-    for (const [id, v] of next) {
+    for (const [id, v] of wantPrices ? next : []) {
       const cur = current.get(id);
       if (cur && cur.price === v.price && cur.discount === v.discount) { unchanged++; continue; }
       rows.push({ product_id: id, store_id: src.store_id, price: v.price, discount_price: v.discount, updated_at: at });
@@ -97,8 +106,8 @@ export async function syncSource(src: { id: string; store_id: string; url: strin
     }
 
     // Fill photos for existing products that had none
-    for (const [id, image_url] of photos) await db.from('products').update({ image_url }).eq('id', id).is('image_url', null);
-    const result: SyncResult = { ok: true, venue: venue.venue, found: venue.items.length, matched, created: 0, updated: rows.length, unchanged, removed: 0, pending, photos: photos.size, at };
+    if (wantProducts) for (const [id, image_url] of photos) await db.from('products').update({ image_url }).eq('id', id).is('image_url', null);
+    const result: SyncResult = { ok: true, venue: venue.venue, found: venue.items.length, matched, created: 0, updated: rows.length, unchanged, removed: 0, pending, photos: wantProducts ? photos.size : 0, at };
     await db.from('import_sources').update({ last_run_at: at, last_result: result, name: venue.venue || null }).eq('id', src.id);
     return result;
   } catch (e) {
@@ -112,7 +121,7 @@ export async function syncSource(src: { id: string; store_id: string; url: strin
 export async function runSync(opts: { onlyId?: string; notify?: boolean } = {}) {
   const db = adminDb();
   const started = new Date(Date.now() - 60_000).toISOString();
-  let q = db.from('import_sources').select('id, store_id, url, enabled');
+  let q = db.from('import_sources').select('id, store_id, url, enabled, sync_products, sync_prices');
   if (opts.onlyId) q = q.eq('id', opts.onlyId);
   else q = q.eq('enabled', true);
   const { data: sources } = await q;
