@@ -1,11 +1,12 @@
+import { tr } from './i18n';
 import { Alert, Platform } from 'react-native';
 
 /**
  * Confirm dialog that works on native (Alert) and web (window.confirm). Resolves true when confirmed.
  * `cancelLabel` is worth setting when the dialog reports something that already
- * happened — "Ləğv et" then reads as if it would undo it.
+ * happened — tr('common.cancel') then reads as if it would undo it.
  */
-export function confirmAsync(title: string, message: string, okLabel = 'Bəli', destructive = false, cancelLabel = 'Ləğv et'): Promise<boolean> {
+export function confirmAsync(title: string, message: string, okLabel = tr('common.yes'), destructive = false, cancelLabel = tr('common.cancel')): Promise<boolean> {
   if (Platform.OS === 'web') {
     return Promise.resolve(typeof window !== 'undefined' && window.confirm(`${title}\n\n${message}`));
   }

@@ -63,11 +63,10 @@ export default function Plus() {
     setPromoOpen(false);
     notify(t('plus.active'), t('plus.daysAdded', { days: r.days, date: new Date(r.expires_at).toLocaleDateString(lang) }));
   };
-  const priceLabel = (p: 'monthly' | 'yearly') => {
-    const fromStore = store.prices[p];
-    if (fromStore) return p === 'yearly' ? `${fromStore} / il` : `${fromStore} / ay`;
-    return PLUS_PRICING[p].label;
-  };
+  // The store reports the price in the shopper's own currency; PLUS_PRICING is
+  // only the fallback until it does.
+  const priceLabel = (p: 'monthly' | 'yearly') =>
+    t(p === 'yearly' ? 'plus.perYear' : 'plus.perMonth', { price: store.prices[p] ?? PLUS_PRICING[p].label });
 
   /**
    * The store connected and finished loading but returned no product for this id.
@@ -146,7 +145,7 @@ export default function Plus() {
                         {p === 'yearly' && <Pill tone="success" text="−58%" />}
                       </Row>
                       <Txt v="caption" color={colors.gray}>
-                        {p === 'yearly' ? `${priceLabel('yearly')} · ${PLUS_PRICING.yearly.note}` : priceLabel('monthly')}
+                        {p === 'yearly' ? `${priceLabel('yearly')} · ${t(PLUS_PRICING.yearly.note)}` : priceLabel('monthly')}
                       </Txt>
                     </View>
                     <Ionicons name={active ? 'radio-button-on' : 'radio-button-off'} size={22} color={active ? colors.primary : colors.grayLight} />

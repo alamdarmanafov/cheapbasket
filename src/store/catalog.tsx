@@ -3,6 +3,7 @@ import { AppState, Linking, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { Product, Branch, Banner, Category, Store, LatLng, DEFAULT_LOCATION, catalog, withDistances, withStoreHours } from '@/data/products';
 import { fetchBanners, fetchBranches, fetchCategories, fetchProducts, fetchStores } from '@/lib/catalog';
+import { tr } from '@/lib/i18n';
 import { hasSupabase, supabase } from '@/lib/supabase';
 import { notify } from '@/lib/confirm';
 
@@ -42,7 +43,7 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     setError(null);
     try {
-      const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Şəbəkə cavab vermir')), 10000));
+      const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error(tr('err.network'))), 10000));
       const [s, p, b, bn, cs] = await Promise.race([
         Promise.all([fetchStores(), fetchProducts(), fetchBranches(catalog.location), fetchBanners().catch(() => [] as Banner[]), fetchCategories().catch(() => [] as Category[])]),
         timeout,
@@ -79,7 +80,7 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
         setLocationGranted(false);
         // Permanently denied → the only way to enable it is the OS settings.
         if (!canAskAgain && Platform.OS !== 'web') Linking.openSettings().catch(() => undefined);
-        else if (opts.interactive) notify('Lokasiya bağlıdır', 'Brauzerin ünvan sətrindəki kilid ikonundan lokasiyaya icazə ver, sonra yenidən bas.');
+        else if (opts.interactive) notify(tr('loc.blocked'), tr('loc.blockedWeb'));
         return;
       }
       setLocationGranted(true);

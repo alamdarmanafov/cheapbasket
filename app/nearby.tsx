@@ -44,7 +44,7 @@ export default function Nearby() {
         <Pressable onPress={() => cat.requestLocation({ interactive: true })} style={styles.locRow} accessibilityRole="button">
           <Ionicons name={cat.locationGranted ? 'locate' : 'locate-outline'} size={18} color={cat.locationGranted ? colors.success : colors.primary} />
           <Txt v="caption" color={colors.gray} style={{ marginLeft: 8, flex: 1 }}>
-            {cat.locationGranted ? `Yerin: ${cat.place ?? t('nearby.located')} · məsafələr buna görədir` : t('nearby.enableLoc')}
+            {cat.locationGranted ? t('nearby.basedOn', { place: cat.place ?? t('nearby.located') }) : t('nearby.enableLoc')}
           </Txt>
           <Ionicons name="chevron-forward" size={16} color={colors.grayLight} />
         </Pressable>

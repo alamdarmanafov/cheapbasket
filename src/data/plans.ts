@@ -1,27 +1,7 @@
 export type PlanId = 'free' | 'plus';
 
-export interface PlanFeature {
-  emoji: string;
-  label: string;
-}
-
-export const FREE_FEATURES: PlanFeature[] = [
-  { emoji: '🛒', label: '1 səbət' },
-  { emoji: '💰', label: 'Qiymət müqayisəsi' },
-  { emoji: '🏆', label: 'Ən sərfəli market' },
-  { emoji: '📍', label: 'Yaxın filial' },
-  { emoji: '📷', label: 'Barkod skanı' },
-];
-
-export const PLUS_FEATURES: PlanFeature[] = [
-  { emoji: '🛒', label: 'Limitsiz səbət' },
-  { emoji: '🔔', label: 'Qiymət düşüşü bildirişi' },
-  { emoji: '🤖', label: 'AI tövsiyələri' },
-  { emoji: '💚', label: 'Qənaət statistikası' },
-  { emoji: '🤖', label: 'Hər gün AI endirim xəbəri' },
-];
-
+/** Fallback prices, used only until the store reports the real localised ones. */
 export const PLUS_PRICING = {
-  monthly: { price: 1.99, label: '1.99 $ / ay' },
-  yearly: { price: 9.99, label: '9.99 $ / il', note: 'İki aydan çox pulsuz' },
+  monthly: { price: 1.99, label: '1.99 $' },
+  yearly: { price: 9.99, label: '9.99 $', note: 'plus.yearlyNote' as const },
 } as const;

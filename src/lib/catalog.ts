@@ -1,5 +1,6 @@
 import { Product, Branch, Banner, Category, Store, StoreId, LatLng, withDistances } from '@/data/products';
 import { supabase } from './supabase';
+import { tr } from './i18n';
 
 interface BranchRow {
   id: string;
@@ -34,7 +35,7 @@ interface ProductPriceRow {
 }
 
 const need = () => {
-  if (!supabase) throw new Error('Supabase konfiqurasiya olunmayıb');
+  if (!supabase) throw new Error(tr('common.notConfigured'));
   return supabase;
 };
 

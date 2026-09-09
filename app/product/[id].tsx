@@ -64,7 +64,7 @@ export default function ProductScreen() {
   /** System share sheet: cheapest price + link to the web version of this product. */
   const share = async () => {
     const url = SITE_URL;
-    const message = c.price != null ? t('prod.shareText', { product: `${product.brand} ${product.name} ${product.size}`, store: c.store.name, price: c.price.toFixed(2), url }) : `${product.brand} ${product.name} ${product.size} — Cheap Market AI: ${url}`;
+    const message = c.price != null ? t('prod.shareText', { product: `${product.brand} ${product.name} ${product.size}`, store: c.store.name, price: c.price.toFixed(2), url }) : t('prod.shareNoPrice', { product: `${product.brand} ${product.name} ${product.size}`, url });
     try {
       if (Platform.OS === 'web' && typeof navigator !== 'undefined' && (navigator as Navigator & { share?: (d: { title: string; text: string; url: string }) => Promise<void> }).share) {
         await (navigator as Navigator & { share: (d: { title: string; text: string; url: string }) => Promise<void> }).share({ title: 'Cheap Market AI', text: message, url });
