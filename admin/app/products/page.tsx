@@ -1,10 +1,10 @@
 'use client';
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { Camera, ChevronLeft, ChevronRight, Copy, Download, Plus, Search, Trash2, X } from 'lucide-react';
+import { Camera, Copy, Download, Plus, Search, Trash2, X } from 'lucide-react';
 
-const PAGE_SIZE = 50;
 import * as XLSX from 'xlsx';
 import { Shell } from '@/components/Shell';
+import { Pager, usePager } from '@/components/Pager';
 import { CATEGORIES, PriceRow, Product, Store, db, slugify, useCategories } from '@/lib/supabase';
 
 type Cell = { price: string; discount: string };
@@ -72,7 +72,6 @@ export default function Products() {
   const [storeMode, setStoreMode] = useState<'has' | 'missing'>('has');
   const [priceFilter, setPriceFilter] = useState<'' | 'none' | 'partial'>('');
   const [noImageFilter, setNoImageFilter] = useState(false);
-  const [page, setPage] = useState(1);
   const [edit, setEdit] = useState<{ product: Product; cells: Record<string, Cell>; isNew: boolean } | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -153,7 +152,8 @@ export default function Products() {
   }, [products, stores, hasPriceAt]);
 
   const filtered = useMemo(() => {
-    setPage(1);
+    // The page reset lives in usePager, which watches the row count — calling a
+    // setter from inside this memo would also mean touching it before it exists.
     const n = q.trim().toLowerCase();
     const priced = (p: Product) => stores.filter((s) => hasPriceAt(p.id, s.id)).length;
     return products.filter(
@@ -167,9 +167,7 @@ export default function Products() {
     );
   }, [products, q, cat, brand, store, storeMode, priceFilter, noImageFilter, stores, hasPriceAt]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages);
-  const paged = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const { page: safePage, setPage, totalPages, paged } = usePager(filtered);
 
   const noPriceCount = useMemo(() => products.filter((p) => !stores.some((s) => num(prices[p.id]?.[s.id]?.price ?? '') != null)).length, [products, prices, stores]);
   const noImageCount = useMemo(() => products.filter((p) => !p.image_url).length, [products]);
@@ -629,43 +627,7 @@ export default function Products() {
         </tbody>
       </table>
 
-      {/* ── Pagination ── */}
-      {totalPages > 1 && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 0', flexWrap: 'wrap' }}>
-          <button className="btn ghost" disabled={safePage <= 1} onClick={() => setPage(1)} title="İlk səhifə">«</button>
-          <button className="btn ghost" disabled={safePage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}><ChevronLeft size={15} /></button>
-          {Array.from({ length: totalPages }, (_, i) => i + 1)
-            .filter((p) => p === 1 || p === totalPages || Math.abs(p - safePage) <= 2)
-            .reduce<(number | '…')[]>((acc, p, i, arr) => {
-              if (i > 0 && (p as number) - (arr[i - 1] as number) > 1) acc.push('…');
-              acc.push(p);
-              return acc;
-            }, [])
-            .map((p, i) =>
-              p === '…'
-                ? <span key={`e${i}`} style={{ padding: '0 4px', color: 'var(--muted)' }}>…</span>
-                : <button key={p} className={`btn${safePage === p ? '' : ' ghost'}`} onClick={() => setPage(p as number)} style={{ minWidth: 34 }}>{p}</button>
-            )}
-          <button className="btn ghost" disabled={safePage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}><ChevronRight size={15} /></button>
-          <button className="btn ghost" disabled={safePage >= totalPages} onClick={() => setPage(totalPages)} title="Son səhifə">»</button>
-          <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>
-            {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filtered.length)} / {filtered.length} məhsul
-          </span>
-          <span className="muted" style={{ fontSize: 12 }}>· Səhifə:</span>
-          <input
-            type="number"
-            min={1}
-            max={totalPages}
-            value={safePage}
-            onChange={(e) => { const v = Number(e.target.value); if (v >= 1 && v <= totalPages) setPage(v); }}
-            style={{ width: 56, textAlign: 'center' }}
-          />
-          <span className="muted" style={{ fontSize: 12 }}>/ {totalPages}</span>
-        </div>
-      )}
-      {totalPages <= 1 && filtered.length > 0 && (
-        <p className="muted" style={{ textAlign: 'center', fontSize: 12, padding: '8px 0' }}>{filtered.length} məhsul</p>
-      )}
+      <Pager page={safePage} setPage={setPage} totalPages={totalPages} total={filtered.length} unit="məhsul" />
 
       <p className="note">Məhsula klik et: bir pəncərədə məlumatları və hər market üçün adi / endirimli qiyməti yaz. Yaşıl çip endirimin olduğunu göstərir. Hər dəyişiklik qiymət tarixçəsinə avtomatik yazılır. <b>Heç bir marketdə qiyməti olmayan məhsul tətbiqdə görünmür</b>; digər marketlərin qiymətini "Avtomatik yeniləmə"də həmin marketin Wolt mənbəsi ilə doldur.</p>
 
