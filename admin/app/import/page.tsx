@@ -418,6 +418,10 @@ export default function ImportPage() {
 
   const importCSV = async () => {
     if (!csvStoreId) { setCsvMsg({ ok: false, text: 'Market seçin.' }); return; }
+    // Name the target store before writing. Every price in the file lands on the
+    // store picked above, and a wrong pick is only visible after the fact.
+    const csvStoreName = stores.find((s) => s.id === csvStoreId)?.name ?? csvStoreId;
+    if (!confirm(`${csvRows.length} sətir "${csvStoreName}" marketinə yazılacaq.\n\nQiymətlər başqa markete deyil, məhz bu markete əlavə olunur. Davam edilsin?`)) return;
     if (!csvMapping.name && !csvMapping.barcode) { setCsvMsg({ ok: false, text: '"Ad" və ya "Barkod" sütunu seçilməlidir.' }); return; }
     if (!csvMapping.price) { setCsvMsg({ ok: false, text: '"Qiymət" sütunu seçilməlidir.' }); return; }
     setCsvBusy(true);
