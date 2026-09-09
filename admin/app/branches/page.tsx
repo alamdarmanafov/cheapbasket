@@ -185,7 +185,7 @@ export default function Branches() {
     };
     window.__branchMapClick = (lat: number, lng: number) => {
       setLink(''); setGmapsLink(''); setWoltSuggestVenues([]); setWoltEditSlug('');
-      setEdit({ id: '', store_id: stores[0]?.id ?? '', name: '', address: '', lat, lng, open_until: '23:00', open_from: '08:00', maps_url: '', phone: '' });
+      setEdit({ id: '', store_id: stores[0]?.id ?? '', name: '', address: '', lat, lng, ...storeHours(stores[0]?.id ?? ''), maps_url: '', phone: '' });
     };
   });
 
@@ -364,6 +364,25 @@ export default function Branches() {
   const storeOf = (id: string) => stores.find((s) => s.id === id);
 
   /** Apply bulk hours to all branches of a given store (or all stores if storeId is ''). */
+  /**
+   * A store's hours in branch shape. Hours are kept on the store, so a new branch
+   * starts from its chain's rather than from a hardcoded 08:00–23:00 that was
+   * right for nobody in particular.
+   */
+  const storeHours = (id: string): { open_from: string; open_until: string } => {
+    const st = stores.find((x) => x.id === id);
+    if (st?.always_open) return { open_from: '00:00', open_until: '23:59' };
+    return { open_from: st?.open_from ?? '', open_until: st?.open_until ?? '' };
+  };
+
+  /** Store changed in the form: follow the new chain's hours unless they were edited by hand. */
+  const changeStore = (nextId: string) => {
+    if (!edit) return;
+    const before = storeHours(edit.store_id);
+    const untouched = (edit.open_from ?? '') === before.open_from && (edit.open_until ?? '') === before.open_until;
+    setEdit({ ...edit, store_id: nextId, ...(untouched ? storeHours(nextId) : {}) });
+  };
+
   const applyBulkHours = async () => {
     const targets = bulkHoursStoreId ? rows.filter((r) => r.store_id === bulkHoursStoreId) : rows;
     if (!targets.length) { setMsg({ ok: false, text: 'Tətbiq ediləcək filial yoxdur' }); return; }
@@ -438,7 +457,7 @@ export default function Branches() {
           <button className="btn secondary" disabled={!stores.length} onClick={() => { setWoltOpen((o) => !o); setBulk([]); setWoltVenues([]); setWoltSelected(new Set()); setWoltError(''); setWoltStoreId(stores[0]?.id ?? ''); setWoltQuery(stores[0]?.name ?? ''); }}>
             <Search size={14} /> Wolt-dan çək
           </button>
-          <button className="btn" disabled={!stores.length} onClick={() => { setLink(''); setGmapsLink(''); setWoltSuggestVenues([]); setWoltEditSlug(''); setEdit({ id: '', store_id: stores[0]?.id ?? '', name: '', address: '', lat: 40.4093, lng: 49.8671, open_until: '23:00', open_from: '08:00', maps_url: '', phone: '' }); }}>
+          <button className="btn" disabled={!stores.length} onClick={() => { setLink(''); setGmapsLink(''); setWoltSuggestVenues([]); setWoltEditSlug(''); setEdit({ id: '', store_id: stores[0]?.id ?? '', name: '', address: '', lat: 40.4093, lng: 49.8671, ...storeHours(stores[0]?.id ?? ''), maps_url: '', phone: '' }); }}>
             <Plus size={14} /> Yeni filial
           </button>
         </div>
@@ -584,7 +603,18 @@ export default function Branches() {
                 <td><b>{b.name}</b></td>
                 <td className="muted">{b.address}</td>
                 <td className="muted" style={{ fontFamily: 'monospace', fontSize: 12 }}><a href={b.maps_url || `https://www.google.com/maps?q=${b.lat},${b.lng}`} target="_blank" rel="noreferrer"><MapPin size={12} style={{ verticalAlign: -2 }} /> {Number(b.lat).toFixed(5)}, {Number(b.lng).toFixed(5)}</a></td>
-                <td className="muted">{b.open_from === '00:00' && b.open_until === '23:59' ? '24 saat' : b.open_from || b.open_until ? `${b.open_from ?? '…'}–${b.open_until ?? '…'}` : '—'}</td>
+                <td className="muted">
+                  {(() => {
+                    // A branch with no hours of its own runs on its store's, so show
+                    // those rather than a dash that reads as "no hours at all".
+                    const own = b.open_from || b.open_until;
+                    const h = own ? { open_from: b.open_from ?? '', open_until: b.open_until ?? '' } : storeHours(b.store_id);
+                    if (h.open_from === '00:00' && h.open_until === '23:59') return own ? '24 saat' : <span title="Marketdən gəlir">24 saat ·<i> marketdən</i></span>;
+                    if (!h.open_from && !h.open_until) return '—';
+                    const text = `${h.open_from || '…'}–${h.open_until || '…'}`;
+                    return own ? text : <span title="Marketdən gəlir">{text} ·<i> marketdən</i></span>;
+                  })()}
+                </td>
                 <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
                   <button className="btn ghost" onClick={() => { setLink(''); setGmapsLink(''); setWoltSuggestVenues([]); setWoltEditSlug(''); setEdit(b); }}>Düzəlt</button>
                   <button className="btn ghost" onClick={() => remove(b)}><Trash2 size={14} /></button>
@@ -646,7 +676,7 @@ export default function Branches() {
             </div>
 
             <div className="form-grid" style={{ marginTop: 14 }}>
-              <label>Market<select value={edit.store_id} onChange={(e) => setEdit({ ...edit, store_id: e.target.value })}>{stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+              <label>Market<select value={edit.store_id} onChange={(e) => changeStore(e.target.value)}>{stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
 
               {/* Branch name with Wolt autosuggest */}
               <label style={{ position: 'relative' }}>
@@ -688,6 +718,21 @@ export default function Branches() {
               <label>Açılış (saat)<input value={edit.open_from ?? ''} onChange={(e) => setEdit({ ...edit, open_from: e.target.value })} placeholder="08:00" disabled={edit.open_from === '00:00' && edit.open_until === '23:59'} /></label>
               <label>Bağlanış (saat)<input value={edit.open_until ?? ''} onChange={(e) => setEdit({ ...edit, open_until: e.target.value })} placeholder="23:00" disabled={edit.open_from === '00:00' && edit.open_until === '23:59'} /></label>
               <label style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={edit.open_from === '00:00' && edit.open_until === '23:59'} onChange={(e) => setEdit({ ...edit, open_from: e.target.checked ? '00:00' : '08:00', open_until: e.target.checked ? '23:59' : '23:00' })} style={{ width: 'auto' }} /> 24 saat açıqdır</label>
+              <div className="muted" style={{ gridColumn: '1 / -1', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {(() => {
+                  const h = storeHours(edit.store_id);
+                  const name = stores.find((x) => x.id === edit.store_id)?.name ?? '';
+                  if (!h.open_from && !h.open_until) return <span>“{name}” üçün iş saatı yazılmayıb — Marketlər səhifəsində bir dəfə yazsan, bütün filiallar onu alacaq.</span>;
+                  const label = h.open_from === '00:00' && h.open_until === '23:59' ? '24 saat' : `${h.open_from || '…'}–${h.open_until || '…'}`;
+                  const same = (edit.open_from ?? '') === h.open_from && (edit.open_until ?? '') === h.open_until;
+                  return (
+                    <>
+                      <span>“{name}” marketinin saatı: <b>{label}</b>{same ? ' — bu filial onu işlədir' : ' · bu filial fərqli saatla saxlanılacaq'}</span>
+                      {!same && <button className="btn ghost" style={{ fontSize: 12, padding: '2px 8px' }} onClick={() => setEdit({ ...edit, ...h })}>Market saatına qaytar</button>}
+                    </>
+                  );
+                })()}
+              </div>
               <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <button className="btn secondary" style={{ fontSize: 12, padding: '4px 10px', gap: 4, whiteSpace: 'nowrap' }} disabled={woltHoursFetching} onClick={fetchWoltHours}>
                   <Clock size={13} /> {woltHoursFetching ? 'Wolt-dan çəkilir…' : 'Wolt-dan saatları çək'}
