@@ -205,6 +205,9 @@ export default function ImportPage() {
   }, [rows, q, cat, onlyDiscount, pricesOnly, onlyNew]);
 
   const num = (v: string) => (v.trim() === '' ? null : Number(v.replace(',', '.')));
+  // PostgREST hands numeric columns back as strings, so "1.99" must be compared
+  // as a number — otherwise every existing price looks changed and gets rewritten.
+  const numOrNull = (v: unknown): number | null => (v === null || v === undefined || v === '' ? null : Number(v));
   const valid = (r: Row) => {
     const title = (r.title ?? '').trim();
     if (productsOnly) return title !== '';
@@ -256,8 +259,17 @@ export default function ImportPage() {
     setBusy(true);
     setMsg(null);
     try {
-      const fresh = await db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url', fetchAll: true });
+      const [fresh, currentPrices] = await Promise.all([
+        db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url', fetchAll: true }),
+        db.select<{ product_id: string; price: number | null; discount_price: number | null }>('prices', {
+          columns: 'product_id, price, discount_price',
+          eq: { store_id: storeId },
+          fetchAll: true,
+        }),
+      ]);
       const match = matcher(fresh);
+      // What this store already charges, so an unchanged price is not rewritten.
+      const priceNow = new Map(currentPrices.map((r) => [r.product_id, { price: numOrNull(r.price), discount: numOrNull(r.discount_price) }]));
       const products: Record<string, unknown>[] = [];
       const infoUpdates: Record<string, unknown>[] = [];
       const photoUpdates: Array<{ id: string; image_url: string }> = [];
@@ -301,13 +313,23 @@ export default function ImportPage() {
         const eff = (x: Record<string, unknown>) => (x.discount_price as number | null) ?? (x.price as number);
         if (!prev || eff(candidate) < eff(prev)) priceById.set(id, candidate);
       }
-      const prices = [...priceById.values()];
+      // A product that is already in the catalogue at exactly this price needs no
+      // write at all: rewriting it would bump updated_at, make the app report the
+      // price as just-refreshed, and add a no-op row to the price history.
+      let unchanged = 0;
+      const prices = [...priceById.values()].filter((row) => {
+        const before = priceNow.get(row.product_id as string);
+        if (!before) return true;
+        const same = before.price === numOrNull(row.price) && before.discount === numOrNull(row.discount_price);
+        if (same) unchanged++;
+        return !same;
+      });
       for (let i = 0; i < products.length; i += 200) await db.upsert('products', products.slice(i, i + 200), 'id');
       for (let i = 0; i < infoUpdates.length; i += 200) await db.upsert('products', infoUpdates.slice(i, i + 200), 'id');
       for (let i = 0; i < photoUpdates.length; i += 200) await db.upsert('products', photoUpdates.slice(i, i + 200), 'id');
       for (let i = 0; i < prices.length; i += 200) await db.upsert('prices', prices.slice(i, i + 200), 'product_id,store_id');
       const alertRes = await fetch('/api/alerts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ since: new Date(Date.now() - 5 * 60000).toISOString() }) }).then((r) => r.json()).catch(() => null);
-      setMsg({ ok: true, text: `${prices.length} qiymət yazıldı → ${storeName}: ${products.length} yeni məhsul, ${updated - infoUpdates.length} mövcud məhsul yalnız qiymətlə, ${infoUpdates.length} mövcud məhsul məlumatı ilə birlikdə yeniləndi${photoUpdates.length ? `, ${photoUpdates.length} məhsula Wolt şəkli qoyuldu` : ''}.${alertRes?.users ? ` ${alertRes.users} istifadəçiyə qiymət düşüşü bildirişi getdi.` : ''}` });
+      setMsg({ ok: true, text: `${prices.length} qiymət yazıldı → ${storeName}: ${products.length} yeni məhsul, ${updated - infoUpdates.length} mövcud məhsul yalnız qiymətlə, ${infoUpdates.length} mövcud məhsul məlumatı ilə birlikdə yeniləndi${unchanged ? `, ${unchanged} məhsulun qiyməti dəyişməyib — toxunulmadı` : ''}${photoUpdates.length ? `, ${photoUpdates.length} məhsula Wolt şəkli qoyuldu` : ''}.${alertRes?.users ? ` ${alertRes.users} istifadəçiyə qiymət düşüşü bildirişi getdi.` : ''}` });
       if (confirm(`Bu Wolt səhifəsi "${storeName}" üçün mənbə kimi yadda saxlansın?`)) {
         await fetch('/api/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'add', store_id: storeId, url }) }).catch(() => null);
       }
@@ -401,8 +423,16 @@ export default function ImportPage() {
     setCsvBusy(true);
     setCsvMsg(null);
     try {
-      const fresh = await db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url', fetchAll: true });
+      const [fresh, currentPrices] = await Promise.all([
+        db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url', fetchAll: true }),
+        db.select<{ product_id: string; price: number | null; discount_price: number | null }>('prices', {
+          columns: 'product_id, price, discount_price',
+          eq: { store_id: csvStoreId },
+          fetchAll: true,
+        }),
+      ]);
       const match = buildMatcher(fresh.map((p) => ({ id: p.id, barcode: p.barcode, brand: p.brand, name: p.name, size: p.size })));
+      const priceNow = new Map(currentPrices.map((r) => [r.product_id, { price: numOrNull(r.price), discount: numOrNull(r.discount_price) }]));
       const products: Record<string, unknown>[] = [];
       const priceRows: Record<string, unknown>[] = [];
       const now = new Date().toISOString();
@@ -437,11 +467,19 @@ export default function ImportPage() {
       }
       // Deduplicate before upsert to avoid ON CONFLICT affecting same row twice
       const uniqueProducts = [...new Map(products.map((p) => [p.id as string, p])).values()];
-      const uniquePrices = [...new Map(priceRows.map((r) => [`${r.product_id}:${r.store_id}`, r])).values()];
+      // Same rule as the Wolt import: an identical price is left alone.
+      let unchanged = 0;
+      const uniquePrices = [...new Map(priceRows.map((r) => [`${r.product_id}:${r.store_id}`, r])).values()].filter((row) => {
+        const before = priceNow.get(row.product_id as string);
+        if (!before) return true;
+        const same = before.price === numOrNull(row.price) && before.discount === numOrNull(row.discount_price);
+        if (same) unchanged++;
+        return !same;
+      });
       for (let i = 0; i < uniqueProducts.length; i += 200) await db.upsert('products', uniqueProducts.slice(i, i + 200), 'id');
       for (let i = 0; i < uniquePrices.length; i += 200) await db.upsert('prices', uniquePrices.slice(i, i + 200), 'product_id,store_id');
       const storeName = stores.find((s) => s.id === csvStoreId)?.name ?? csvStoreId;
-      setCsvMsg({ ok: true, text: `${uniquePrices.length} qiymət, ${uniqueProducts.length} yeni məhsul → ${storeName}.` });
+      setCsvMsg({ ok: true, text: `${uniquePrices.length} qiymət, ${uniqueProducts.length} yeni məhsul → ${storeName}${unchanged ? `. ${unchanged} məhsulun qiyməti dəyişməyib — toxunulmadı` : ''}.` });
     } catch (e) {
       setCsvMsg({ ok: false, text: (e as Error).message });
     } finally {
