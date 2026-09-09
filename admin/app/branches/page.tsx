@@ -22,7 +22,6 @@ export default function Branches() {
   const [rows, setRows] = useState<Branch[]>([]);
   const [edit, setEdit] = useState<Branch | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [link, setLink] = useState('');
   const [resolving, setResolving] = useState(false);
 
   // View toggle
@@ -63,8 +62,6 @@ export default function Branches() {
   const woltSuggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Google Maps quick-parse in form
-  const [gmapsLink, setGmapsLink] = useState('');
-  const [gmapsFetching, setGmapsFetching] = useState(false);
 
   // Wolt hours fetch in form
   const [woltEditSlug, setWoltEditSlug] = useState('');
@@ -178,14 +175,14 @@ export default function Branches() {
   useEffect(() => {
     window.__branchEdit = (id: string) => {
       const b = rows.find((r) => r.id === id);
-      if (b) { setLink(''); setGmapsLink(''); setWoltSuggestVenues([]); setWoltEditSlug(''); setEdit(b); }
+      if (b) { setWoltSuggestVenues([]); setWoltEditSlug(''); setEdit(b); }
     };
     window.__branchDel = (id: string) => {
       const b = rows.find((r) => r.id === id);
       if (b) remove(b);
     };
     window.__branchMapClick = (lat: number, lng: number) => {
-      setLink(''); setGmapsLink(''); setWoltSuggestVenues([]); setWoltEditSlug('');
+      setWoltSuggestVenues([]); setWoltEditSlug('');
       setEdit({ id: '', store_id: stores[0]?.id ?? '', name: '', address: '', lat, lng, ...storeHours(stores[0]?.id ?? ''), maps_url: '', phone: '' });
     };
   });
@@ -272,47 +269,36 @@ export default function Branches() {
     load();
   };
 
-  /** Resolve existing "Ünvan / link" field via /api/geo/resolve. */
-  const resolve = async () => {
-    if (!edit || !link.trim()) return;
+  /**
+   * Resolves the one link box into coordinates.
+   *
+   * The box holds what the app will open *and* what the coordinates are read
+   * from, so there is nothing to keep in step between two fields. A plain
+   * address works too — then it is only used to locate the branch and is not
+   * stored as a link, since it would not open anything.
+   */
+  const resolveFromLink = async () => {
+    const q = (edit?.maps_url ?? '').trim();
+    if (!edit || !q) return;
     setResolving(true);
     try {
-      const res = await fetch('/api/geo/resolve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q: link }) });
+      const res = await fetch('/api/geo/resolve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q }) });
       const j = (await res.json()) as { lat: number; lng: number; name?: string; address?: string; error?: string };
       if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`);
-      setEdit({ ...edit, lat: j.lat, lng: j.lng, name: edit.name || j.name || '', address: edit.address || j.address || '', maps_url: /^https?:\/\//i.test(link.trim()) ? link.trim() : edit.maps_url ?? null });
-      setMsg({ ok: true, text: `Koordinat tapıldı: ${j.lat.toFixed(5)}, ${j.lng.toFixed(5)}` });
-    } catch (e) {
-      setMsg({ ok: false, text: (e as Error).message });
-    } finally {
-      setResolving(false);
-    }
-  };
-
-  /** Parse a Google Maps URL via /api/branches/gmaps → fill form fields including hours if found. */
-  const fetchGmaps = async () => {
-    if (!edit || !gmapsLink.trim()) return;
-    setGmapsFetching(true);
-    try {
-      const res = await fetch(`/api/branches/gmaps?url=${encodeURIComponent(gmapsLink.trim())}`);
-      const j = (await res.json()) as { lat: number; lng: number; name?: string; address?: string; open_from?: string | null; open_until?: string | null; error?: string };
-      if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`);
-      const hoursText = j.open_from && j.open_until ? ` · Saatlar: ${j.open_from}–${j.open_until}` : '';
+      const isLink = /^https?:\/\//i.test(q);
       setEdit({
         ...edit,
         lat: j.lat,
         lng: j.lng,
         name: edit.name || j.name || '',
         address: edit.address || j.address || '',
-        maps_url: gmapsLink.trim(),
-        ...(j.open_from ? { open_from: j.open_from } : {}),
-        ...(j.open_until ? { open_until: j.open_until } : {}),
+        maps_url: isLink ? q : null,
       });
-      setMsg({ ok: true, text: `Koordinat tapıldı: ${j.lat.toFixed(5)}, ${j.lng.toFixed(5)}${hoursText}` });
+      setMsg({ ok: true, text: `Koordinat tapıldı: ${j.lat.toFixed(5)}, ${j.lng.toFixed(5)}${isLink ? '' : ' · ünvan link kimi saxlanılmadı'}` });
     } catch (e) {
       setMsg({ ok: false, text: (e as Error).message });
     } finally {
-      setGmapsFetching(false);
+      setResolving(false);
     }
   };
 
@@ -490,7 +476,7 @@ export default function Branches() {
           <button className="btn secondary" disabled={!stores.length} onClick={() => { setWoltOpen((o) => !o); setBulk([]); setWoltVenues([]); setWoltSelected(new Set()); setWoltError(''); setWoltStoreId(stores[0]?.id ?? ''); setWoltQuery(stores[0]?.name ?? ''); }}>
             <Search size={14} /> Wolt-dan çək
           </button>
-          <button className="btn" disabled={!stores.length} onClick={() => { setLink(''); setGmapsLink(''); setWoltSuggestVenues([]); setWoltEditSlug(''); setEdit({ id: '', store_id: stores[0]?.id ?? '', name: '', address: '', lat: 40.4093, lng: 49.8671, ...storeHours(stores[0]?.id ?? ''), maps_url: '', phone: '' }); }}>
+          <button className="btn" disabled={!stores.length} onClick={() => { setWoltSuggestVenues([]); setWoltEditSlug(''); setEdit({ id: '', store_id: stores[0]?.id ?? '', name: '', address: '', lat: 40.4093, lng: 49.8671, ...storeHours(stores[0]?.id ?? ''), maps_url: '', phone: '' }); }}>
             <Plus size={14} /> Yeni filial
           </button>
         </div>
@@ -681,7 +667,7 @@ export default function Branches() {
                   })()}
                 </td>
                 <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
-                  <button className="btn ghost" onClick={() => { setLink(''); setGmapsLink(''); setWoltSuggestVenues([]); setWoltEditSlug(''); setEdit(b); }}>Düzəlt</button>
+                  <button className="btn ghost" onClick={() => { setWoltSuggestVenues([]); setWoltEditSlug(''); setEdit(b); }}>Düzəlt</button>
                   <button className="btn ghost" onClick={() => remove(b)}><Trash2 size={14} /></button>
                 </td>
               </tr>
@@ -719,23 +705,24 @@ export default function Branches() {
               <button className="btn ghost" onClick={() => { setEdit(null); setWoltSuggestVenues([]); setWoltEditSlug(''); }}><X size={18} /></button>
             </div>
 
-            {/* Google Maps link → auto-fill coords */}
+            {/* One link box: it is what the app opens, and where the coordinates come from. */}
             <div style={{ marginTop: 14, padding: 12, background: '#FAFAFA', borderRadius: 12 }}>
-              <label style={{ fontSize: 12, color: '#6B7280' }}>Google Maps linki, "lat, lng" və ya ünvan</label>
+              <label style={{ fontSize: 12, color: '#6B7280' }}>Google Maps linki — tətbiqdə “Google Maps-də aç” bunu açır</label>
               <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-                <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://maps.app.goo.gl/… və ya Nərimanov, Ə. Ələkbərov 12" style={{ flex: 1 }} onKeyDown={(e) => e.key === 'Enter' && resolve()} />
-                <button className="btn secondary" disabled={resolving || !link.trim()} onClick={resolve}><MapPin size={14} /> {resolving ? 'Axtarılır…' : 'Tap'}</button>
+                <input
+                  value={edit.maps_url ?? ''}
+                  onChange={(e) => setEdit({ ...edit, maps_url: e.target.value })}
+                  placeholder="https://maps.app.goo.gl/… və ya ünvan: Nərimanov, Ə. Ələkbərov 12"
+                  style={{ flex: 1 }}
+                  onKeyDown={(e) => e.key === 'Enter' && resolveFromLink()}
+                  onBlur={() => { if (!edit.lat || !edit.lng) resolveFromLink(); }}
+                />
+                <button className="btn secondary" disabled={resolving || !(edit.maps_url ?? '').trim()} onClick={resolveFromLink}>
+                  <MapPin size={14} /> {resolving ? 'Axtarılır…' : 'Koordinatı tap'}
+                </button>
               </div>
-
-              {/* NEW: Google Maps URL quick-parse */}
-              <div style={{ marginTop: 10 }}>
-                <label style={{ fontSize: 12, color: '#6B7280' }}>Google Maps linkindən çək</label>
-                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                  <input value={gmapsLink} onChange={(e) => setGmapsLink(e.target.value)} placeholder="https://www.google.com/maps/place/… və ya maps.app.goo.gl/…" style={{ flex: 1 }} onKeyDown={(e) => e.key === 'Enter' && fetchGmaps()} />
-                  <button className="btn secondary" disabled={gmapsFetching || !gmapsLink.trim()} onClick={fetchGmaps}>
-                    <MapPin size={14} /> {gmapsFetching ? 'Çəkilir…' : 'Çək'}
-                  </button>
-                </div>
+              <div style={{ fontSize: 12, color: '#6B7280', marginTop: 6 }}>
+                Linki yapışdır — koordinat özü tapılır. Link əvəzinə ünvan da yaza bilərsən; onda tətbiqdə xəritə koordinata görə açılır.
               </div>
 
               <iframe title="map" src={`https://www.google.com/maps?q=${edit.lat},${edit.lng}&z=16&output=embed`} style={{ width: '100%', height: 180, border: 0, borderRadius: 10, marginTop: 10 }} loading="lazy" />
@@ -806,7 +793,6 @@ export default function Branches() {
                 <span style={{ fontSize: 11, color: '#9CA3AF' }}>Wolt autosuggest-dən seçilmiş filialın saatlarını doldurur</span>
               </div>
               <label>Telefon<input value={edit.phone ?? ''} onChange={(e) => setEdit({ ...edit, phone: e.target.value })} placeholder="+994 12 000 00 00" /></label>
-              <label className="full">Google Maps linki (tətbiqdə "Google Maps-də aç")<input value={edit.maps_url ?? ''} onChange={(e) => setEdit({ ...edit, maps_url: e.target.value })} placeholder="https://maps.app.goo.gl/…" /></label>
             </div>
             <div className="actions">
               <button className="btn secondary" onClick={() => { setEdit(null); setWoltSuggestVenues([]); setWoltEditSlug(''); }}>Ləğv et</button>

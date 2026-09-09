@@ -13,11 +13,11 @@ import { Branch, Store, db, slugify } from '@/lib/supabase';
  * Uzunluq and Telefon are recognised on upload even though the template omits
  * them.
  */
-const COLUMNS = ['Market', 'Filial adı', 'Ünvan', 'Google Maps ünvan linki'] as const;
+const COLUMNS = ['Market', 'Filial adı', 'Google Maps linki', 'Ünvan'] as const;
 
 const SAMPLE = [
-  ['Araz', 'Neftçilər Superstore', 'Bakı, Nizami rayonu, Şərifli küçəsi 25', 'https://www.google.com/maps/search/?api=1&query=Araz+Market+Neftçilər'],
-  ['Bravo', 'Gənclik Mall', 'Bakı, Fətəli Xan Xoyski 16', ''],
+  ['Araz', 'Neftçilər Superstore', 'https://maps.app.goo.gl/aBcD1234', ''],
+  ['Bravo', 'Gənclik Mall', 'https://www.google.com/maps/place/…/@40.40930,49.86710,17z', 'Bakı, Fətəli Xan Xoyski 16'],
 ];
 
 interface Row {
@@ -190,6 +190,7 @@ export function BranchImport({ stores, existing = [], onDone, onClose }: { store
     for (let i = 0; i < usable.length; i++) {
       const r = usable[i];
       let { lat, lng } = r;
+      let address = r.address;
       if (lat == null || lng == null) {
         setBusy(`Koordinat axtarılır ${i + 1}/${usable.length}…`);
         // Geocoding goes through OpenStreetMap, whose fair-use policy is one call
@@ -215,10 +216,14 @@ export function BranchImport({ stores, existing = [], onDone, onClose }: { store
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ q }),
             });
-            const j = (await res.json()) as { lat?: number; lng?: number; error?: string };
+            const j = (await res.json()) as { lat?: number; lng?: number; address?: string; error?: string };
             if (!res.ok || j.lat == null || j.lng == null) continue;
             lat = j.lat;
             lng = j.lng;
+            // A sheet of just store, branch and link leaves the address empty, and
+            // the app prints it under the branch name — so take the one the
+            // resolver found rather than showing a blank line.
+            if (!address) address = j.address ?? '';
             break;
           } catch {
             /* try the next source */
@@ -234,7 +239,7 @@ export function BranchImport({ stores, existing = [], onDone, onClose }: { store
         id: branchId(r.store_id, r.name),
         store_id: r.store_id,
         name: r.name,
-        address: r.address,
+        address,
         lat,
         lng,
         maps_url: r.maps_url || null,
@@ -289,7 +294,8 @@ export function BranchImport({ stores, existing = [], onDone, onClose }: { store
         <ol className="note" style={{ lineHeight: 1.7, paddingLeft: 18 }}>
           <li>Nümunə faylı endir və Excel-də doldur.</li>
           <li><b>Market</b> sütununa mövcud marketin adını yaz (məsələn “Al Market”) — yeni market yaratmır.</li>
-          <li>Koordinatı bilmirsənsə <b>Enlik/Uzunluq</b> boş qalsın: Google Maps linkindən, o da yoxdursa ünvandan tapılır.</li>
+          <li><b>Google Maps linki</b> əsas sütundur: tətbiqdə “Google Maps-də aç” məhz onu açır və koordinat da ondan tapılır. Paylaşım linki (<code>maps.app.goo.gl/…</code>) və ya yer səhifəsi linki olsun.</li>
+          <li><b>Ünvan</b> istəyə görədir — boş qoysan, linkdən tapılan ünvan yazılır.</li>
           <li>İş saatı yazmağa ehtiyac yoxdur — filiallar marketin saatını miras alır (Marketlər səhifəsində bir dəfə yazılır).</li>
           <li>Faylı buraya yüklə, siyahını yoxla və idxal et.</li>
         </ol>
