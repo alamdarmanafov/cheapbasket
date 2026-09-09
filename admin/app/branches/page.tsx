@@ -329,7 +329,11 @@ export default function Branches() {
   const load = async () => {
     const [s, b] = await Promise.all([
       db.select<Store>('stores', { order: 'name' }),
-      db.select<Branch>('branches', { order: 'name' }),
+      // Without fetchAll PostgREST stops at 1000 rows, so a table with more
+      // branches than that shows only the first slice — and deleting what is on
+      // screen looks like the rows survived, because the next slice takes their
+      // place on reload.
+      db.select<Branch>('branches', { order: 'name', fetchAll: true }),
     ]).catch((e: Error) => { setMsg({ ok: false, text: e.message }); return [[], []] as [Store[], Branch[]]; });
     setStores(s);
     setRows(b);
@@ -373,7 +377,42 @@ export default function Branches() {
     }
     setBulkDeleting(false);
     setSelected(new Set());
-    setMsg({ ok: failed === 0, text: failed ? `${ids.length - failed} filial silindi, ${failed} silinmədi` : `${ids.length} filial silindi` });
+    // Count what is actually left rather than trusting the calls: a delete that
+    // matches no row succeeds quietly, so "silindi" must be checked, not assumed.
+    const left = await db.count('branches').catch(() => -1);
+    setMsg({
+      ok: failed === 0,
+      text: failed
+        ? `${ids.length - failed} filial silindi, ${failed} silinmədi`
+        : `${ids.length} filial silindi${left >= 0 ? ` · bazada ${left} filial qaldı` : ''}`,
+    });
+    load();
+  };
+
+  /**
+   * Deletes every branch of one store in a single request.
+   *
+   * Row-by-row deletion only reaches what the table listed, which is the wrong
+   * tool for clearing a chain before re-importing it: the filter is sent to the
+   * database instead, so rows the page never showed go too.
+   */
+  const removeStore = async () => {
+    const st = storeOf(storeFilter);
+    if (!storeFilter || !st) return;
+    const before = await db.count('branches', { store_id: storeFilter }).catch(() => -1);
+    if (before === 0) { setMsg({ ok: true, text: `${st.name} üçün bazada filial yoxdur` }); return; }
+    const n = before < 0 ? shown.length : before;
+    if (!confirm(`${st.name} marketinin bazadakı BÜTÜN filialları (${n}) silinəcək.\n\nBu, geri qaytarıla bilməz. Davam edilsin?`)) return;
+    setBulkDeleting(true);
+    const error = await db.delete('branches', { store_id: storeFilter }).then(() => null, (e: Error) => e.message);
+    const left = error ? -1 : await db.count('branches', { store_id: storeFilter }).catch(() => -1);
+    setBulkDeleting(false);
+    setSelected(new Set());
+    setMsg(
+      error ? { ok: false, text: error }
+        : left > 0 ? { ok: false, text: `${left} filial silinmədi — baza icazəsini yoxla` }
+        : { ok: true, text: `${st.name}: ${n} filial silindi` },
+    );
     load();
   };
 
@@ -618,6 +657,11 @@ export default function Branches() {
             <option value="">Bütün marketlər ({rows.length})</option>
             {stores.map((s2) => <option key={s2.id} value={s2.id}>{s2.name} ({rows.filter((r) => r.store_id === s2.id).length})</option>)}
           </select>
+          {storeFilter && (
+            <button className="btn danger" disabled={bulkDeleting} onClick={removeStore} title="Bazadakı bütün filialları silir — səhifədə görünənləri yox">
+              <Trash2 size={14} /> {bulkDeleting ? 'Silinir…' : `${storeOf(storeFilter)?.name ?? 'Market'}: hamısını sil`}
+            </button>
+          )}
           {selected.size > 0 && (
             <>
               <span className="muted">{selected.size} filial seçildi</span>
