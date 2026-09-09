@@ -14,7 +14,7 @@ export async function GET(req: Request) {
   return NextResponse.json({ sources: sources ?? [], alerts, cron: !!process.env.CRON_SECRET });
 }
 
-type Body = { op: 'add'; store_id: string; url: string } | { op: 'delete'; id: string } | { op: 'toggle'; id: string; enabled: boolean } | { op: 'run'; id?: string } | { op: 'alerts'; value: unknown } | { op: 'test'; id: string };
+type Body = { op: 'add'; store_id: string; url: string } | { op: 'delete'; id: string } | { op: 'toggle'; id: string; enabled: boolean } | { op: 'run'; id?: string } | { op: 'alerts'; value: unknown } | { op: 'test'; id: string } | { op: 'scope'; id: string; sync_products?: boolean; sync_prices?: boolean };
 
 export async function POST(req: Request) {
   if (!(await requireAdmin(req))) return NextResponse.json({ error: 'Giriş tələb olunur' }, { status: 401 });
@@ -33,6 +33,15 @@ export async function POST(req: Request) {
     }
     if (body.op === 'toggle') {
       const { error } = await db.from('import_sources').update({ enabled: body.enabled }).eq('id', body.id);
+      if (error) throw error;
+      return NextResponse.json({ ok: true });
+    }
+    // What this source pulls: products, prices, or both.
+    if (body.op === 'scope') {
+      const patch: Record<string, boolean> = {};
+      if (typeof body.sync_products === 'boolean') patch.sync_products = body.sync_products;
+      if (typeof body.sync_prices === 'boolean') patch.sync_prices = body.sync_prices;
+      const { error } = await db.from('import_sources').update(patch).eq('id', body.id);
       if (error) throw error;
       return NextResponse.json({ ok: true });
     }

@@ -5,7 +5,7 @@ import { Shell } from '@/components/Shell';
 import { Store, db, slugify } from '@/lib/supabase';
 
 interface Result { ok: boolean; venue?: string; found: number; matched: number; created: number; updated: number; unchanged: number; pending?: number; photos?: number; error?: string; at: string }
-interface Source { id: string; store_id: string; url: string; name: string | null; enabled: boolean; last_run_at: string | null; last_result: Result | null }
+interface Source { id: string; store_id: string; url: string; name: string | null; enabled: boolean; sync_products?: boolean; sync_prices?: boolean; last_run_at: string | null; last_result: Result | null }
 interface Alerts { enabled: boolean; plus_only: boolean; min_percent: number }
 interface PriceSnap { product_id: string; store_id: string; price: number | null; discount_price: number | null }
 interface Anomaly { product_id: string; store_id: string; storeName: string; oldPrice: number; newPrice: number; changePct: number; flagged: boolean }
@@ -251,6 +251,13 @@ export default function SyncPage() {
 
   const remove = async (s: Source) => { if (!confirm('Mənbə silinsin? (məhsullar və qiymətlər qalır)')) return; await api({ op: 'delete', id: s.id }).catch((e: Error) => setMsg({ ok: false, text: e.message })); load(); };
   const toggle = async (s: Source) => { await api({ op: 'toggle', id: s.id, enabled: !s.enabled }).catch((e: Error) => setMsg({ ok: false, text: e.message })); load(); };
+  /** Turn one half of the pull on or off. Refusing to switch both off keeps a run from doing nothing. */
+  const setScope = async (s: Source, patch: { sync_products?: boolean; sync_prices?: boolean }) => {
+    const next = { products: s.sync_products !== false, prices: s.sync_prices !== false, ...(patch.sync_products !== undefined ? { products: patch.sync_products } : {}), ...(patch.sync_prices !== undefined ? { prices: patch.sync_prices } : {}) };
+    if (!next.products && !next.prices) { setMsg({ ok: false, text: 'Ən azı biri seçilməlidir — yoxsa çəkiləsi bir şey qalmır' }); return; }
+    await api({ op: 'scope', id: s.id, ...patch }).catch((e: Error) => setMsg({ ok: false, text: e.message }));
+    load();
+  };
   const saveAlerts = async () => { if (!alerts) return; await api({ op: 'alerts', value: alerts }).then(() => setMsg({ ok: true, text: 'Bildiriş ayarları saxlanıldı' })).catch((e: Error) => setMsg({ ok: false, text: e.message })); };
 
   const testRow = async (id: string) => {
@@ -419,12 +426,22 @@ export default function SyncPage() {
           </button>
         </div>
         <table>
-          <thead><tr><th>Market</th><th>Wolt səhifəsi</th><th>Son yeniləmə</th><th>Nəticə</th><th>Aktiv</th><th>Test</th><th></th></tr></thead>
+          <thead><tr><th>Market</th><th>Wolt səhifəsi</th><th>Nə çəkilsin</th><th>Son yeniləmə</th><th>Nəticə</th><th>Aktiv</th><th>Test</th><th></th></tr></thead>
           <tbody>
             {sources.map((s) => (
               <tr key={s.id} style={{ opacity: s.enabled ? 1 : 0.55 }}>
                 <td><span className="avatar" style={{ background: store(s.store_id)?.color ?? '#999' }}>{store(s.store_id)?.initial}</span>{store(s.store_id)?.name ?? s.store_id}</td>
                 <td className="muted" style={{ fontSize: 12, maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><a href={s.url} target="_blank" rel="noreferrer">{s.name || s.url.replace(/^https?:\/\/(www\.)?/, '')}</a></td>
+                <td style={{ whiteSpace: 'nowrap', fontSize: 12 }}>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 10 }} title="Yeni məhsullar növbəyə (Gözləyənlər) düşsün, şəkilləri çəkilsin">
+                    <input type="checkbox" checked={s.sync_products !== false} onChange={(e) => setScope(s, { sync_products: e.target.checked })} style={{ width: 'auto' }} />
+                    Məhsul
+                  </label>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }} title="Kataloqdakı məhsulların qiymətləri yenilənsin">
+                    <input type="checkbox" checked={s.sync_prices !== false} onChange={(e) => setScope(s, { sync_prices: e.target.checked })} style={{ width: 'auto' }} />
+                    Qiymət
+                  </label>
+                </td>
                 <td className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{s.last_run_at ? new Date(s.last_run_at).toLocaleString('az-AZ') : '—'}</td>
                 <td style={{ fontSize: 12 }}>
                   {!s.last_result ? <span className="muted">hələ işləməyib</span> : s.last_result.ok
@@ -450,7 +467,7 @@ export default function SyncPage() {
                 </td>
               </tr>
             ))}
-            {sources.length === 0 && <tr><td colSpan={7} className="muted" style={{ textAlign: 'center', padding: 24 }}>Mənbə yoxdur. Yuxarıdan market seçib Wolt linkini əlavə et (və ya "Wolt-dan import" səhifəsində importdan sonra "mənbəni yadda saxla").</td></tr>}
+            {sources.length === 0 && <tr><td colSpan={8} className="muted" style={{ textAlign: 'center', padding: 24 }}>Mənbə yoxdur. Yuxarıdan market seçib Wolt linkini əlavə et (və ya "Wolt-dan import" səhifəsində importdan sonra "mənbəni yadda saxla").</td></tr>}
           </tbody>
         </table>
       </div>
