@@ -4,12 +4,20 @@ import * as XLSX from 'xlsx';
 import { Download, Upload, X } from 'lucide-react';
 import { Branch, Store, db, slugify } from '@/lib/supabase';
 
-/** The sheet's columns, in order. Recognised case-insensitively on upload. */
-const COLUMNS = ['Market', 'Filial adı', 'Ünvan', 'Google Maps linki', 'Enlik', 'Uzunluq', 'Telefon', 'Açılış', 'Bağlanış', '24 saat'] as const;
+/**
+ * The template's columns. Hours are deliberately absent: they belong to the
+ * store now, so every branch of a chain inherits them and repeating them per row
+ * would only create rows that disagree with each other.
+ *
+ * Extra columns are still read when a sheet happens to carry them — Enlik,
+ * Uzunluq and Telefon are recognised on upload even though the template omits
+ * them.
+ */
+const COLUMNS = ['Market', 'Filial adı', 'Ünvan', 'Google Maps ünvan linki'] as const;
 
 const SAMPLE = [
-  ['Al Market', 'Nərimanov', 'Ə. Ələkbərov küç. 12, Bakı', 'https://maps.app.goo.gl/xxxxxxxx', '', '', '+994 12 000 00 00', '08:00', '23:00', 'xeyr'],
-  ['Bravo', 'Gənclik Mall', 'Fətəli Xan Xoyski 16, Bakı', '', '40.40930', '49.86710', '', '', '', 'bəli'],
+  ['Araz', 'Neftçilər Superstore', 'Bakı, Nizami rayonu, Şərifli küçəsi 25', 'https://www.google.com/maps/search/?api=1&query=Araz+Market+Neftçilər'],
+  ['Bravo', 'Gənclik Mall', 'Bakı, Fətəli Xan Xoyski 16', ''],
 ];
 
 interface Row {
@@ -45,11 +53,24 @@ export function BranchImport({ stores, onDone, onClose }: { stores: Store[]; onD
     XLSX.writeFile(wb, 'filial-numune.xlsx');
   };
 
-  /** Matches the sheet's store column against the store list by id or by name. */
+  /**
+   * Matches the sheet's store column against the store list.
+   *
+   * Sheets write the chain's full name ("Araz Market") where the store is saved
+   * as "Araz", so after the exact checks the generic words are dropped from both
+   * sides and compared again. An ambiguous result is left unmatched rather than
+   * guessed — putting prices on the wrong chain is worse than one manual fix.
+   */
+  const bare = (v: string) => v.toLowerCase().replace(/\b(super)?(market|store|mağaza)\b/g, '').replace(/[^\p{L}\p{N}]+/gu, '').trim();
   const matchStore = (raw: string): Store | undefined => {
     const v = raw.trim().toLowerCase();
     if (!v) return undefined;
-    return stores.find((s) => s.id.toLowerCase() === v) ?? stores.find((s) => s.name.toLowerCase() === v) ?? stores.find((s) => slugify(s.name) === slugify(v));
+    const exact = stores.find((s) => s.id.toLowerCase() === v) ?? stores.find((s) => s.name.toLowerCase() === v) ?? stores.find((s) => slugify(s.name) === slugify(v));
+    if (exact) return exact;
+    const key = bare(v);
+    if (!key) return undefined;
+    const loose = stores.filter((s) => bare(s.name) === key || bare(s.id) === key);
+    return loose.length === 1 ? loose[0] : undefined;
   };
 
   const onFile = async (file: File) => {
@@ -116,20 +137,32 @@ export function BranchImport({ stores, onDone, onClose }: { stores: Store[]; onD
       let { lat, lng } = r;
       if (lat == null || lng == null) {
         setBusy(`Koordinat axtarılır ${i + 1}/${usable.length}…`);
-        try {
-          const res = await fetch('/api/geo/resolve', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ q: r.maps_url || r.address }),
-          });
-          const j = (await res.json()) as { lat?: number; lng?: number; error?: string };
-          if (!res.ok || j.lat == null || j.lng == null) throw new Error(j.error ?? 'tapılmadı');
-          lat = j.lat;
-          lng = j.lng;
-        } catch {
-          failed++;
-          continue;
+        // Geocoding goes through OpenStreetMap, whose fair-use policy is one call
+        // a second. Eighty rows sent back to back would be throttled or blocked,
+        // so pace them — the progress line above says which row is in flight.
+        if (i > 0) await new Promise((ok) => setTimeout(ok, 1100));
+        // A share link of the "?query=<place name>" form geocodes worse than the
+        // plain address, because it carries the brand and the branch name too. Use
+        // the link first only when it actually holds coordinates.
+        const linkHasCoords = /@-?\d|!3d-?\d|[?&](?:q|ll|query|destination|center)=-?\d/.test(r.maps_url);
+        const sources = linkHasCoords ? [r.maps_url, r.address] : [r.address, r.maps_url];
+        for (const q of sources.filter(Boolean)) {
+          try {
+            const res = await fetch('/api/geo/resolve', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ q }),
+            });
+            const j = (await res.json()) as { lat?: number; lng?: number; error?: string };
+            if (!res.ok || j.lat == null || j.lng == null) continue;
+            lat = j.lat;
+            lng = j.lng;
+            break;
+          } catch {
+            /* try the next source */
+          }
         }
+        if (lat == null || lng == null) { failed++; continue; }
       }
       out.push({
         id: slugify(`${r.store_id} ${r.name} ${r.address.slice(0, 20)}`),
@@ -171,6 +204,7 @@ export function BranchImport({ stores, onDone, onClose }: { stores: Store[]; onD
           <li>Nümunə faylı endir və Excel-də doldur.</li>
           <li><b>Market</b> sütununa mövcud marketin adını yaz (məsələn “Al Market”) — yeni market yaratmır.</li>
           <li>Koordinatı bilmirsənsə <b>Enlik/Uzunluq</b> boş qalsın: Google Maps linkindən, o da yoxdursa ünvandan tapılır.</li>
+          <li>İş saatı yazmağa ehtiyac yoxdur — filiallar marketin saatını miras alır (Marketlər səhifəsində bir dəfə yazılır).</li>
           <li>Faylı buraya yüklə, siyahını yoxla və idxal et.</li>
         </ol>
 
@@ -197,7 +231,7 @@ export function BranchImport({ stores, onDone, onClose }: { stores: Store[]; onD
           <>
             <div style={{ maxHeight: 340, overflow: 'auto', border: '1px solid #eee', borderRadius: 8 }}>
               <table>
-                <thead><tr><th>Market</th><th>Filial</th><th>Ünvan</th><th>Koordinat</th><th>Saat</th><th>Vəziyyət</th></tr></thead>
+                <thead><tr><th>Market</th><th>Filial</th><th>Ünvan</th><th>Koordinat</th><th>Vəziyyət</th></tr></thead>
                 <tbody>
                   {rows.map((r, i) => (
                     <tr key={i} style={r.ok ? undefined : { background: '#fff5f5' }}>
@@ -205,7 +239,6 @@ export function BranchImport({ stores, onDone, onClose }: { stores: Store[]; onD
                       <td>{r.name || '—'}</td>
                       <td className="muted" style={{ fontSize: 12 }}>{r.address || '—'}</td>
                       <td className="muted" style={{ fontSize: 12 }}>{r.lat != null ? `${r.lat.toFixed(5)}, ${r.lng?.toFixed(5)}` : '—'}</td>
-                      <td className="muted" style={{ fontSize: 12 }}>{r.always_open ? '24 saat' : [r.open_from, r.open_until].filter(Boolean).join('–') || '—'}</td>
                       <td style={{ fontSize: 12 }} className={r.ok ? 'muted' : ''}>{r.note || 'hazır'}</td>
                     </tr>
                   ))}

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { FlatList, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { FlatList, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useCatalog } from '@/store/catalog';
 import { isAllDay, isOpenNow, Branch } from '@/data/products';
@@ -8,16 +8,7 @@ import { Row, Txt } from './ui';
 import { StoreAvatar } from './product';
 import { useT } from '@/lib/i18n';
 import { useRefresh } from '@/lib/useRefresh';
-
-function openMaps(b: Branch) {
-  const url = b.mapsUrl
-    ? b.mapsUrl
-    : Platform.select({
-        ios: `maps://maps.apple.com/?daddr=${b.lat},${b.lng}`,
-        default: `https://maps.google.com/?q=${b.lat},${b.lng}`,
-      });
-  Linking.openURL(url!).catch(() => Linking.openURL(`https://maps.google.com/?q=${b.lat},${b.lng}`));
-}
+import { openBranch } from '@/lib/maps';
 
 /** How many branches one tap reveals. */
 const PAGE = 10;
@@ -90,7 +81,7 @@ export function BranchList({ filter, onFilterChange }: { filter: string; onFilte
 
         <Pressable
           style={styles.navBtn}
-          onPress={() => openMaps(b)}
+          onPress={() => openBranch(b)}
           accessibilityRole="button"
           accessibilityLabel={t('branches.openIn', { name: b.name })}
           hitSlop={12}
