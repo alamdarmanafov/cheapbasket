@@ -37,6 +37,26 @@ interface Row {
 }
 
 const yes = (v: string) => /^(b(ə|e)li|h(ə|e)|yes|true|1|24)$/i.test(v.trim());
+
+/**
+ * Azerbaijan's bounding box, used to catch coordinates that are simply wrong.
+ *
+ * Latitude and longitude are easy to fill in the wrong order, and nothing about
+ * the numbers says so: 49.8 is a perfectly valid latitude, it just puts a Baku
+ * branch in the Baltic. Swapped pairs are corrected, pairs that land outside the
+ * country are refused rather than imported into the wrong place silently.
+ */
+const AZ_BOUNDS = { lat: [38.2, 42.0], lng: [44.6, 50.7] } as const;
+const inside = (lat: number, lng: number) =>
+  lat >= AZ_BOUNDS.lat[0] && lat <= AZ_BOUNDS.lat[1] && lng >= AZ_BOUNDS.lng[0] && lng <= AZ_BOUNDS.lng[1];
+
+/** null when the pair cannot be trusted; `swapped` when the columns were the wrong way round. */
+function checkCoords(lat: number, lng: number): { lat: number; lng: number; swapped: boolean } | null {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) return null;
+  if (inside(lat, lng)) return { lat, lng, swapped: false };
+  if (inside(lng, lat)) return { lat: lng, lng: lat, swapped: true };
+  return null;
+}
 const clean = (v: unknown) => String(v ?? '').trim();
 
 /** Bulk branch import: download the template, fill it in Excel, upload it back. */
@@ -97,11 +117,15 @@ export function BranchImport({ stores, onDone, onClose }: { stores: Store[]; onD
         const name = at(r, idx.name);
         if (!storeRaw && !name) continue;
         const store = matchStore(storeRaw);
-        const lat = Number(at(r, idx.lat).replace(',', '.'));
-        const lng = Number(at(r, idx.lng).replace(',', '.'));
+        const rawLat = Number(at(r, idx.lat).replace(',', '.'));
+        const rawLng = Number(at(r, idx.lng).replace(',', '.'));
+        const coords = checkCoords(rawLat, rawLng);
+        const badCoords = !coords && at(r, idx.lat) !== '' && at(r, idx.lng) !== '';
+        const lat = coords?.lat ?? NaN;
+        const lng = coords?.lng ?? NaN;
         const link = at(r, idx.link);
         const address = at(r, idx.address);
-        const hasCoords = Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0;
+        const hasCoords = !!coords;
         parsed.push({
           store_id: store?.id ?? '',
           storeLabel: storeRaw,
@@ -114,7 +138,19 @@ export function BranchImport({ stores, onDone, onClose }: { stores: Store[]; onD
           open_from: at(r, idx.from),
           open_until: at(r, idx.until),
           always_open: yes(at(r, idx.always)),
-          note: !store ? `"${storeRaw}" adlı market yoxdur` : !name ? 'Filial adı boşdur' : hasCoords ? '' : link || address ? 'Koordinat linkdən tapılacaq' : 'Nə koordinat, nə link, nə ünvan var',
+          note: !store
+            ? `"${storeRaw}" adlı market yoxdur`
+            : !name
+              ? 'Filial adı boşdur'
+              : badCoords
+                ? 'Koordinat Azərbaycandan kənardadır — nəzərə alınmadı, link/ünvan işlədiləcək'
+                : coords?.swapped
+                  ? 'Enlik/uzunluq yerləri dəyişik idi — düzəldildi'
+                  : hasCoords
+                    ? ''
+                    : link || address
+                      ? 'Koordinat linkdən tapılacaq'
+                      : 'Nə koordinat, nə link, nə ünvan var',
           ok: !!store && !!name && (hasCoords || !!link || !!address),
         });
       }
@@ -131,7 +167,7 @@ export function BranchImport({ stores, onDone, onClose }: { stores: Store[]; onD
     if (!usable.length) return;
     setBusy('İdxal edilir…');
     const out: Record<string, unknown>[] = [];
-    let failed = 0;
+    const unresolved: Row[] = [];
     for (let i = 0; i < usable.length; i++) {
       const r = usable[i];
       let { lat, lng } = r;
@@ -141,11 +177,18 @@ export function BranchImport({ stores, onDone, onClose }: { stores: Store[]; onD
         // a second. Eighty rows sent back to back would be throttled or blocked,
         // so pace them — the progress line above says which row is in flight.
         if (i > 0) await new Promise((ok) => setTimeout(ok, 1100));
-        // A share link of the "?query=<place name>" form geocodes worse than the
-        // plain address, because it carries the brand and the branch name too. Use
-        // the link first only when it actually holds coordinates.
-        const linkHasCoords = /@-?\d|!3d-?\d|[?&](?:q|ll|query|destination|center)=-?\d/.test(r.maps_url);
-        const sources = linkHasCoords ? [r.maps_url, r.address] : [r.address, r.maps_url];
+        // Which source to believe first.
+        //
+        // A real Maps link — a share link, a /maps/place/ URL, or one carrying
+        // coordinates outright — resolves exactly, so it wins. A short link holds
+        // no coordinates in its text but yields them once followed, which is why
+        // this tests the *kind* of link rather than looking for digits in it.
+        //
+        // Only the "?query=<place name>" form is worse than the address, since it
+        // carries the brand and the branch name and geocodes poorly.
+        const link = r.maps_url;
+        const realLink = /maps\.app\.goo\.gl|goo\.gl\/maps|\/maps\/place\/|@-?\d|!3d-?\d|[?&](?:q|ll|destination|center)=-?\d/.test(link);
+        const sources = realLink ? [link, r.address] : [r.address, link];
         for (const q of sources.filter(Boolean)) {
           try {
             const res = await fetch('/api/geo/resolve', {
@@ -162,7 +205,7 @@ export function BranchImport({ stores, onDone, onClose }: { stores: Store[]; onD
             /* try the next source */
           }
         }
-        if (lat == null || lng == null) { failed++; continue; }
+        if (lat == null || lng == null) { unresolved.push(r); continue; }
       }
       out.push({
         id: slugify(`${r.store_id} ${r.name} ${r.address.slice(0, 20)}`),
@@ -181,8 +224,15 @@ export function BranchImport({ stores, onDone, onClose }: { stores: Store[]; onD
 
     try {
       if (out.length) await db.upsert('branches', out, 'id');
-      onDone(`${out.length} filial idxal edildi${failed ? `, ${failed} sətir koordinatsız qaldı` : ''}`, true);
-      onClose();
+      onDone(`${out.length} filial idxal edildi${unresolved.length ? `, ${unresolved.length} sətir üçün yer tapılmadı` : ''}`, unresolved.length === 0);
+      if (unresolved.length) {
+        // Keep the dialog open on the leftovers: the next step is collecting a
+        // link for each, and closing would lose the list of which ones they are.
+        setRows(unresolved.map((r) => ({ ...r, note: 'Yer tapılmadı — Google Maps linkini əlavə et', ok: false })));
+        setFileName('');
+      } else {
+        onClose();
+      }
     } catch (e) {
       onDone((e as Error).message, false);
     } finally {
@@ -191,6 +241,19 @@ export function BranchImport({ stores, onDone, onClose }: { stores: Store[]; onD
   };
 
   const good = rows.filter((r) => r.ok).length;
+  const stuck = rows.filter((r) => !r.ok);
+
+  /** The leftovers as a sheet, so a link can be pasted per row and re-uploaded. */
+  const exportStuck = () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      [...COLUMNS],
+      ...stuck.map((r) => [r.storeLabel || r.store_id, r.name, r.address, r.maps_url]),
+    ]);
+    ws['!cols'] = COLUMNS.map((c) => ({ wch: Math.max(16, c.length + 4) }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Alınmayanlar');
+    XLSX.writeFile(wb, 'filial-alinmayanlar.xlsx');
+  };
 
   return (
     <div className="modal-bg" onClick={onClose}>
@@ -251,6 +314,11 @@ export function BranchImport({ stores, onDone, onClose }: { stores: Store[]; onD
 
         <div className="actions">
           <button className="btn secondary" onClick={onClose}>Bağla</button>
+          {stuck.length > 0 && (
+            <button className="btn secondary" onClick={exportStuck}>
+              <Download size={14} /> {stuck.length} alınmayanı endir
+            </button>
+          )}
           <button className="btn" disabled={!good || !!busy} onClick={run}>{busy || `${good} filialı idxal et`}</button>
         </div>
       </div>
