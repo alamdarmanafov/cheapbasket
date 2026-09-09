@@ -19,6 +19,8 @@ type ViewMode = 'table' | 'map';
 
 /** Sentinel store-filter value for branches whose store_id matches no store. */
 const ORPHANS = '__orphans__';
+/** Sentinel store-filter value for branches that have no coordinates yet. */
+const NO_COORDS = '__nocoords__';
 
 export default function Branches() {
   const [stores, setStores] = useState<Store[]>([]);
@@ -123,10 +125,12 @@ export default function Branches() {
       maxZoom: 19,
     }).addTo(map);
 
-    rows.forEach((b) => {
+    // A branch with no coordinates has no place on the map; it is listed in the
+    // table with a "Linksiz" marker instead.
+    rows.filter((b) => b.lat != null && b.lng != null).forEach((b) => {
       const store = stores.find((s) => s.id === b.store_id);
       const color = store?.color ?? '#64748B';
-      const marker = L.circleMarker([b.lat, b.lng], {
+      const marker = L.circleMarker([b.lat as number, b.lng as number], {
         radius: 9,
         fillColor: color,
         color: '#fff',
@@ -347,7 +351,7 @@ export default function Branches() {
   useEffect(() => { load(); }, []);
 
   const save = async (b: Branch) => {
-    const row = { ...b, id: b.id || branchId(b.store_id, b.name), lat: Number(b.lat), lng: Number(b.lng), open_until: b.open_until || null, open_from: b.open_from?.trim() || null, maps_url: b.maps_url?.trim() || null, phone: b.phone?.trim() || null };
+    const row = { ...b, id: b.id || branchId(b.store_id, b.name), lat: b.lat == null ? null : Number(b.lat), lng: b.lng == null ? null : Number(b.lng), open_until: b.open_until || null, open_from: b.open_from?.trim() || null, maps_url: b.maps_url?.trim() || null, phone: b.phone?.trim() || null };
     const error = await db.upsert('branches', [row]).then(() => null, (e: Error) => e.message);
     setMsg({ ok: !error, text: error ?? `${row.name} yadda saxlanıldı` });
     if (!error) { setEdit(null); load(); }
@@ -371,9 +375,14 @@ export default function Branches() {
    */
   const orphans = rows.filter((r) => !stores.some((st) => st.id === r.store_id));
 
+  /** Branches imported as names only: created, but still waiting for a link. */
+  const pending = rows.filter((r) => r.lat == null || r.lng == null);
+
   /** Rows the table is showing, which is also what "select all" and bulk delete act on. */
   const shown = (() => {
-    const base = storeFilter === ORPHANS ? orphans : storeFilter ? rows.filter((r) => r.store_id === storeFilter) : rows;
+    const base = storeFilter === ORPHANS ? orphans
+      : storeFilter === NO_COORDS ? pending
+      : storeFilter ? rows.filter((r) => r.store_id === storeFilter) : rows;
     const needle = q.trim().toLowerCase();
     if (!needle) return base;
     return base.filter((r) => `${r.name} ${r.address} ${r.id}`.toLowerCase().includes(needle));
@@ -559,7 +568,7 @@ export default function Branches() {
           <button className="btn secondary" disabled={!stores.length} onClick={() => { setWoltOpen((o) => !o); setBulk([]); setWoltVenues([]); setWoltSelected(new Set()); setWoltError(''); setWoltStoreId(stores[0]?.id ?? ''); setWoltQuery(stores[0]?.name ?? ''); }}>
             <Search size={14} /> Wolt-dan çək
           </button>
-          <button className="btn" disabled={!stores.length} onClick={() => { setWoltSuggestVenues([]); setWoltEditSlug(''); setEdit({ id: '', store_id: stores[0]?.id ?? '', name: '', address: '', lat: 40.4093, lng: 49.8671, ...storeHours(stores[0]?.id ?? ''), maps_url: '', phone: '' }); }}>
+          <button className="btn" disabled={!stores.length} onClick={() => { setWoltSuggestVenues([]); setWoltEditSlug(''); setEdit({ id: '', store_id: stores[0]?.id ?? '', name: '', address: '', lat: null, lng: null, ...storeHours(stores[0]?.id ?? ''), maps_url: '', phone: '' }); }}>
             <Plus size={14} /> Yeni filial
           </button>
         </div>
@@ -700,6 +709,7 @@ export default function Branches() {
           <select value={storeFilter} onChange={(e) => { setStoreFilter(e.target.value); setSelected(new Set()); }} title="Marketə görə süzgəc">
             <option value="">Bütün marketlər ({rows.length})</option>
             {stores.map((s2) => <option key={s2.id} value={s2.id}>{s2.name} ({rows.filter((r) => r.store_id === s2.id).length})</option>)}
+            {pending.length > 0 && <option value={NO_COORDS}>⚠ Koordinatı yoxdur ({pending.length})</option>}
             {orphans.length > 0 && <option value={ORPHANS}>⚠ Naməlum market ({orphans.length})</option>}
           </select>
           <input
@@ -710,7 +720,7 @@ export default function Branches() {
             title="Bazadakı bütün filiallar üzrə axtarır"
           />
           {q && <button className="btn ghost" onClick={() => setQ('')}>Təmizlə</button>}
-          {storeFilter && (
+          {storeFilter && storeFilter !== NO_COORDS && (
             <button className="btn danger" disabled={bulkDeleting} onClick={removeStore} title="Bazadakı bütün filialları silir — səhifədə görünənləri yox">
               <Trash2 size={14} /> {bulkDeleting ? 'Silinir…' : storeFilter === ORPHANS ? `Naməlum marketli ${orphans.length} filialı sil` : `${storeOf(storeFilter)?.name ?? 'Market'}: hamısını sil`}
             </button>
@@ -750,7 +760,11 @@ export default function Branches() {
                 <td><span className="avatar" style={{ background: storeOf(b.store_id)?.color ?? '#999' }}>{storeOf(b.store_id)?.initial}</span>{storeOf(b.store_id)?.name ?? b.store_id}</td>
                 <td><b>{b.name}</b></td>
                 <td className="muted">{b.address}</td>
-                <td className="muted" style={{ fontFamily: 'monospace', fontSize: 12 }}><a href={b.maps_url || `https://www.google.com/maps?q=${b.lat},${b.lng}`} target="_blank" rel="noreferrer"><MapPin size={12} style={{ verticalAlign: -2 }} /> {Number(b.lat).toFixed(5)}, {Number(b.lng).toFixed(5)}</a></td>
+                <td className="muted" style={{ fontFamily: 'monospace', fontSize: 12 }}>
+                  {b.lat == null || b.lng == null
+                    ? <button className="btn ghost" style={{ fontSize: 12, color: '#B45309' }} onClick={() => { setWoltSuggestVenues([]); setWoltEditSlug(''); setEdit(b); }}>⚠ koordinat yoxdur — link əlavə et</button>
+                    : <a href={b.maps_url || `https://www.google.com/maps?q=${b.lat},${b.lng}`} target="_blank" rel="noreferrer"><MapPin size={12} style={{ verticalAlign: -2 }} /> {Number(b.lat).toFixed(5)}, {Number(b.lng).toFixed(5)}</a>}
+                </td>
                 <td className="muted">
                   {(() => {
                     // A branch with no hours of its own runs on its store's, so show
@@ -822,7 +836,11 @@ export default function Branches() {
                 Linki yapışdır — koordinat özü tapılır. Link əvəzinə ünvan da yaza bilərsən; onda tətbiqdə xəritə koordinata görə açılır.
               </div>
 
-              <iframe title="map" src={`https://www.google.com/maps?q=${edit.lat},${edit.lng}&z=16&output=embed`} style={{ width: '100%', height: 180, border: 0, borderRadius: 10, marginTop: 10 }} loading="lazy" />
+              {edit.lat != null && edit.lng != null
+                ? <iframe title="map" src={`https://www.google.com/maps?q=${edit.lat},${edit.lng}&z=16&output=embed`} style={{ width: '100%', height: 180, border: 0, borderRadius: 10, marginTop: 10 }} loading="lazy" />
+                : <div style={{ height: 180, marginTop: 10, borderRadius: 10, background: '#F1F5F9', color: '#64748B', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 16 }}>
+                    Koordinat yoxdur. Yuxarıya Google Maps linkini yapışdır — xəritə və koordinat özü gələcək.
+                  </div>}
             </div>
 
             <div className="form-grid" style={{ marginTop: 14 }}>
@@ -863,8 +881,8 @@ export default function Branches() {
               </label>
 
               <label className="full">Ünvan<input value={edit.address} onChange={(e) => setEdit({ ...edit, address: e.target.value })} placeholder="Ə. Ələkbərov küç. 12, Nərimanov" /></label>
-              <label>Lat<input type="number" step="any" value={edit.lat} onChange={(e) => setEdit({ ...edit, lat: Number(e.target.value) })} /></label>
-              <label>Lng<input type="number" step="any" value={edit.lng} onChange={(e) => setEdit({ ...edit, lng: Number(e.target.value) })} /></label>
+              <label>Lat<input type="number" step="any" value={edit.lat ?? ''} placeholder="linkdən doldurulur" onChange={(e) => setEdit({ ...edit, lat: e.target.value === '' ? null : Number(e.target.value) })} /></label>
+              <label>Lng<input type="number" step="any" value={edit.lng ?? ''} placeholder="linkdən doldurulur" onChange={(e) => setEdit({ ...edit, lng: e.target.value === '' ? null : Number(e.target.value) })} /></label>
               <label>Açılış (saat)<input value={edit.open_from ?? ''} onChange={(e) => setEdit({ ...edit, open_from: e.target.value })} placeholder="08:00" disabled={edit.open_from === '00:00' && edit.open_until === '23:59'} /></label>
               <label>Bağlanış (saat)<input value={edit.open_until ?? ''} onChange={(e) => setEdit({ ...edit, open_until: e.target.value })} placeholder="23:00" disabled={edit.open_from === '00:00' && edit.open_until === '23:59'} /></label>
               <label style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={edit.open_from === '00:00' && edit.open_until === '23:59'} onChange={(e) => setEdit({ ...edit, open_from: e.target.checked ? '00:00' : '08:00', open_until: e.target.checked ? '23:59' : '23:00' })} style={{ width: 'auto' }} /> 24 saat açıqdır</label>

@@ -7,8 +7,8 @@ interface BranchRow {
   store_id: string;
   name: string;
   address: string;
-  lat: number | string;
-  lng: number | string;
+  lat: number | string | null;
+  lng: number | string | null;
   open_until: string | null;
   maps_url: string | null;
   phone: string | null;
@@ -139,7 +139,12 @@ export async function fetchByBarcode(code: string): Promise<Product | undefined>
 export async function fetchBranches(from: LatLng): Promise<Branch[]> {
   const db = need();
   const data = await fetchPaged<BranchRow>((a, b) => db.from('branches').select('*').range(a, b));
-  const raw: Branch[] = data.map((b) => ({
+  // A branch entered as a name only has no coordinates until its Google Maps
+  // link is added in the admin panel. It is left out rather than pinned at
+  // 0°,0°, which would put it in the Atlantic and let it win "nearest branch"
+  // for anyone the distance maths happened to favour.
+  const located = data.filter((b) => b.lat != null && b.lng != null && Number.isFinite(Number(b.lat)) && Number.isFinite(Number(b.lng)));
+  const raw: Branch[] = located.map((b) => ({
     id: b.id,
     storeId: b.store_id,
     name: b.name,

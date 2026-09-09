@@ -17,7 +17,7 @@ const COLUMNS = ['Market', 'Filial adı', 'Google Maps linki', 'Ünvan'] as cons
 
 const SAMPLE = [
   ['Araz', 'Neftçilər Superstore', 'https://maps.app.goo.gl/aBcD1234', ''],
-  ['Bravo', 'Gənclik Mall', 'https://www.google.com/maps/place/…/@40.40930,49.86710,17z', 'Bakı, Fətəli Xan Xoyski 16'],
+  ['Bravo', 'Gənclik Mall', '', ''],
 ];
 
 interface Row {
@@ -162,8 +162,12 @@ export function BranchImport({ stores, existing = [], onDone, onClose }: { store
                       ? 'Koordinat linkdən tapılacaq'
                       : address
                         ? 'Link yoxdur — koordinat ünvandan təxmin ediləcək'
-                        : 'Nə koordinat, nə link, nə ünvan var',
-          ok: !!store && !!name && (hasCoords || !!link || !!address),
+                        : 'Yalnız ad — linki sonra paneldən əlavə edəcəksən',
+          // Market and branch name are all a row needs. Without a link or an
+          // address the branch is created with no coordinates, and the Google
+          // Maps link is pasted into it afterwards in the panel — which is how a
+          // chain of ninety branches is realistically entered.
+          ok: !!store && !!name,
         });
       }
       // Say up front what each row will do. "Update" is the whole point of a
@@ -193,7 +197,10 @@ export function BranchImport({ stores, existing = [], onDone, onClose }: { store
       const r = usable[i];
       let { lat, lng } = r;
       let address = r.address;
-      if (lat == null || lng == null) {
+      // Nothing to resolve from, so nothing is guessed: the branch is created
+      // without coordinates and waits for its link.
+      const nothingToResolve = !r.maps_url.trim() && !r.address.trim();
+      if ((lat == null || lng == null) && !nothingToResolve) {
         setBusy(`Koordinat axtarılır ${i + 1}/${usable.length}…`);
         // Geocoding goes through OpenStreetMap, whose fair-use policy is one call
         // a second. Eighty rows sent back to back would be throttled or blocked,
@@ -226,7 +233,10 @@ export function BranchImport({ stores, existing = [], onDone, onClose }: { store
             /* try the next source */
           }
         }
-        if (lat == null || lng == null) { unresolved.push(r); continue; }
+        // A row whose link and address both resolve to nothing is still worth
+        // creating — the branch exists, only its pin is missing — but it is
+        // listed afterwards so the missing links can be filled in.
+        if (lat == null || lng == null) unresolved.push(r);
       }
       out.push({
         // A branch is identified by its chain and its name, never by its address.
@@ -237,8 +247,8 @@ export function BranchImport({ stores, existing = [], onDone, onClose }: { store
         store_id: r.store_id,
         name: r.name,
         address,
-        lat,
-        lng,
+        lat: lat ?? null,
+        lng: lng ?? null,
         maps_url: r.maps_url || null,
         phone: r.phone || null,
         open_from: r.always_open ? '00:00' : r.open_from || null,
@@ -249,11 +259,11 @@ export function BranchImport({ stores, existing = [], onDone, onClose }: { store
 
     try {
       if (out.length) await db.upsert('branches', out, 'id');
-      onDone(`${out.length} filial idxal edildi${unresolved.length ? `, ${unresolved.length} sətir üçün yer tapılmadı` : ''}`, unresolved.length === 0);
+      onDone(`${out.length} filial idxal edildi${unresolved.length ? `, ${unresolved.length}-i koordinatsız — linki paneldən əlavə et` : ''}`, true);
       if (unresolved.length) {
         // Keep the dialog open on the leftovers: the next step is collecting a
         // link for each, and closing would lose the list of which ones they are.
-        setRows(unresolved.map((r) => ({ ...r, note: 'Yer tapılmadı — Google Maps linkini əlavə et', ok: false })));
+        setRows(unresolved.map((r) => ({ ...r, note: 'Koordinatsız yaradıldı — Google Maps linkini əlavə et', ok: false })));
         setFileName('');
       } else {
         onClose();
