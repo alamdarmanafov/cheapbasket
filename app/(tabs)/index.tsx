@@ -9,9 +9,8 @@ import { ProductRowSkeleton } from '@/components/states';
 import { TopBar } from '@/components/TopBar';
 import { BannerSlider } from '@/components/BannerSlider';
 import { PlusTag } from '@/components/PlusLock';
-import { Product, catalogCategories, categoryEmoji, searchProducts } from '@/data/products';
+import { Product, catalogCategories, categoryEmoji, nearestBranch, searchProducts } from '@/data/products';
 import { useCatalog } from '@/store/catalog';
-import { openStoreBranches } from '@/lib/maps';
 import { useRefresh } from '@/lib/useRefresh';
 import { useBasket } from '@/store/basket';
 import { useT } from '@/lib/i18n';
@@ -128,14 +127,36 @@ export default function Home() {
               </Pressable>
             </Row>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-              {cat.stores.map((s) => (
-                <Pressable key={s.id} onPress={() => openStoreBranches(s.name, cat.location)} style={({ pressed }) => [styles.storeChip, pressed && { backgroundColor: colors.primarySoft }]}>
-                  <StoreAvatar store={s} size={22} />
-                  <Txt v="captionStrong" style={{ fontSize: 12, marginLeft: 6 }}>
-                    {s.name}
-                  </Txt>
-                </Pressable>
-              ))}
+              {/*
+                * Tapping a store used to leave the app for a Google Maps search
+                * of its name, which lands on whatever Google finds rather than on
+                * the branches this app knows about. It now opens the branches
+                * view filtered to that chain, and the chip carries the distance
+                * to its nearest branch so the row says something true before it
+                * is tapped.
+                */}
+              {cat.stores.map((s) => {
+                const near = nearestBranch(s.id);
+                return (
+                  <Pressable
+                    key={s.id}
+                    onPress={() => router.push({ pathname: '/(tabs)/markets', params: { view: 'branches', store: s.id } })}
+                    style={({ pressed }) => [styles.storeChip, pressed && { backgroundColor: colors.primarySoft }]}
+                  >
+                    <StoreAvatar store={s} size={22} />
+                    <View style={{ marginLeft: 6 }}>
+                      <Txt v="captionStrong" style={{ fontSize: 12 }}>
+                        {s.name}
+                      </Txt>
+                      {near && (
+                        <Txt v="caption" color={colors.gray} style={{ fontSize: 10, marginTop: 1 }}>
+                          {near.distanceKm < 1 ? `${Math.round(near.distanceKm * 1000)} m` : `${near.distanceKm.toFixed(1)} km`}
+                        </Txt>
+                      )}
+                    </View>
+                  </Pressable>
+                );
+              })}
             </ScrollView>
           </>
         )}
