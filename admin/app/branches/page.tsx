@@ -17,6 +17,9 @@ declare global {
 type BulkStatus = { storeId: string; name: string; status: 'pending' | 'loading' | 'done' | 'error'; count?: number; error?: string };
 type ViewMode = 'table' | 'map';
 
+/** Sentinel store-filter value for branches whose store_id matches no store. */
+const ORPHANS = '__orphans__';
+
 export default function Branches() {
   const [stores, setStores] = useState<Store[]>([]);
   const [rows, setRows] = useState<Branch[]>([]);
@@ -54,6 +57,9 @@ export default function Branches() {
   /** Row selection for bulk delete, and the store filter it works within. */
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [storeFilter, setStoreFilter] = useState('');
+  /** Free-text filter over name, address and id — the only way to find a branch
+   *  whose store_id no longer matches any store, which no store filter shows. */
+  const [q, setQ] = useState('');
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // Wolt name autosuggest (in edit form)
@@ -349,12 +355,29 @@ export default function Branches() {
   const remove = async (b: Branch) => {
     if (!confirm(`${b.name} silinsin?`)) return;
     const error = await db.delete('branches', { id: b.id }).then(() => null, (e: Error) => e.message);
-    setMsg({ ok: !error, text: error ?? 'Silindi' });
+    // A delete that matches nothing succeeds quietly, so check the row is gone
+    // rather than reporting success on an unchanged table.
+    const left = error ? -1 : await db.count('branches', { id: b.id }).catch(() => -1);
+    setMsg(error ? { ok: false, text: error } : left > 0 ? { ok: false, text: `${b.name} silinmədi — bazada qalır` } : { ok: true, text: 'Silindi' });
     load();
   };
   const storeOf = (id: string) => stores.find((s) => s.id === id);
+  /**
+   * Branches whose store_id matches no store.
+   *
+   * An import under a store that was later renamed or removed leaves rows that
+   * belong to nothing: no store filter lists them, so they read as deleted while
+   * the row is still there and still claims its id on the next import.
+   */
+  const orphans = rows.filter((r) => !stores.some((st) => st.id === r.store_id));
+
   /** Rows the table is showing, which is also what "select all" and bulk delete act on. */
-  const shown = storeFilter ? rows.filter((r) => r.store_id === storeFilter) : rows;
+  const shown = (() => {
+    const base = storeFilter === ORPHANS ? orphans : storeFilter ? rows.filter((r) => r.store_id === storeFilter) : rows;
+    const needle = q.trim().toLowerCase();
+    if (!needle) return base;
+    return base.filter((r) => `${r.name} ${r.address} ${r.id}`.toLowerCase().includes(needle));
+  })();
 
   /**
    * Deletes every selected branch.
@@ -390,6 +413,26 @@ export default function Branches() {
   };
 
   /**
+   * Deletes every orphaned branch, one delete per distinct store_id.
+   *
+   * These rows carry store ids that no longer exist, so there is no single
+   * filter that covers them; grouping keeps it to a handful of calls instead of
+   * one per row.
+   */
+  const removeOrphans = async () => {
+    if (!orphans.length) { setMsg({ ok: true, text: 'Naməlum marketli filial yoxdur' }); return; }
+    if (!confirm(`Marketi tapılmayan ${orphans.length} filial silinəcək.\n\nBu, geri qaytarıla bilməz. Davam edilsin?`)) return;
+    setBulkDeleting(true);
+    const ids = [...new Set(orphans.map((r) => r.store_id))];
+    const res = await Promise.allSettled(ids.map((id) => db.delete('branches', { store_id: id })));
+    const failed = res.filter((r) => r.status === 'rejected').length;
+    setBulkDeleting(false);
+    setSelected(new Set());
+    setMsg({ ok: !failed, text: failed ? `${failed} qrup silinmədi` : `${orphans.length} filial silindi` });
+    load();
+  };
+
+  /**
    * Deletes every branch of one store in a single request.
    *
    * Row-by-row deletion only reaches what the table listed, which is the wrong
@@ -397,6 +440,7 @@ export default function Branches() {
    * database instead, so rows the page never showed go too.
    */
   const removeStore = async () => {
+    if (storeFilter === ORPHANS) return removeOrphans();
     const st = storeOf(storeFilter);
     if (!storeFilter || !st) return;
     const before = await db.count('branches', { store_id: storeFilter }).catch(() => -1);
@@ -656,10 +700,19 @@ export default function Branches() {
           <select value={storeFilter} onChange={(e) => { setStoreFilter(e.target.value); setSelected(new Set()); }} title="Marketə görə süzgəc">
             <option value="">Bütün marketlər ({rows.length})</option>
             {stores.map((s2) => <option key={s2.id} value={s2.id}>{s2.name} ({rows.filter((r) => r.store_id === s2.id).length})</option>)}
+            {orphans.length > 0 && <option value={ORPHANS}>⚠ Naməlum market ({orphans.length})</option>}
           </select>
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Ad, ünvan və ya id ilə axtar"
+            style={{ minWidth: 220 }}
+            title="Bazadakı bütün filiallar üzrə axtarır"
+          />
+          {q && <button className="btn ghost" onClick={() => setQ('')}>Təmizlə</button>}
           {storeFilter && (
             <button className="btn danger" disabled={bulkDeleting} onClick={removeStore} title="Bazadakı bütün filialları silir — səhifədə görünənləri yox">
-              <Trash2 size={14} /> {bulkDeleting ? 'Silinir…' : `${storeOf(storeFilter)?.name ?? 'Market'}: hamısını sil`}
+              <Trash2 size={14} /> {bulkDeleting ? 'Silinir…' : storeFilter === ORPHANS ? `Naməlum marketli ${orphans.length} filialı sil` : `${storeOf(storeFilter)?.name ?? 'Market'}: hamısını sil`}
             </button>
           )}
           {selected.size > 0 && (
