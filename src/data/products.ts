@@ -258,12 +258,24 @@ export function haversineKm(a: LatLng, b: LatLng): number {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-/** Recompute branch distances from a location (walking ≈ 12 min/km). */
+/**
+ * Recompute branch distances from a location (walking ≈ 12 min/km), nearest first.
+ *
+ * The screens that show branches all mean "the ones near me": the branch list,
+ * the nearby screen, the map's list. They rendered in whatever order the table
+ * came back in, so a branch 9 km away sat above one 500 m away. Sorting here
+ * rather than in each screen keeps that from being re-decided per screen — and
+ * the distance is computed with full precision, so two branches a few hundred
+ * metres apart do not tie on their rounded labels.
+ */
 export function withDistances(branches: Branch[], from: LatLng): Branch[] {
-  return branches.map((b) => {
-    const km = haversineKm(from, { lat: b.lat, lng: b.lng });
-    return { ...b, distanceKm: Math.round(km * 10) / 10, walkMinutes: Math.max(1, Math.round(km * 12)) };
-  });
+  return branches
+    .map((b) => {
+      const km = haversineKm(from, { lat: b.lat, lng: b.lng });
+      return { ...b, km, distanceKm: Math.round(km * 10) / 10, walkMinutes: Math.max(1, Math.round(km * 12)) };
+    })
+    .sort((a, b) => a.km - b.km)
+    .map(({ km, ...b }) => b);
 }
 
 /** Display name for a store: "Araz Market", but "Bazarstore" / "Market A" stay as they are. */
