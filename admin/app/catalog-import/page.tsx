@@ -23,7 +23,7 @@ export default function CatalogImportPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    db.select<Store>('stores', { order: 'name' }).then(setStores).catch(() => {});
+    db.select<Store>('stores', { order: 'name' }).then(setStores).catch((e: Error) => setMsg({ ok: false, text: `Marketlər yüklənmədi: ${e.message}` }));
   }, []);
 
   const renderPdf = async (file: File) => {

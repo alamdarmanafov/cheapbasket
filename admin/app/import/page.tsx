@@ -112,6 +112,8 @@ export default function ImportPage() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [existing, setExisting] = useState<Product[]>([]);
+  /** True when the catalogue could not be read: importing then risks duplicates. */
+  const [catalogFailed, setCatalogFailed] = useState(false);
   const [dbPriceMap, setDbPriceMap] = useState<Map<string, number>>(new Map());
   const { categories: ourCategories, names: catNames, reload: reloadCategories } = useCategories();
 
@@ -129,7 +131,14 @@ export default function ImportPage() {
       setStores(s);
       if (s[0]) { setStoreId(s[0].id); setCsvStoreId(s[0].id); }
     }).catch((e: Error) => setMsg({ ok: false, text: e.message }));
-    db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url', fetchAll: true }).then(setExisting).catch(() => {});
+    // This list is what tells a scraped row from one already in the catalogue.
+    // Swallowing the error left it empty, and an empty catalogue makes every row
+    // look new — so an import would create duplicates of products that exist
+    // rather than updating their prices. The failure is now visible and the
+    // import is blocked until the list loads.
+    db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url', fetchAll: true })
+      .then((p) => { setExisting(p); setCatalogFailed(false); })
+      .catch((e: Error) => { setCatalogFailed(true); setMsg({ ok: false, text: `Mövcud məhsullar yüklənmədi: ${e.message}. Səhifəni yenilə — yoxsa idxal təkrar məhsul yarada bilər.` }); });
   }, []);
 
   useEffect(() => {
@@ -144,7 +153,9 @@ export default function ImportPage() {
         setDbPriceMap(m);
         setRows((prev) => prev.map((r) => r.existingId ? { ...r, dbPrice: m.get(r.existingId) ?? null } : r));
       })
-      .catch(() => {});
+      // Without this map an unchanged price cannot be recognised, so every row
+      // would be written again. Worth saying rather than silently rewriting.
+      .catch((e: Error) => setMsg({ ok: false, text: `Bu marketin qiymətləri oxunmadı: ${e.message}. Dəyişməyən qiymətlər də yenidən yazılacaq.` }));
   }, [storeId]);
 
   const applyPreset = (preset: 'week' | 'month' | '30' | 'custom') => {
@@ -565,7 +576,7 @@ export default function ImportPage() {
             <button className="btn secondary" disabled={loading || urlList(url).length === 0} onClick={load}>
               <Download size={14} /> {loading ? 'Yüklənir…' : urlList(url).length > 1 ? `${urlList(url).length} linki çək` : 'Məhsulları çək'}
             </button>
-            <button className="btn" disabled={!selected.length || busy || (!storeId && !productsOnly)} onClick={importSelected}>{busy ? 'Yazılır…' : `Seçilənləri import et (${selected.length})`}</button>
+            <button className="btn" disabled={!selected.length || busy || catalogFailed || (!storeId && !productsOnly)} onClick={importSelected} title={catalogFailed ? 'Mövcud məhsullar yüklənmədi — səhifəni yenilə' : undefined}>{busy ? 'Yazılır…' : `Seçilənləri import et (${selected.length})`}</button>
           </div>
 
           {/* Discount date section with presets */}
