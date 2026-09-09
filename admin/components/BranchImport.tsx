@@ -21,6 +21,8 @@ const SAMPLE = [
 ];
 
 interface Row {
+  /** store + name — the identity a re-upload matches on. */
+  rowId: string;
   store_id: string;
   storeLabel: string;
   name: string;
@@ -35,6 +37,9 @@ interface Row {
   note: string;
   ok: boolean;
 }
+
+/** Stable identity for a branch: its chain plus its name. */
+export const branchId = (storeId: string, name: string) => slugify(`${storeId} ${name}`);
 
 const yes = (v: string) => /^(b(ə|e)li|h(ə|e)|yes|true|1|24)$/i.test(v.trim());
 
@@ -60,7 +65,7 @@ function checkCoords(lat: number, lng: number): { lat: number; lng: number; swap
 const clean = (v: unknown) => String(v ?? '').trim();
 
 /** Bulk branch import: download the template, fill it in Excel, upload it back. */
-export function BranchImport({ stores, onDone, onClose }: { stores: Store[]; onDone: (msg: string, ok: boolean) => void; onClose: () => void }) {
+export function BranchImport({ stores, existing = [], onDone, onClose }: { stores: Store[]; existing?: Branch[]; onDone: (msg: string, ok: boolean) => void; onClose: () => void }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState('');
   const [fileName, setFileName] = useState('');
@@ -112,6 +117,8 @@ export function BranchImport({ stores, onDone, onClose }: { stores: Store[]; onD
       const at = (r: unknown[], i: number) => (i >= 0 ? clean(r[i]) : '');
 
       const parsed: Row[] = [];
+      const known = new Set(existing.map((b) => b.id));
+      const seenInSheet = new Map<string, number>();
       for (const r of grid.slice(headerAt + 1)) {
         const storeRaw = at(r, idx.store);
         const name = at(r, idx.name);
@@ -126,7 +133,10 @@ export function BranchImport({ stores, onDone, onClose }: { stores: Store[]; onD
         const link = at(r, idx.link);
         const address = at(r, idx.address);
         const hasCoords = !!coords;
+        const id = store ? branchId(store.id, name) : '';
+        if (id) seenInSheet.set(id, (seenInSheet.get(id) ?? 0) + 1);
         parsed.push({
+          rowId: id,
           store_id: store?.id ?? '',
           storeLabel: storeRaw,
           name,
@@ -154,7 +164,16 @@ export function BranchImport({ stores, onDone, onClose }: { stores: Store[]; onD
           ok: !!store && !!name && (hasCoords || !!link || !!address),
         });
       }
-      setRows(parsed);
+      // Say up front what each row will do. "Update" is the whole point of a
+      // re-upload — a corrected address should land on the branch that already
+      // exists, not mint a second one.
+      setRows(
+        parsed.map((r) => {
+          if (!r.ok || !r.rowId) return r;
+          if ((seenInSheet.get(r.rowId) ?? 0) > 1) return { ...r, ok: false, note: 'Bu ad faylda təkrarlanır — filial adlarını fərqləndir' };
+          return { ...r, note: known.has(r.rowId) ? 'Mövcud filial — ünvan/koordinat yenilənəcək' : r.note || 'Yeni filial' };
+        }),
+      );
       setBusy('');
     } catch (e) {
       setBusy('');
@@ -208,7 +227,11 @@ export function BranchImport({ stores, onDone, onClose }: { stores: Store[]; onD
         if (lat == null || lng == null) { unresolved.push(r); continue; }
       }
       out.push({
-        id: slugify(`${r.store_id} ${r.name} ${r.address.slice(0, 20)}`),
+        // A branch is identified by its chain and its name, never by its address.
+        // With the address in the id, correcting a typo minted a *new* branch and
+        // left the old one behind — the opposite of what re-uploading a fixed
+        // sheet is for.
+        id: branchId(r.store_id, r.name),
         store_id: r.store_id,
         name: r.name,
         address: r.address,
@@ -308,7 +331,11 @@ export function BranchImport({ stores, onDone, onClose }: { stores: Store[]; onD
                 </tbody>
               </table>
             </div>
-            <p className="note">{good} sətir idxala hazırdır{rows.length - good ? `, ${rows.length - good} sətirdə problem var` : ''}. Eyni market + filial adı təkrar yüklənsə, məlumat yenilənir, dublikat yaranmır.</p>
+            <p className="note">
+              {good} sətir idxala hazırdır{rows.length - good ? `, ${rows.length - good} sətirdə problem var` : ''}.
+              Filial <b>market + adı</b> ilə tanınır: eyni adla təkrar yüklənsə ünvanı, koordinatı və linki yenilənir, yeni filial yaranmır.
+              Ona görə filial adını dəyişmək yeni filial deməkdir.
+            </p>
           </>
         )}
 

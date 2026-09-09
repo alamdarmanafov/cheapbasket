@@ -2,8 +2,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Clock, FileSpreadsheet, Map, MapPin, Plus, RefreshCw, Search, Table, Trash2, X } from 'lucide-react';
 import { Shell } from '@/components/Shell';
-import { BranchImport } from '@/components/BranchImport';
-import { Branch, Store, db, slugify } from '@/lib/supabase';
+import { BranchImport, branchId } from '@/components/BranchImport';
+import { Branch, Store, db } from '@/lib/supabase';
 import type { WoltVenue } from '@/lib/wolt';
 
 declare global {
@@ -50,11 +50,12 @@ export default function Branches() {
   // Bulk hours
   const [bulkHoursOpen, setBulkHoursOpen] = useState(false);
   const [bulkHoursStoreId, setBulkHoursStoreId] = useState('');
-  const [bulkHoursFrom, setBulkHoursFrom] = useState('08:00');
-  const [bulkHoursUntil, setBulkHoursUntil] = useState('23:00');
-  const [bulkHoursAlways, setBulkHoursAlways] = useState(false);
   const [bulkHoursApplying, setBulkHoursApplying] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  /** Row selection for bulk delete, and the store filter it works within. */
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [storeFilter, setStoreFilter] = useState('');
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // Wolt name autosuggest (in edit form)
   const [woltSuggestVenues, setWoltSuggestVenues] = useState<WoltVenue[]>([]);
@@ -185,7 +186,7 @@ export default function Branches() {
     };
     window.__branchMapClick = (lat: number, lng: number) => {
       setLink(''); setGmapsLink(''); setWoltSuggestVenues([]); setWoltEditSlug('');
-      setEdit({ id: '', store_id: stores[0]?.id ?? '', name: '', address: '', lat, lng, open_until: '23:00', open_from: '08:00', maps_url: '', phone: '' });
+      setEdit({ id: '', store_id: stores[0]?.id ?? '', name: '', address: '', lat, lng, ...storeHours(stores[0]?.id ?? ''), maps_url: '', phone: '' });
     };
   });
 
@@ -200,7 +201,7 @@ export default function Branches() {
 
   const upsertBranches = (storeId: string, venues: WoltVenue[]) => {
     const branchRows: Branch[] = venues.filter((v) => v.lat != null && v.lng != null).map((v) => ({
-      id: slugify(`${storeId} ${v.name} ${(v.address ?? '').slice(0, 20)}`),
+      id: branchId(storeId, v.name),
       store_id: storeId,
       name: v.name,
       address: v.address ?? '',
@@ -350,7 +351,7 @@ export default function Branches() {
   useEffect(() => { load(); }, []);
 
   const save = async (b: Branch) => {
-    const row = { ...b, id: b.id || slugify(`${b.store_id} ${b.name} ${b.address.slice(0, 20)}`), lat: Number(b.lat), lng: Number(b.lng), open_until: b.open_until || null, open_from: b.open_from?.trim() || null, maps_url: b.maps_url?.trim() || null, phone: b.phone?.trim() || null };
+    const row = { ...b, id: b.id || branchId(b.store_id, b.name), lat: Number(b.lat), lng: Number(b.lng), open_until: b.open_until || null, open_from: b.open_from?.trim() || null, maps_url: b.maps_url?.trim() || null, phone: b.phone?.trim() || null };
     const error = await db.upsert('branches', [row]).then(() => null, (e: Error) => e.message);
     setMsg({ ok: !error, text: error ?? `${row.name} yadda saxlanıldı` });
     if (!error) { setEdit(null); load(); }
@@ -362,20 +363,71 @@ export default function Branches() {
     load();
   };
   const storeOf = (id: string) => stores.find((s) => s.id === id);
+  /** Rows the table is showing, which is also what "select all" and bulk delete act on. */
+  const shown = storeFilter ? rows.filter((r) => r.store_id === storeFilter) : rows;
+
+  /**
+   * Deletes every selected branch.
+   *
+   * The gateway deletes one row per call, so these go out in small parallel
+   * batches: eighty sequential round trips after a bad import is a long wait,
+   * and firing all eighty at once is impolite to the API.
+   */
+  const removeSelected = async () => {
+    const ids = [...selected];
+    if (!ids.length) return;
+    const names = rows.filter((r) => ids.includes(r.id)).slice(0, 3).map((r) => r.name).join(', ');
+    if (!confirm(`${ids.length} filial silinəcək (${names}${ids.length > 3 ? ' və başqaları' : ''}).\n\nBu, geri qaytarıla bilməz. Davam edilsin?`)) return;
+    setBulkDeleting(true);
+    let failed = 0;
+    for (let i = 0; i < ids.length; i += 10) {
+      const batch = ids.slice(i, i + 10);
+      const res = await Promise.allSettled(batch.map((id) => db.delete('branches', { id })));
+      failed += res.filter((r) => r.status === 'rejected').length;
+    }
+    setBulkDeleting(false);
+    setSelected(new Set());
+    setMsg({ ok: failed === 0, text: failed ? `${ids.length - failed} filial silindi, ${failed} silinmədi` : `${ids.length} filial silindi` });
+    load();
+  };
 
   /** Apply bulk hours to all branches of a given store (or all stores if storeId is ''). */
-  const applyBulkHours = async () => {
-    const targets = bulkHoursStoreId ? rows.filter((r) => r.store_id === bulkHoursStoreId) : rows;
-    if (!targets.length) { setMsg({ ok: false, text: 'Tətbiq ediləcək filial yoxdur' }); return; }
+  /**
+   * A store's hours in branch shape. Hours are kept on the store, so a new branch
+   * starts from its chain's rather than from a hardcoded 08:00–23:00 that was
+   * right for nobody in particular.
+   */
+  const storeHours = (id: string): { open_from: string; open_until: string } => {
+    const st = stores.find((x) => x.id === id);
+    if (st?.always_open) return { open_from: '00:00', open_until: '23:59' };
+    return { open_from: st?.open_from ?? '', open_until: st?.open_until ?? '' };
+  };
+
+  /** Store changed in the form: follow the new chain's hours unless they were edited by hand. */
+  const changeStore = (nextId: string) => {
+    if (!edit) return;
+    const before = storeHours(edit.store_id);
+    const untouched = (edit.open_from ?? '') === before.open_from && (edit.open_until ?? '') === before.open_until;
+    setEdit({ ...edit, store_id: nextId, ...(untouched ? storeHours(nextId) : {}) });
+  };
+
+  /**
+   * Clears a branch's own hours so it falls back to its store's.
+   *
+   * This replaces the old bulk-apply, which wrote explicit hours onto every
+   * branch — exactly what now blocks inheritance: a branch carrying its own
+   * hours ignores the store, so changing the chain's hours later would leave
+   * those branches behind.
+   */
+  const resetToStoreHours = async () => {
+    const scope = bulkHoursStoreId ? rows.filter((r) => r.store_id === bulkHoursStoreId) : rows;
+    const targets = scope.filter((r) => r.open_from || r.open_until);
+    if (!targets.length) { setMsg({ ok: true, text: 'Bu marketin filiallarının hamısı onsuz da marketin saatını işlədir.' }); return; }
+    if (!confirm(`${targets.length} filialın öz iş saatı silinəcək və onlar marketin saatını işlədəcək. Davam edilsin?`)) return;
     setBulkHoursApplying(true);
     try {
-      const updated: Record<string, unknown>[] = targets.map((r) => ({
-        ...r,
-        open_from: bulkHoursAlways ? '00:00' : (bulkHoursFrom || null),
-        open_until: bulkHoursAlways ? '23:59' : (bulkHoursUntil || null),
-      }));
-      await db.upsert('branches', updated, 'id');
-      setMsg({ ok: true, text: `${updated.length} filiala iş saatları tətbiq edildi` });
+      await db.upsert('branches', targets.map((r) => ({ ...r, open_from: null, open_until: null })), 'id');
+      setMsg({ ok: true, text: `${targets.length} filial marketin saatına keçirildi` });
       setBulkHoursOpen(false);
       load();
     } catch (e) {
@@ -430,7 +482,7 @@ export default function Branches() {
             </button>
           </div>
           <button className="btn secondary" style={{ gap: 4 }} onClick={() => setBulkHoursOpen((o) => !o)}>
-            <Clock size={14} /> Toplu iş saatları
+            <Clock size={14} /> Saatları markete bağla
           </button>
           <button className="btn secondary" disabled={!stores.length} onClick={() => setImportOpen(true)}>
             <FileSpreadsheet size={14} /> Excel ilə idxal
@@ -438,7 +490,7 @@ export default function Branches() {
           <button className="btn secondary" disabled={!stores.length} onClick={() => { setWoltOpen((o) => !o); setBulk([]); setWoltVenues([]); setWoltSelected(new Set()); setWoltError(''); setWoltStoreId(stores[0]?.id ?? ''); setWoltQuery(stores[0]?.name ?? ''); }}>
             <Search size={14} /> Wolt-dan çək
           </button>
-          <button className="btn" disabled={!stores.length} onClick={() => { setLink(''); setGmapsLink(''); setWoltSuggestVenues([]); setWoltEditSlug(''); setEdit({ id: '', store_id: stores[0]?.id ?? '', name: '', address: '', lat: 40.4093, lng: 49.8671, open_until: '23:00', open_from: '08:00', maps_url: '', phone: '' }); }}>
+          <button className="btn" disabled={!stores.length} onClick={() => { setLink(''); setGmapsLink(''); setWoltSuggestVenues([]); setWoltEditSlug(''); setEdit({ id: '', store_id: stores[0]?.id ?? '', name: '', address: '', lat: 40.4093, lng: 49.8671, ...storeHours(stores[0]?.id ?? ''), maps_url: '', phone: '' }); }}>
             <Plus size={14} /> Yeni filial
           </button>
         </div>
@@ -447,18 +499,24 @@ export default function Branches() {
       {importOpen && (
         <BranchImport
           stores={stores}
+          existing={rows}
           onClose={() => setImportOpen(false)}
           onDone={(text, ok) => { setMsg({ ok, text }); if (ok) load(); }}
         />
       )}
 
-      {/* ── Bulk hours panel ─────────────────────────────────────────────────── */}
+      {/* ── Reset-to-store-hours panel ───────────────────────────────────────── */}
       {bulkHoursOpen && (
         <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 12, padding: 16, marginBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <b style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Clock size={15} /> Toplu iş saatları</b>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <b style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Clock size={15} /> Saatları markete bağla</b>
             <button className="btn ghost" onClick={() => setBulkHoursOpen(false)}><X size={14} /></button>
           </div>
+          <p style={{ fontSize: 13, color: '#92400E', margin: '0 0 12px' }}>
+            İş saatı artıq Marketlər səhifəsində bir dəfə yazılır və filiallar onu miras alır.
+            Öz saatı yazılmış filial isə marketin saatını görmür — sonradan marketin saatını dəyişsən, o filiallar köhnə saatda qalar.
+            Bu düymə həmin filialların öz saatını silir ki, hamısı markete bağlansın.
+          </p>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#6B7280' }}>
               Market
@@ -467,26 +525,19 @@ export default function Branches() {
                 {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#6B7280' }}>
-              Açılış
-              <input value={bulkHoursFrom} onChange={(e) => setBulkHoursFrom(e.target.value)} placeholder="08:00" disabled={bulkHoursAlways} style={{ width: 90 }} />
-            </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: '#6B7280' }}>
-              Bağlanış
-              <input value={bulkHoursUntil} onChange={(e) => setBulkHoursUntil(e.target.value)} placeholder="23:00" disabled={bulkHoursAlways} style={{ width: 90 }} />
-            </label>
-            <label style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, fontSize: 13 }}>
-              <input type="checkbox" checked={bulkHoursAlways} onChange={(e) => setBulkHoursAlways(e.target.checked)} style={{ width: 'auto' }} />
-              24 saat açıqdır
-            </label>
-            <button className="btn" disabled={bulkHoursApplying} onClick={applyBulkHours} style={{ alignSelf: 'flex-end' }}>
-              {bulkHoursApplying ? 'Tətbiq edilir…' : 'Bu markete aid bütün filiallara tətbiq et'}
+            <button className="btn" disabled={bulkHoursApplying} onClick={resetToStoreHours}>
+              {bulkHoursApplying ? 'Tətbiq edilir…' : 'Öz saatını sil, marketdən götürsün'}
             </button>
           </div>
           <div style={{ fontSize: 12, color: '#92400E', marginTop: 10 }}>
-            {bulkHoursStoreId
-              ? `"${stores.find((s) => s.id === bulkHoursStoreId)?.name ?? ''}" marketinin ${rows.filter((r) => r.store_id === bulkHoursStoreId).length} filialına tətbiq ediləcək`
-              : `Bütün marketlərin ${rows.length} filialına tətbiq ediləcək`}
+            {(() => {
+              const scope = bulkHoursStoreId ? rows.filter((r) => r.store_id === bulkHoursStoreId) : rows;
+              const own = scope.filter((r) => r.open_from || r.open_until).length;
+              const name = bulkHoursStoreId ? `"${stores.find((s) => s.id === bulkHoursStoreId)?.name ?? ''}" marketinin` : 'Bütün marketlərin';
+              return own
+                ? `${name} ${own} filialının öz saatı var — onlar markete bağlanacaq (qalan ${scope.length - own} filial onsuz da markete bağlıdır).`
+                : `${name} bütün filialları onsuz da marketin saatını işlədir.`;
+            })()}
           </div>
         </div>
       )}
@@ -575,25 +626,70 @@ export default function Branches() {
 
       {/* ── Table view ───────────────────────────────────────────────────────── */}
       {view === 'table' && (
+        <>
+        <div className="toolbar" style={{ marginBottom: 8 }}>
+          <select value={storeFilter} onChange={(e) => { setStoreFilter(e.target.value); setSelected(new Set()); }} title="Marketə görə süzgəc">
+            <option value="">Bütün marketlər ({rows.length})</option>
+            {stores.map((s2) => <option key={s2.id} value={s2.id}>{s2.name} ({rows.filter((r) => r.store_id === s2.id).length})</option>)}
+          </select>
+          {selected.size > 0 && (
+            <>
+              <span className="muted">{selected.size} filial seçildi</span>
+              <button className="btn danger" disabled={bulkDeleting} onClick={removeSelected}>
+                <Trash2 size={14} /> {bulkDeleting ? 'Silinir…' : `${selected.size} filialı sil`}
+              </button>
+              <button className="btn ghost" onClick={() => setSelected(new Set())}>Seçimi ləğv et</button>
+            </>
+          )}
+        </div>
         <table>
-          <thead><tr><th>Market</th><th>Filial</th><th>Ünvan</th><th>Koordinat</th><th>Açıq</th><th></th></tr></thead>
+          <thead><tr>
+            <th style={{ width: 32 }}>
+              <input
+                type="checkbox"
+                title="Hamısını seç"
+                checked={shown.length > 0 && shown.every((b) => selected.has(b.id))}
+                onChange={(e) => setSelected(e.target.checked ? new Set(shown.map((b) => b.id)) : new Set())}
+              />
+            </th>
+            <th>Market</th><th>Filial</th><th>Ünvan</th><th>Koordinat</th><th>Açıq</th><th></th>
+          </tr></thead>
           <tbody>
-            {rows.map((b) => (
-              <tr key={b.id}>
+            {shown.map((b) => (
+              <tr key={b.id} style={selected.has(b.id) ? { background: '#EFF6FF' } : undefined}>
+                <td>
+                  <input
+                    type="checkbox"
+                    checked={selected.has(b.id)}
+                    onChange={(e) => setSelected((prev) => { const n = new Set(prev); if (e.target.checked) n.add(b.id); else n.delete(b.id); return n; })}
+                  />
+                </td>
                 <td><span className="avatar" style={{ background: storeOf(b.store_id)?.color ?? '#999' }}>{storeOf(b.store_id)?.initial}</span>{storeOf(b.store_id)?.name ?? b.store_id}</td>
                 <td><b>{b.name}</b></td>
                 <td className="muted">{b.address}</td>
                 <td className="muted" style={{ fontFamily: 'monospace', fontSize: 12 }}><a href={b.maps_url || `https://www.google.com/maps?q=${b.lat},${b.lng}`} target="_blank" rel="noreferrer"><MapPin size={12} style={{ verticalAlign: -2 }} /> {Number(b.lat).toFixed(5)}, {Number(b.lng).toFixed(5)}</a></td>
-                <td className="muted">{b.open_from === '00:00' && b.open_until === '23:59' ? '24 saat' : b.open_from || b.open_until ? `${b.open_from ?? '…'}–${b.open_until ?? '…'}` : '—'}</td>
+                <td className="muted">
+                  {(() => {
+                    // A branch with no hours of its own runs on its store's, so show
+                    // those rather than a dash that reads as "no hours at all".
+                    const own = b.open_from || b.open_until;
+                    const h = own ? { open_from: b.open_from ?? '', open_until: b.open_until ?? '' } : storeHours(b.store_id);
+                    if (h.open_from === '00:00' && h.open_until === '23:59') return own ? '24 saat' : <span title="Marketdən gəlir">24 saat ·<i> marketdən</i></span>;
+                    if (!h.open_from && !h.open_until) return '—';
+                    const text = `${h.open_from || '…'}–${h.open_until || '…'}`;
+                    return own ? text : <span title="Marketdən gəlir">{text} ·<i> marketdən</i></span>;
+                  })()}
+                </td>
                 <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
                   <button className="btn ghost" onClick={() => { setLink(''); setGmapsLink(''); setWoltSuggestVenues([]); setWoltEditSlug(''); setEdit(b); }}>Düzəlt</button>
                   <button className="btn ghost" onClick={() => remove(b)}><Trash2 size={14} /></button>
                 </td>
               </tr>
             ))}
-            {rows.length === 0 && <tr><td colSpan={6} className="muted" style={{ textAlign: 'center', padding: 30 }}>Filial yoxdur. Tətbiqdə xəritə və "ən yaxın filial" buradan gəlir.</td></tr>}
+            {shown.length === 0 && <tr><td colSpan={7} className="muted" style={{ textAlign: 'center', padding: 30 }}>{rows.length ? 'Bu marketin filialı yoxdur.' : 'Filial yoxdur. Tətbiqdə xəritə və "ən yaxın filial" buradan gəlir.'}</td></tr>}
           </tbody>
         </table>
+        </>
       )}
 
       {/* ── Map view ─────────────────────────────────────────────────────────── */}
@@ -646,7 +742,7 @@ export default function Branches() {
             </div>
 
             <div className="form-grid" style={{ marginTop: 14 }}>
-              <label>Market<select value={edit.store_id} onChange={(e) => setEdit({ ...edit, store_id: e.target.value })}>{stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+              <label>Market<select value={edit.store_id} onChange={(e) => changeStore(e.target.value)}>{stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
 
               {/* Branch name with Wolt autosuggest */}
               <label style={{ position: 'relative' }}>
@@ -688,6 +784,21 @@ export default function Branches() {
               <label>Açılış (saat)<input value={edit.open_from ?? ''} onChange={(e) => setEdit({ ...edit, open_from: e.target.value })} placeholder="08:00" disabled={edit.open_from === '00:00' && edit.open_until === '23:59'} /></label>
               <label>Bağlanış (saat)<input value={edit.open_until ?? ''} onChange={(e) => setEdit({ ...edit, open_until: e.target.value })} placeholder="23:00" disabled={edit.open_from === '00:00' && edit.open_until === '23:59'} /></label>
               <label style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><input type="checkbox" checked={edit.open_from === '00:00' && edit.open_until === '23:59'} onChange={(e) => setEdit({ ...edit, open_from: e.target.checked ? '00:00' : '08:00', open_until: e.target.checked ? '23:59' : '23:00' })} style={{ width: 'auto' }} /> 24 saat açıqdır</label>
+              <div className="muted" style={{ gridColumn: '1 / -1', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {(() => {
+                  const h = storeHours(edit.store_id);
+                  const name = stores.find((x) => x.id === edit.store_id)?.name ?? '';
+                  if (!h.open_from && !h.open_until) return <span>“{name}” üçün iş saatı yazılmayıb — Marketlər səhifəsində bir dəfə yazsan, bütün filiallar onu alacaq.</span>;
+                  const label = h.open_from === '00:00' && h.open_until === '23:59' ? '24 saat' : `${h.open_from || '…'}–${h.open_until || '…'}`;
+                  const same = (edit.open_from ?? '') === h.open_from && (edit.open_until ?? '') === h.open_until;
+                  return (
+                    <>
+                      <span>“{name}” marketinin saatı: <b>{label}</b>{same ? ' — bu filial onu işlədir' : ' · bu filial fərqli saatla saxlanılacaq'}</span>
+                      {!same && <button className="btn ghost" style={{ fontSize: 12, padding: '2px 8px' }} onClick={() => setEdit({ ...edit, ...h })}>Market saatına qaytar</button>}
+                    </>
+                  );
+                })()}
+              </div>
               <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <button className="btn secondary" style={{ fontSize: 12, padding: '4px 10px', gap: 4, whiteSpace: 'nowrap' }} disabled={woltHoursFetching} onClick={fetchWoltHours}>
                   <Clock size={13} /> {woltHoursFetching ? 'Wolt-dan çəkilir…' : 'Wolt-dan saatları çək'}
