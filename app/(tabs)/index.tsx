@@ -11,6 +11,7 @@ import { BannerSlider } from '@/components/BannerSlider';
 import { PlusTag } from '@/components/PlusLock';
 import { Product, catalogCategories, categoryEmoji, searchProducts } from '@/data/products';
 import { useCatalog } from '@/store/catalog';
+import { openStoreBranches } from '@/lib/maps';
 import { useRefresh } from '@/lib/useRefresh';
 import { useBasket } from '@/store/basket';
 import { useT } from '@/lib/i18n';
@@ -128,7 +129,7 @@ export default function Home() {
             </Row>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
               {cat.stores.map((s) => (
-                <Pressable key={s.id} onPress={() => router.push(`/map?store=${s.id}`)} style={({ pressed }) => [styles.storeChip, pressed && { backgroundColor: colors.primarySoft }]}>
+                <Pressable key={s.id} onPress={() => openStoreBranches(s.name, cat.location)} style={({ pressed }) => [styles.storeChip, pressed && { backgroundColor: colors.primarySoft }]}>
                   <StoreAvatar store={s} size={22} />
                   <Txt v="captionStrong" style={{ fontSize: 12, marginLeft: 6 }}>
                     {s.name}

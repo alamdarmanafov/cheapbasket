@@ -108,13 +108,25 @@ export async function resolvePlace(input: string): Promise<Resolved> {
       : { open_from: null, open_until: null };
 
     if (hit) return { ...hit, source: 'link', ...hours };
+
+    // A "search?api=1&query=<text>" link carries a place *name*, not coordinates —
+    // the form Google's own share sheet and most spreadsheet exports produce. Geocode
+    // that text rather than giving up on the row.
+    const named = decodeURIComponent(finalUrl).match(/[?&]query=([^&]+)/)?.[1] ?? decodeURIComponent(text).match(/[?&]query=([^&]+)/)?.[1];
+    const term = named && !/^-?\d/.test(named) ? named.replace(/\+/g, ' ').trim() : '';
+    if (term) return { ...(await geocode(term)), ...hours };
+
     throw new Error('Linkdə koordinat tapılmadı. Google Maps-də yerin səhifəsini açıb "Paylaş → Linki kopyala" ilə götür.');
   }
 
   const direct = fromUrl(text);
   if (direct) return { ...direct, source: 'link', open_from: null, open_until: null };
 
-  // Free-text address → OpenStreetMap Nominatim (fair use: admin-only, low volume)
+  return { ...(await geocode(text)), open_from: null, open_until: null };
+}
+
+/** Free-text address or place name → OpenStreetMap Nominatim (fair use: admin-only, low volume). */
+async function geocode(text: string): Promise<Resolved> {
   const u = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=az&accept-language=az&q=${encodeURIComponent(text)}`;
   const res = await fetch(u, { headers: { 'User-Agent': UA } });
   if (!res.ok) throw new Error(`Geokodlama xətası (${res.status})`);
