@@ -2,8 +2,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Clock, FileSpreadsheet, Map, MapPin, Plus, RefreshCw, Search, Table, Trash2, X } from 'lucide-react';
 import { Shell } from '@/components/Shell';
-import { BranchImport } from '@/components/BranchImport';
-import { Branch, Store, db, slugify } from '@/lib/supabase';
+import { BranchImport, branchId } from '@/components/BranchImport';
+import { Branch, Store, db } from '@/lib/supabase';
 import type { WoltVenue } from '@/lib/wolt';
 
 declare global {
@@ -52,6 +52,10 @@ export default function Branches() {
   const [bulkHoursStoreId, setBulkHoursStoreId] = useState('');
   const [bulkHoursApplying, setBulkHoursApplying] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  /** Row selection for bulk delete, and the store filter it works within. */
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [storeFilter, setStoreFilter] = useState('');
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // Wolt name autosuggest (in edit form)
   const [woltSuggestVenues, setWoltSuggestVenues] = useState<WoltVenue[]>([]);
@@ -197,7 +201,7 @@ export default function Branches() {
 
   const upsertBranches = (storeId: string, venues: WoltVenue[]) => {
     const branchRows: Branch[] = venues.filter((v) => v.lat != null && v.lng != null).map((v) => ({
-      id: slugify(`${storeId} ${v.name} ${(v.address ?? '').slice(0, 20)}`),
+      id: branchId(storeId, v.name),
       store_id: storeId,
       name: v.name,
       address: v.address ?? '',
@@ -347,7 +351,7 @@ export default function Branches() {
   useEffect(() => { load(); }, []);
 
   const save = async (b: Branch) => {
-    const row = { ...b, id: b.id || slugify(`${b.store_id} ${b.name} ${b.address.slice(0, 20)}`), lat: Number(b.lat), lng: Number(b.lng), open_until: b.open_until || null, open_from: b.open_from?.trim() || null, maps_url: b.maps_url?.trim() || null, phone: b.phone?.trim() || null };
+    const row = { ...b, id: b.id || branchId(b.store_id, b.name), lat: Number(b.lat), lng: Number(b.lng), open_until: b.open_until || null, open_from: b.open_from?.trim() || null, maps_url: b.maps_url?.trim() || null, phone: b.phone?.trim() || null };
     const error = await db.upsert('branches', [row]).then(() => null, (e: Error) => e.message);
     setMsg({ ok: !error, text: error ?? `${row.name} yadda saxlanıldı` });
     if (!error) { setEdit(null); load(); }
@@ -359,6 +363,33 @@ export default function Branches() {
     load();
   };
   const storeOf = (id: string) => stores.find((s) => s.id === id);
+  /** Rows the table is showing, which is also what "select all" and bulk delete act on. */
+  const shown = storeFilter ? rows.filter((r) => r.store_id === storeFilter) : rows;
+
+  /**
+   * Deletes every selected branch.
+   *
+   * The gateway deletes one row per call, so these go out in small parallel
+   * batches: eighty sequential round trips after a bad import is a long wait,
+   * and firing all eighty at once is impolite to the API.
+   */
+  const removeSelected = async () => {
+    const ids = [...selected];
+    if (!ids.length) return;
+    const names = rows.filter((r) => ids.includes(r.id)).slice(0, 3).map((r) => r.name).join(', ');
+    if (!confirm(`${ids.length} filial silinəcək (${names}${ids.length > 3 ? ' və başqaları' : ''}).\n\nBu, geri qaytarıla bilməz. Davam edilsin?`)) return;
+    setBulkDeleting(true);
+    let failed = 0;
+    for (let i = 0; i < ids.length; i += 10) {
+      const batch = ids.slice(i, i + 10);
+      const res = await Promise.allSettled(batch.map((id) => db.delete('branches', { id })));
+      failed += res.filter((r) => r.status === 'rejected').length;
+    }
+    setBulkDeleting(false);
+    setSelected(new Set());
+    setMsg({ ok: failed === 0, text: failed ? `${ids.length - failed} filial silindi, ${failed} silinmədi` : `${ids.length} filial silindi` });
+    load();
+  };
 
   /** Apply bulk hours to all branches of a given store (or all stores if storeId is ''). */
   /**
@@ -468,6 +499,7 @@ export default function Branches() {
       {importOpen && (
         <BranchImport
           stores={stores}
+          existing={rows}
           onClose={() => setImportOpen(false)}
           onDone={(text, ok) => { setMsg({ ok, text }); if (ok) load(); }}
         />
@@ -594,11 +626,44 @@ export default function Branches() {
 
       {/* ── Table view ───────────────────────────────────────────────────────── */}
       {view === 'table' && (
+        <>
+        <div className="toolbar" style={{ marginBottom: 8 }}>
+          <select value={storeFilter} onChange={(e) => { setStoreFilter(e.target.value); setSelected(new Set()); }} title="Marketə görə süzgəc">
+            <option value="">Bütün marketlər ({rows.length})</option>
+            {stores.map((s2) => <option key={s2.id} value={s2.id}>{s2.name} ({rows.filter((r) => r.store_id === s2.id).length})</option>)}
+          </select>
+          {selected.size > 0 && (
+            <>
+              <span className="muted">{selected.size} filial seçildi</span>
+              <button className="btn danger" disabled={bulkDeleting} onClick={removeSelected}>
+                <Trash2 size={14} /> {bulkDeleting ? 'Silinir…' : `${selected.size} filialı sil`}
+              </button>
+              <button className="btn ghost" onClick={() => setSelected(new Set())}>Seçimi ləğv et</button>
+            </>
+          )}
+        </div>
         <table>
-          <thead><tr><th>Market</th><th>Filial</th><th>Ünvan</th><th>Koordinat</th><th>Açıq</th><th></th></tr></thead>
+          <thead><tr>
+            <th style={{ width: 32 }}>
+              <input
+                type="checkbox"
+                title="Hamısını seç"
+                checked={shown.length > 0 && shown.every((b) => selected.has(b.id))}
+                onChange={(e) => setSelected(e.target.checked ? new Set(shown.map((b) => b.id)) : new Set())}
+              />
+            </th>
+            <th>Market</th><th>Filial</th><th>Ünvan</th><th>Koordinat</th><th>Açıq</th><th></th>
+          </tr></thead>
           <tbody>
-            {rows.map((b) => (
-              <tr key={b.id}>
+            {shown.map((b) => (
+              <tr key={b.id} style={selected.has(b.id) ? { background: '#EFF6FF' } : undefined}>
+                <td>
+                  <input
+                    type="checkbox"
+                    checked={selected.has(b.id)}
+                    onChange={(e) => setSelected((prev) => { const n = new Set(prev); if (e.target.checked) n.add(b.id); else n.delete(b.id); return n; })}
+                  />
+                </td>
                 <td><span className="avatar" style={{ background: storeOf(b.store_id)?.color ?? '#999' }}>{storeOf(b.store_id)?.initial}</span>{storeOf(b.store_id)?.name ?? b.store_id}</td>
                 <td><b>{b.name}</b></td>
                 <td className="muted">{b.address}</td>
@@ -621,9 +686,10 @@ export default function Branches() {
                 </td>
               </tr>
             ))}
-            {rows.length === 0 && <tr><td colSpan={6} className="muted" style={{ textAlign: 'center', padding: 30 }}>Filial yoxdur. Tətbiqdə xəritə və "ən yaxın filial" buradan gəlir.</td></tr>}
+            {shown.length === 0 && <tr><td colSpan={7} className="muted" style={{ textAlign: 'center', padding: 30 }}>{rows.length ? 'Bu marketin filialı yoxdur.' : 'Filial yoxdur. Tətbiqdə xəritə və "ən yaxın filial" buradan gəlir.'}</td></tr>}
           </tbody>
         </table>
+        </>
       )}
 
       {/* ── Map view ─────────────────────────────────────────────────────────── */}
