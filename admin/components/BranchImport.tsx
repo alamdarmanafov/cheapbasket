@@ -158,9 +158,11 @@ export function BranchImport({ stores, existing = [], onDone, onClose }: { store
                   ? 'Enlik/uzunluq yerləri dəyişik idi — düzəldildi'
                   : hasCoords
                     ? ''
-                    : link || address
+                    : link
                       ? 'Koordinat linkdən tapılacaq'
-                      : 'Nə koordinat, nə link, nə ünvan var',
+                      : address
+                        ? 'Link yoxdur — koordinat ünvandan təxmin ediləcək'
+                        : 'Nə koordinat, nə link, nə ünvan var',
           ok: !!store && !!name && (hasCoords || !!link || !!address),
         });
       }
@@ -197,18 +199,13 @@ export function BranchImport({ stores, existing = [], onDone, onClose }: { store
         // a second. Eighty rows sent back to back would be throttled or blocked,
         // so pace them — the progress line above says which row is in flight.
         if (i > 0) await new Promise((ok) => setTimeout(ok, 1100));
-        // Which source to believe first.
-        //
-        // A real Maps link — a share link, a /maps/place/ URL, or one carrying
-        // coordinates outright — resolves exactly, so it wins. A short link holds
-        // no coordinates in its text but yields them once followed, which is why
-        // this tests the *kind* of link rather than looking for digits in it.
-        //
-        // Only the "?query=<place name>" form is worse than the address, since it
-        // carries the brand and the branch name and geocodes poorly.
-        const link = r.maps_url;
-        const realLink = /maps\.app\.goo\.gl|goo\.gl\/maps|\/maps\/place\/|@-?\d|!3d-?\d|[?&](?:q|ll|destination|center)=-?\d/.test(link);
-        const sources = realLink ? [link, r.address] : [r.address, link];
+        // The link is picked for this branch by hand, so it is always tried
+        // first, whatever form it takes. Ordering the "?query=<place name>" form
+        // below the address was a mistake: a sheet built out of those links then
+        // had every pin placed by geocoding the address instead, which is exactly
+        // the guesswork the link was supplied to replace. The address stays as a
+        // fallback for rows whose link resolves to nothing.
+        const sources = [r.maps_url, r.address];
         for (const q of sources.filter(Boolean)) {
           try {
             const res = await fetch('/api/geo/resolve', {
@@ -337,6 +334,21 @@ export function BranchImport({ stores, existing = [], onDone, onClose }: { store
                 </tbody>
               </table>
             </div>
+            {(() => {
+              // A sheet whose link column is empty imports on geocoded addresses
+              // alone: the pins are guesses and "Google Maps-də aç" opens a
+              // coordinate rather than the place. That is a quiet loss of quality,
+              // so it is stated before the import runs, not discovered after.
+              const noLink = rows.filter((r) => r.ok && !r.maps_url.trim()).length;
+              if (!noLink) return null;
+              return (
+                <p className="note" style={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 8, padding: '8px 10px' }}>
+                  ⚠ {noLink} sətirdə <b>Google Maps linki boşdur</b>{noLink === good ? ' (hamısında)' : ''}. Onların koordinatı ünvandan
+                  təxmin ediləcək — nəticə həmişə dəqiq olmur, tətbiqdə “Google Maps-də aç” isə yerin səhifəsini yox, koordinatı açacaq.
+                  Dəqiq olsun deyə link sütununu doldur: Google Maps-də yeri aç → <b>Paylaş → Linki kopyala</b>.
+                </p>
+              );
+            })()}
             <p className="note">
               {good} sətir idxala hazırdır{rows.length - good ? `, ${rows.length - good} sətirdə problem var` : ''}.
               Filial <b>market + adı</b> ilə tanınır: eyni adla təkrar yüklənsə ünvanı, koordinatı və linki yenilənir, yeni filial yaranmır.
