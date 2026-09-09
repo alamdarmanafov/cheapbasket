@@ -53,13 +53,28 @@ async function fetchPaged<T>(
   build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
   page = 1000,
 ): Promise<T[]> {
-  const out: T[] = [];
-  for (let offset = 0; ; offset += page) {
-    const { data, error } = await build(offset, offset + page - 1);
-    if (error) throw error;
-    const rows = data ?? [];
-    out.push(...rows);
-    if (rows.length < page) return out;
+  const first = await build(0, page - 1);
+  if (first.error) throw first.error;
+  const head = first.data ?? [];
+  if (head.length < page) return head;
+
+  // Past the first page the rest are fetched together rather than one after
+  // another. A catalogue of a few thousand products was several round trips
+  // deep, and on a phone connection that is most of the wait before the app can
+  // show anything. They go out in waves so a large catalogue does not open
+  // dozens of connections at once.
+  const WAVE = 4;
+  const out = [...head];
+  for (let base = page; ; base += page * WAVE) {
+    const wave = await Promise.all(
+      Array.from({ length: WAVE }, (_, i) => build(base + i * page, base + (i + 1) * page - 1)),
+    );
+    for (const r of wave) {
+      if (r.error) throw r.error;
+      out.push(...(r.data ?? []));
+    }
+    // A short page is the end of the table; anything past it is empty.
+    if (wave.some((r) => (r.data ?? []).length < page)) return out;
   }
 }
 
