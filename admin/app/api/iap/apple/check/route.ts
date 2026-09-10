@@ -20,6 +20,21 @@ export async function GET(req: Request) {
     APPLE_IAP_PRIVATE_KEY: !!process.env.APPLE_IAP_PRIVATE_KEY,
     APPLE_BUNDLE_ID: process.env.APPLE_BUNDLE_ID || 'az.cheapbasket.app (default)',
   };
+  // The two identifiers, so they can be read off against App Store Connect
+  // without anyone digging through Vercel. Neither is a credential on its own —
+  // the key id is literally the .p8 filename — and the page is behind the admin
+  // cookie; the private key itself is never returned in any form.
+  const keyId = (process.env.APPLE_IAP_KEY_ID || '').trim();
+  const issuer = (process.env.APPLE_IAP_ISSUER_ID || '').trim();
+  const values = {
+    keyId,
+    // In-app purchase keys download as SubscriptionKey_<KEYID>.p8; the
+    // AuthKey_ prefix belongs to App Store Connect API keys. Either way the ten
+    // characters in the name are the key id, so the name below must match the
+    // file that was pasted into APPLE_IAP_PRIVATE_KEY.
+    keyIdFileName: keyId ? `SubscriptionKey_${keyId}.p8 (və ya AuthKey_${keyId}.p8)` : '',
+    issuerId: issuer.length > 12 ? `${issuer.slice(0, 8)}…${issuer.slice(-4)}` : issuer,
+  };
   const keyLooksPem = (process.env.APPLE_IAP_PRIVATE_KEY || '').includes('BEGIN PRIVATE KEY');
   // An issuer id is a UUID; a key id is ten characters. Getting these two the
   // wrong way round is a common cause of a refused key.
@@ -30,7 +45,7 @@ export async function GET(req: Request) {
   try {
     token = appleServerToken();
   } catch (e) {
-    return NextResponse.json({ ok: false, stage: 'imza', present, keyLooksPem, issuerLooksUuid, keyIdLooksRight, error: errText(e) }, { status: 200 });
+    return NextResponse.json({ ok: false, stage: 'imza', present, values, keyLooksPem, issuerLooksUuid, keyIdLooksRight, error: errText(e) }, { status: 200 });
   }
 
   const probe = async (base: string) => {
@@ -72,6 +87,7 @@ export async function GET(req: Request) {
             ? 'Production qəbul edir, SANDBOX rədd edir — sandbox alışları təsdiqlənə bilməyəcək.'
             : 'Sandbox qəbul edir, PRODUCTION rədd edir — real alışlar təsdiqlənə bilməyəcək.',
       present,
+      values,
       keyLooksPem,
       issuerLooksUuid,
       keyIdLooksRight,
@@ -85,6 +101,6 @@ export async function GET(req: Request) {
         : undefined,
     });
   } catch (e) {
-    return NextResponse.json({ ok: false, stage: 'sorğu', present, error: errText(e) }, { status: 200 });
+    return NextResponse.json({ ok: false, stage: 'sorğu', present, values, error: errText(e) }, { status: 200 });
   }
 }
