@@ -28,7 +28,11 @@ export async function GET(req: Request) {
   const issuer = (process.env.APPLE_IAP_ISSUER_ID || '').trim();
   const values = {
     keyId,
-    keyIdFileName: keyId ? `AuthKey_${keyId}.p8` : '',
+    // In-app purchase keys download as SubscriptionKey_<KEYID>.p8; the
+    // AuthKey_ prefix belongs to App Store Connect API keys. Either way the ten
+    // characters in the name are the key id, so the name below must match the
+    // file that was pasted into APPLE_IAP_PRIVATE_KEY.
+    keyIdFileName: keyId ? `SubscriptionKey_${keyId}.p8 (və ya AuthKey_${keyId}.p8)` : '',
     issuerId: issuer.length > 12 ? `${issuer.slice(0, 8)}…${issuer.slice(-4)}` : issuer,
   };
   const keyLooksPem = (process.env.APPLE_IAP_PRIVATE_KEY || '').includes('BEGIN PRIVATE KEY');
