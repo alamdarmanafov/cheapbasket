@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Dimensions, Easing, Platform, Pressable, StyleSheet, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { useAudioPlayer } from 'expo-audio';
 import { colors, fonts, radius, space } from '@/theme';
 import { Txt } from './ui';
 import { onCelebrate } from '@/lib/celebrate';
@@ -72,6 +73,9 @@ function Confetti({ piece, height, progress }: { piece: Piece; height: number; p
  */
 export function CelebrationHost() {
   const [shown, setShown] = useState<{ title: string; body: string } | null>(null);
+  // Loaded once and rewound before each play, so a second celebration in the
+  // same session starts from the beginning rather than from silence at the end.
+  const chime = useAudioPlayer(require('../../assets/sounds/celebrate.mp3'));
   const { width, height } = Dimensions.get('window');
   const pieces = useMemo(() => makePieces(width), [width, shown]);
   const fall = useRef(new Animated.Value(0)).current;
@@ -89,6 +93,14 @@ export function CelebrationHost() {
     if (!shown) return;
     fall.setValue(0);
     card.setValue(0);
+    // The device's silent switch is respected: a celebration is a flourish, not
+    // something worth overriding a muted phone for.
+    try {
+      chime.seekTo(0);
+      chime.play();
+    } catch {
+      /* a missing or busy audio session must never break the animation */
+    }
     if (Platform.OS !== 'web') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
       setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined), 220);
@@ -100,7 +112,7 @@ export function CelebrationHost() {
     ]).start();
     timer.current = setTimeout(close, LIFE);
     return () => { if (timer.current) clearTimeout(timer.current); };
-  }, [shown, fall, card, close]);
+  }, [shown, fall, card, close, chime]);
 
   if (!shown) return null;
 
