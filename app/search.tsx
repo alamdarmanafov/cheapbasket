@@ -8,6 +8,7 @@ import { Chip, Divider, Row, Txt } from '@/components/ui';
 import { ProductRow } from '@/components/product';
 import { ProductRowSkeleton, StateView } from '@/components/states';
 import { Product, catalogCategories, categoryEmoji, searchProducts } from '@/data/products';
+import { categoryLabel } from '@/data/categoryNames';
 import { useCatalog } from '@/store/catalog';
 import { useRefresh } from '@/lib/useRefresh';
 import { useT } from '@/lib/i18n';
@@ -93,7 +94,9 @@ export default function Search() {
                   </Txt>
                   <Row gap={8} style={{ flexWrap: 'wrap' }}>
                     {catalogCategories().map((r) => (
-                      <Chip key={r} text={categoryEmoji(r) ? `${categoryEmoji(r)} ${r}` : r} onPress={() => setQ(r)} />
+                      // The chip shows the reader's language but still searches the
+                      // stored name, which is what products are filed under.
+                      <Chip key={r} text={categoryEmoji(r) ? `${categoryEmoji(r)} ${categoryLabel(r)}` : categoryLabel(r)} onPress={() => setQ(r)} />
                     ))}
                   </Row>
                 </>

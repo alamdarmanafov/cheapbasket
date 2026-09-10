@@ -49,7 +49,7 @@ export async function GET(req: Request) {
     };
     const pname = (id: string) => { const p = (products ?? []).find((x) => x.id === id); return p ? `${p.brand} ${p.name} ${p.size}` : id; };
     const sname = (id: string) => (stores ?? []).find((x) => x.id === id);
-    const kinds = ['app_open', 'search', 'scan', 'photo', 'basket_add', 'compare', 'map_open', 'plus_view', 'promo'] as const;
+    const kinds = ['app_open', 'search', 'scan', 'photo', 'basket_add', 'compare', 'map_open', 'promo', 'plus_view', 'plus_buy', 'plus_purchase', 'plus_restore', 'plus_fail'] as const;
     const byKind = Object.fromEntries(kinds.map((k) => [k, { d7: ev.filter((e) => e.kind === k && e.created_at >= since7).length, d30: ev.filter((e) => e.kind === k).length }]));
     const searchesNoResult = countBy('search', 'q').length ? ev.filter((e) => e.kind === 'search' && (e.meta as { results?: number } | null)?.results === 0).map((e) => (e.meta as { q: string }).q) : [];
     const topMissing = [...searchesNoResult.reduce((m, q) => m.set(q.toLowerCase(), (m.get(q.toLowerCase()) ?? 0) + 1), new Map<string, number>()).entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);

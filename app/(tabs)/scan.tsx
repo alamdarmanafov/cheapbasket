@@ -15,6 +15,7 @@ import { Btn, Divider, IconBtn, Pill, Price, Row, Txt } from '@/components/ui';
 import { Freshness, ProductArt, StoreAvatar } from '@/components/product';
 import { StateView } from '@/components/states';
 import { Product, StoreId, catalog, cheapest, findByBarcode, getStore, sortedPrices } from '@/data/products';
+import { categoryLabel } from '@/data/categoryNames';
 import { useBasket } from '@/store/basket';
 import { useT } from '@/lib/i18n';
 
@@ -243,7 +244,7 @@ function FoundSheet({
               {product.name}
             </Txt>
             <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>
-              {product.size} · {product.category}
+              {product.size} · {categoryLabel(product.category)}
             </Txt>
           </View>
         </Row>

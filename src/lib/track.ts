@@ -1,7 +1,24 @@
 import { Platform } from 'react-native';
 import { supabase } from './supabase';
 
-export type EventKind = 'app_open' | 'search' | 'scan' | 'photo' | 'basket_add' | 'compare' | 'map_open' | 'plus_view' | 'promo';
+export type EventKind =
+  | 'app_open'
+  | 'search'
+  | 'scan'
+  | 'photo'
+  | 'basket_add'
+  | 'compare'
+  | 'map_open'
+  | 'promo'
+  // The subscription funnel: the paywall opened, a plan tapped, the store
+  // sheet confirmed by our server, or the attempt lost along the way. Without
+  // the last three "how many of the people who saw Plus bought it" is a
+  // question nobody can answer.
+  | 'plus_view'
+  | 'plus_buy'
+  | 'plus_purchase'
+  | 'plus_restore'
+  | 'plus_fail';
 
 let opened = false;
 

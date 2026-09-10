@@ -5,17 +5,26 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold } from '@expo-google-fonts/inter';
 import { BasketProvider } from '@/store/basket';
 import { CatalogProvider } from '@/store/catalog';
-import { AuthProvider } from '@/store/auth';
+import { AuthProvider, useAuth } from '@/store/auth';
 import { I18nProvider } from '@/lib/i18n';
 import { PhoneFrame } from '@/components/PhoneFrame';
 import { CelebrationHost } from '@/components/CelebrationHost';
 import { colors } from '@/theme';
 import { hasSupabase } from '@/lib/supabase';
-import { useNotificationDeepLink } from '@/lib/notifications';
+import { syncPushToken, useNotificationDeepLink } from '@/lib/notifications';
 import { track } from '@/lib/track';
 import { View, Text } from 'react-native';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
+
+/** Keeps the device's push token filed under whoever is signed in right now. */
+function PushTokenSync() {
+  const { user } = useAuth();
+  useEffect(() => {
+    if (user) void syncPushToken(user.id);
+  }, [user]);
+  return null;
+}
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({ Inter_400Regular, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold });
@@ -40,6 +49,7 @@ export default function RootLayout() {
     <CatalogProvider>
     <AuthProvider>
     <BasketProvider>
+      <PushTokenSync />
       <PhoneFrame>
         <StatusBar style="dark" />
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>

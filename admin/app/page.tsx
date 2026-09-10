@@ -31,7 +31,7 @@ interface DashStats {
   recentSyncs: SyncSource[];
 }
 
-const KIND_LABEL: Record<string, string> = { app_open: 'Tətbiq açılışı', search: 'Axtarış', scan: 'Barkod skan', photo: 'Şəkillə tanıma (AI)', basket_add: 'Səbətə əlavə', compare: 'Qiymət müqayisəsi', map_open: 'Xəritə açılışı', plus_view: 'Plus səhifəsinə baxış', promo: 'Promo kod' };
+const KIND_LABEL: Record<string, string> = { app_open: 'Tətbiq açılışı', search: 'Axtarış', scan: 'Barkod skan', photo: 'Şəkillə tanıma (AI)', basket_add: 'Səbətə əlavə', compare: 'Qiymət müqayisəsi', map_open: 'Xəritə açılışı', promo: 'Promo kod', plus_view: 'Plus səhifəsinə baxış', plus_buy: 'Plus — alış başladı', plus_purchase: 'Plus — alış tamamlandı', plus_restore: 'Plus — bərpa edildi', plus_fail: 'Plus — alış baş tutmadı' };
 
 function fmtDate(iso: string | null) {
   if (!iso) return '—';

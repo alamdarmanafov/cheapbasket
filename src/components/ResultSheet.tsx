@@ -4,9 +4,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, space } from '@/theme';
 import { Btn, Divider, Pill, Price, Row, Txt } from './ui';
-import { StoreAvatar } from './product';
+import { Freshness, StoreAvatar } from './product';
 import { useBasket } from '@/store/basket';
-import { storeLabel } from '@/data/products';
+import { stalestMinutes, storeLabel, storeProductCount } from '@/data/products';
 import { useT } from '@/lib/i18n';
 
 /**
@@ -15,7 +15,7 @@ import { useT } from '@/lib/i18n';
  */
 export function ResultSheet({ visible, onClose, onShowMap, onGoToStore }: { visible: boolean; onClose: () => void; onShowMap: () => void; onGoToStore?: (storeId: string) => void }) {
   const insets = useSafeAreaInsets();
-  const { optimization: o, count } = useBasket();
+  const { optimization: o, count, lines } = useBasket();
   const t = useT();
   const [ready, setReady] = useState(false);
   const scale = React.useRef(new Animated.Value(1)).current;
@@ -83,6 +83,15 @@ export function ResultSheet({ visible, onClose, onShowMap, onGoToStore }: { visi
                   {t('result.missingCount', { count: best.missing.length })}
                 </Txt>
               )}
+              {/* The screen where someone decides which shop to walk to is the
+                  screen that owes them the age of the prices it is comparing.
+                  The oldest line sets it: a total is only as current as its
+                  stalest ingredient. */}
+              {lines.length > 0 && (
+                <View style={{ marginTop: 6 }}>
+                  <Freshness minutes={stalestMinutes(lines.map((l) => l.product))} label={t('result.checked')} />
+                </View>
+              )}
               {onGoToStore && (
                 <Pressable
                   onPress={() => onGoToStore(best.store.id)}
@@ -123,8 +132,13 @@ export function ResultSheet({ visible, onClose, onShowMap, onGoToStore }: { visi
                             {storeLabel(r.store)}
                           </Txt>
                           {r.missing.length > 0 && (
-                            <Txt v="caption" color={colors.warning} style={{ fontSize: 11 }}>
-                              {t('result.missingHere', { count: r.missing.length })}
+                            /* "3 yoxdur" reads as a verdict on the shop; what it
+                               actually says is how much of this shop we have
+                               listed. The found/total pair and the catalogue size
+                               keep the two apart. */
+                            <Txt v="caption" color={colors.warning} style={{ fontSize: 11 }} numberOfLines={1}>
+                              {t('markets.coverage', { have: lines.length - r.missing.length, total: lines.length })}
+                              {storeProductCount(r.store.id) === 0 ? ` · ${t('markets.catalogEmpty')}` : ''}
                             </Txt>
                           )}
                         </View>

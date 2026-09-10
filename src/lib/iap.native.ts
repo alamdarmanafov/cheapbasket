@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 import { ErrorCode, useIAP, type Purchase, type ProductSubscription } from 'expo-iap';
 import { notify } from './confirm';
 import { celebrate } from './celebrate';
+import { track } from './track';
 import { useAuth } from '@/store/auth';
 import { API_URL, PLUS_SKUS, PLUS_SKU_LIST, PlusPeriod, PlusStore, verifyWithServer } from './plusStore';
 
@@ -39,10 +40,16 @@ export function usePlusStore(): PlusStore {
       try {
         const r = await verifyWithServer(verifyBody(purchase));
         await auth.refreshProfile();
-        if (r.active) celebrate(tr('iap.activeTitle'), tr('iap.activeBody'));
-        else setError(tr('iap.pendingBody'));
+        if (r.active) {
+          celebrate(tr('iap.activeTitle'), tr('iap.activeBody'));
+          track('plus_purchase', { product_id: purchase.productId });
+        } else {
+          setError(tr('iap.pendingBody'));
+          track('plus_fail', { product_id: purchase.productId, stage: 'pending' });
+        }
       } catch (e) {
         setError((e as Error).message);
+        track('plus_fail', { product_id: purchase.productId, stage: 'verify', message: (e as Error).message });
       } finally {
         // The transaction is finished whether or not our server could confirm it.
         //
@@ -62,8 +69,14 @@ export function usePlusStore(): PlusStore {
     },
     onPurchaseError: (e) => {
       setBusy(false);
-      if (e.code === ErrorCode.UserCancelled) return;
+      // A cancelled sheet is a normal outcome, not a failure — counting it as one
+      // would make the funnel look broken every time somebody changed their mind.
+      if (e.code === ErrorCode.UserCancelled) {
+        track('plus_fail', { stage: 'cancelled' });
+        return;
+      }
       setError(e.message || tr('iap.failed'));
+      track('plus_fail', { stage: 'store', code: String(e.code ?? ''), message: e.message ?? '' });
     },
     onError: (e) => setError(e.message),
   });
@@ -94,6 +107,7 @@ export function usePlusStore(): PlusStore {
         return;
       }
       setBusy(true);
+      track('plus_buy', { period, product_id: sku });
       try {
         const sub = subscriptions.find((s) => s.id === sku);
         const offerToken = sub && 'subscriptionOfferDetailsAndroid' in sub ? (sub as { subscriptionOfferDetailsAndroid?: Array<{ offerToken: string }> | null }).subscriptionOfferDetailsAndroid?.[0]?.offerToken : undefined;
@@ -133,8 +147,10 @@ export function usePlusStore(): PlusStore {
       }
       await auth.refreshProfile();
       if (silent) return;
-      if (active) celebrate(tr('iap.restored'), tr('iap.restoredBody'));
-      else if (lastErr) setError(lastErr);
+      if (active) {
+        celebrate(tr('iap.restored'), tr('iap.restoredBody'));
+        track('plus_restore', { purchases: mine.length });
+      } else if (lastErr) setError(lastErr);
       else notify(tr('iap.notActive'), tr('iap.notActiveBody'));
     },
     [auth],

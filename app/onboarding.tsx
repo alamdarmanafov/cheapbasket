@@ -10,9 +10,9 @@ import { LogoMark } from '@/components/Logo';
 import { useAuth } from '@/store/auth';
 
 const SLIDES = [
-  { key: '1', line1: 'onb.1line1', line2: 'onb.1line2', body: 'onb.1body', note: 'onb.1note', img: require('../assets/onboarding/1.png'), ratio: 327 / 470 },
-  { key: '2', line1: 'onb.2line1', line2: 'onb.2line2', body: 'onb.2body', note: 'onb.2note', img: require('../assets/onboarding/2.png'), ratio: 328 / 505 },
-  { key: '3', line1: 'onb.3line1', line2: 'onb.3line2', body: 'onb.3body', note: 'onb.3note', img: require('../assets/onboarding/3.png'), ratio: 330 / 435 },
+  { key: '1', line1: 'onb.1line1', line2: 'onb.1line2', body: 'onb.1body', note: 'onb.1note', img: require('../assets/onboarding/1.jpg'), ratio: 1242 / 1196 },
+  { key: '2', line1: 'onb.2line1', line2: 'onb.2line2', body: 'onb.2body', note: 'onb.2note', img: require('../assets/onboarding/2.jpg'), ratio: 1242 / 1196 },
+  { key: '3', line1: 'onb.3line1', line2: 'onb.3line2', body: 'onb.3body', note: 'onb.3note', img: require('../assets/onboarding/3.jpg'), ratio: 1242 / 1213 },
 ] satisfies Array<{ key: string; line1: Key; line2: Key; body: Key; note: Key; img: number; ratio: number }>;
 
 /** First-launch walkthrough (3 slides with illustrations), then the sign-in screen. */
@@ -78,7 +78,15 @@ export default function Onboarding() {
               {t(s.body)}
             </Txt>
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%' }}>
-              <Image source={s.img} style={{ width: Math.min(w - 72, imgH * s.ratio), height: Math.min(imgH, (w - 72) / s.ratio) }} resizeMode="contain" accessibilityIgnoresInvertColors />
+              {/* The illustrations are cropped straight from the design, so they
+                  carry their own background — rounded so a photographic one
+                  reads as a card rather than a rectangle stuck on the page. */}
+              <Image
+                source={s.img}
+                style={{ width: Math.min(w - 72, imgH * s.ratio), height: Math.min(imgH, (w - 72) / s.ratio), borderRadius: 22 }}
+                resizeMode="contain"
+                accessibilityIgnoresInvertColors
+              />
             </View>
             <Txt style={styles.note}>{t(s.note)}</Txt>
           </View>

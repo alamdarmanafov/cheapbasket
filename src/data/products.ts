@@ -3,6 +3,8 @@
  * (stores, products, prices, branches) — there is no bundled demo data.
  */
 
+import { categoryLabel } from './categoryNames';
+
 export type StoreId = string;
 
 export interface Store {
@@ -175,7 +177,10 @@ const norm = (s: string) =>
 export function searchProducts(query: string): Product[] {
   const q = norm(query.trim());
   if (!q) return [];
-  return catalog.products.filter((p) => norm(`${p.brand} ${p.name} ${p.category}`).includes(q));
+  // The category is stored in Azerbaijani, so someone reading the app in English
+  // would type the word on the chip in front of them and match nothing. Both the
+  // stored name and the displayed one are searched.
+  return catalog.products.filter((p) => norm(`${p.brand} ${p.name} ${p.category} ${categoryLabel(p.category)}`).includes(q));
 }
 
 /** Category names present in the current catalog, in admin order (for chips). */
@@ -184,6 +189,34 @@ export function catalogCategories(): string[] {
   const ordered = catalog.categories.map((c) => c.name).filter((n) => present.has(n));
   const rest = [...present].filter((n) => !ordered.includes(n)).sort((a, b) => a.localeCompare(b));
   return [...ordered, ...rest];
+}
+
+/**
+ * How many catalogue products this store has a price for.
+ *
+ * A basket of three where a store carries none reads as "3 yoxdur", which looks
+ * like a verdict on the store when it is really a verdict on our data. The count
+ * says which one it is. Memoised on the products array, since it walks the whole
+ * catalogue and the ranked list asks once per store.
+ */
+let coverageOf: Product[] | null = null;
+let coverage = new Map<StoreId, number>();
+export function storeProductCount(storeId: StoreId): number {
+  if (coverageOf !== catalog.products) {
+    coverageOf = catalog.products;
+    coverage = new Map();
+    for (const p of catalog.products) {
+      for (const [id, price] of Object.entries(p.prices)) {
+        if (price != null) coverage.set(id, (coverage.get(id) ?? 0) + 1);
+      }
+    }
+  }
+  return coverage.get(storeId) ?? 0;
+}
+
+/** Age of the oldest price among these products, for a "checked N ago" line. */
+export function stalestMinutes(products: Product[]): number {
+  return products.reduce((m, p) => Math.max(m, p.updatedMinutesAgo), 0);
 }
 
 /** Emoji for a category name, when the admin set one. */

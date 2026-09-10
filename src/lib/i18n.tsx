@@ -26,6 +26,11 @@ const FALLBACK: Lang = 'az';
 let currentLang: Lang = FALLBACK;
 
 /** Translate from outside React. Inside a component prefer `useT()`, which re-renders on change. */
+/** The language in force right now, for code that runs outside a component. */
+export function activeLang(): Lang {
+  return currentLang;
+}
+
 export function tr(key: Key, vars?: Record<string, string | number>): string {
   return lookup(currentLang, key, vars);
 }
