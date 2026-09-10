@@ -50,6 +50,29 @@ export async function registerForPush(userId: string | null): Promise<{ status: 
   }
 }
 
+/**
+ * Re-files an already-granted push token under the signed-in user.
+ *
+ * A token is only useful to the alert job if it is attached to a user id — that
+ * is how a drop is matched to a basket. Someone who turned notifications on
+ * before signing in (or signed in on a second device) had a token stored against
+ * nobody, so every "your basket got cheaper" push had nowhere to go. This is
+ * silent: it never raises the OS dialog, and does nothing at all if permission
+ * was never granted.
+ */
+export async function syncPushToken(userId: string | null): Promise<void> {
+  if (Platform.OS === 'web' || !Device.isDevice || !userId || !supabase) return;
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== 'granted') return;
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
+    const token = (await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined)).data;
+    await supabase.from('push_tokens').upsert({ user_id: userId, token, platform: Platform.OS }, { onConflict: 'token' });
+  } catch {
+    // Nothing the user asked for is failing here; the next launch tries again.
+  }
+}
+
 export async function unregisterPush(userId: string | null) {
   if (!supabase || !userId) return;
   await supabase.from('push_tokens').delete().eq('user_id', userId);

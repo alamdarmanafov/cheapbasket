@@ -209,14 +209,15 @@ export function OldPrice({ value }: { value: number }) {
   );
 }
 
-export function Freshness({ minutes }: { minutes: number }) {
+export function Freshness({ minutes, label }: { minutes: number; label?: string }) {
+  const t = useT();
   const level = freshnessLevel(minutes);
   const color = level === 'fresh' ? colors.success : level === 'ok' ? colors.warning : colors.gray;
   return (
     <Row gap={6}>
       <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
       <Txt v="caption" color={colors.gray}>
-        Son yenilənmə: {freshness(minutes)}
+        {label ?? t('product.updated')}: {freshness(minutes)}
       </Txt>
     </Row>
   );

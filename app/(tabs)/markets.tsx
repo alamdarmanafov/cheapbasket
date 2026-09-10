@@ -11,7 +11,7 @@ import { BranchList } from '@/components/BranchList';
 import { StateView } from '@/components/states';
 import { suggestSubstitute } from '@/lib/substitute';
 import { PlusTag } from '@/components/PlusLock';
-import { isAllDay, isOpenNow, storeLabel, nearestBranch } from '@/data/products';
+import { isAllDay, isOpenNow, storeLabel, nearestBranch, storeProductCount } from '@/data/products';
 import { useBasket } from '@/store/basket';
 import { useCatalog } from '@/store/catalog';
 import { useT } from '@/lib/i18n';
@@ -179,9 +179,19 @@ function BestStoreView({
           </Txt>
         ) : null}
         {chosen.missing.length > 0 && (
-          <Txt v="caption" color={colors.warning} center style={{ marginTop: 4 }}>
-            {t('markets.missingHere', { count: chosen.missing.length, names: chosen.missing.map((m) => m.product.name).join(', ') })}
-          </Txt>
+          <>
+            <Txt v="caption" color={colors.warning} center style={{ marginTop: 4 }}>
+              {t('markets.missingHere', { count: chosen.missing.length, names: chosen.missing.map((m) => m.product.name).join(', ') })}
+            </Txt>
+            {/* Missing usually means "not in our catalogue", not "not on their
+                shelf". Saying how much of the store we have listed keeps a thin
+                catalogue from reading as an expensive shop. */}
+            <Txt v="caption" color={colors.gray} center style={{ marginTop: 2 }}>
+              {storeProductCount(chosen.store.id) === 0
+                ? t('markets.catalogEmpty')
+                : t('markets.catalogNote', { count: storeProductCount(chosen.store.id) })}
+            </Txt>
+          </>
         )}
 
         {/*
@@ -240,7 +250,7 @@ function BestStoreView({
                     numberOfLines={1}
                   >
                     {!complete
-                      ? t('markets.missingCount', { count: r.missing.length })
+                      ? t('markets.coverage', { have: lines.length - r.missing.length, total: lines.length })
                       : first
                         ? t('markets.segBest')
                         : t('markets.plusAmount', { amount: (r.total - best.total).toFixed(2) })}

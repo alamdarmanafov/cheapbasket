@@ -5,6 +5,7 @@ import { Product, Branch, Banner, Store, LatLng, DEFAULT_LOCATION, catalog, with
 import { fetchBanners, fetchBranches, fetchCategories, fetchProducts, fetchStores } from '@/lib/catalog';
 import { tr } from '@/lib/i18n';
 import { hasSupabase, supabase } from '@/lib/supabase';
+import { cacheCatalog, readCatalogCache } from '@/lib/cache';
 import { notify } from '@/lib/confirm';
 
 interface CatalogState {
@@ -54,15 +55,16 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
     const storesP = deadline(fetchStores()).then((s) => {
       catalog.stores = s;
       setStores(s);
+      cacheCatalog({ stores: s });
       return s;
     });
 
     const jobs: Promise<unknown>[] = [
       storesP.catch(fail),
-      deadline(fetchCategories()).then((cs) => { catalog.categories = cs; }).catch(() => undefined),
-      deadline(fetchBanners()).then(setBanners).catch(() => undefined),
+      deadline(fetchCategories()).then((cs) => { catalog.categories = cs; cacheCatalog({ categories: cs }); }).catch(() => undefined),
+      deadline(fetchBanners()).then((b) => { setBanners(b); cacheCatalog({ banners: b }); }).catch(() => undefined),
       deadline(fetchProducts())
-        .then((p) => { catalog.products = p; setProducts(p); })
+        .then((p) => { catalog.products = p; setProducts(p); cacheCatalog({ products: p }); })
         .catch(fail),
       // Branches carry their store's hours, so they wait for the stores — not for
       // the catalogue.
@@ -75,6 +77,7 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
           const branches = withDistances(withStoreHours(b, s), catalog.location);
           catalog.branches = branches;
           setBranches(branches);
+          cacheCatalog({ branches });
         })
         .catch(fail),
     ];
@@ -117,6 +120,37 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
     } catch {
       if (prompt) setLocationGranted(false);
     }
+  }, []);
+
+  // The stored catalogue paints the screen while the network is still being
+  // asked. Every source is filled in only if it is still empty, so a fetch that
+  // beat the disk read is never rolled back to yesterday's prices — whichever
+  // arrives first wins, and the network always wins in the end because `refresh`
+  // assigns unconditionally.
+  useEffect(() => {
+    let cancelled = false;
+    readCatalogCache().then((snap) => {
+      if (cancelled || !snap) return;
+      if (snap.stores.length && !catalog.stores.length) {
+        catalog.stores = snap.stores;
+        setStores(snap.stores);
+      }
+      if (snap.categories.length && !catalog.categories.length) catalog.categories = snap.categories;
+      if (snap.products.length && !catalog.products.length) {
+        catalog.products = snap.products;
+        setProducts(snap.products);
+      }
+      if (snap.branches.length && !catalog.branches.length) {
+        // Cached distances were measured from wherever the phone was last time.
+        const next = withDistances(snap.branches, catalog.location);
+        catalog.branches = next;
+        setBranches(next);
+      }
+      setBanners((prev) => (prev.length ? prev : snap.banners));
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);

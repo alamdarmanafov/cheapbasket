@@ -191,6 +191,34 @@ export function catalogCategories(): string[] {
   return [...ordered, ...rest];
 }
 
+/**
+ * How many catalogue products this store has a price for.
+ *
+ * A basket of three where a store carries none reads as "3 yoxdur", which looks
+ * like a verdict on the store when it is really a verdict on our data. The count
+ * says which one it is. Memoised on the products array, since it walks the whole
+ * catalogue and the ranked list asks once per store.
+ */
+let coverageOf: Product[] | null = null;
+let coverage = new Map<StoreId, number>();
+export function storeProductCount(storeId: StoreId): number {
+  if (coverageOf !== catalog.products) {
+    coverageOf = catalog.products;
+    coverage = new Map();
+    for (const p of catalog.products) {
+      for (const [id, price] of Object.entries(p.prices)) {
+        if (price != null) coverage.set(id, (coverage.get(id) ?? 0) + 1);
+      }
+    }
+  }
+  return coverage.get(storeId) ?? 0;
+}
+
+/** Age of the oldest price among these products, for a "checked N ago" line. */
+export function stalestMinutes(products: Product[]): number {
+  return products.reduce((m, p) => Math.max(m, p.updatedMinutesAgo), 0);
+}
+
 /** Emoji for a category name, when the admin set one. */
 export function categoryEmoji(name: string): string | null {
   return catalog.categories.find((c) => c.name === name)?.emoji ?? null;

@@ -6,10 +6,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, shadow, space } from '@/theme';
 import { useRefresh } from '@/lib/useRefresh';
 import { Btn, Divider, IconBtn, Pill, Price, Row, Txt } from '@/components/ui';
-import { ProductArt } from '@/components/product';
+import { Freshness, ProductArt } from '@/components/product';
 import { StateView } from '@/components/states';
 import { ResultSheet } from '@/components/ResultSheet';
-import { cheapest } from '@/data/products';
+import { PriceAlertCard } from '@/components/PriceAlertCard';
+import { cheapest, stalestMinutes } from '@/data/products';
 import { useBasket } from '@/store/basket';
 import { track } from '@/lib/track';
 import { useT } from '@/lib/i18n';
@@ -71,6 +72,11 @@ export default function Basket() {
             ? t('basket.summaryWith', { count, total: best.total.toFixed(2), store: best.store.name })
             : t('home.itemCount', { count })}
         </Txt>
+        {/* The total above is only as current as the oldest price in it, and this
+            is where the user reads that total. */}
+        <View style={{ marginTop: 6 }}>
+          <Freshness minutes={stalestMinutes(lines.map((l) => l.product))} label={t('result.checked')} />
+        </View>
 
         <View style={styles.list}>
           {lines.map((l, i) => {
@@ -108,6 +114,8 @@ export default function Basket() {
             );
           })}
         </View>
+
+        <PriceAlertCard lines={lines.length} />
 
         <Pressable onPress={() => router.push('/search')} style={({ pressed }) => [styles.addProduct, pressed && { backgroundColor: colors.primarySoft }]}>
           <Ionicons name="add" size={20} color={colors.primary} />
