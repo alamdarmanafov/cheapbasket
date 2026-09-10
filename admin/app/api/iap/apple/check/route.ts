@@ -41,12 +41,20 @@ export async function GET(req: Request) {
   try {
     const prod = await probe('https://api.storekit.itunes.apple.com');
     const sandbox = await probe('https://api.storekit-sandbox.itunes.apple.com');
-    const accepted = [prod.status, sandbox.status].some((s) => s !== 401 && s !== 403);
+    // Each environment is judged on its own. A key that production accepts and
+    // sandbox refuses looks fine here while every sandbox purchase fails, which
+    // is exactly the case that is hard to see from the phone.
+    const ok = (s: number) => s !== 401 && s !== 403;
+    const accepted = ok(prod.status) && ok(sandbox.status);
     return NextResponse.json({
       ok: accepted,
       verdict: accepted
-        ? 'Açar qəbul edilir (404 = Apple tokeni oxudu, sadəcə belə tranzaksiya yoxdur — gözlənilən cavab).'
-        : 'Açar RƏDD edilir (401/403). Açar "In-App Purchase" tipində olmalıdır: App Store Connect → Users and Access → Integrations → In-App Purchase.',
+        ? 'Açar hər iki mühitdə qəbul edilir (404 = Apple tokeni oxudu, sadəcə belə tranzaksiya yoxdur — gözlənilən cavab).'
+        : !ok(prod.status) && !ok(sandbox.status)
+          ? 'Açar RƏDD edilir (401/403). Açar "In-App Purchase" tipində olmalıdır: App Store Connect → Users and Access → Integrations → In-App Purchase.'
+          : ok(prod.status)
+            ? 'Production qəbul edir, SANDBOX rədd edir — sandbox alışları təsdiqlənə bilməyəcək.'
+            : 'Sandbox qəbul edir, PRODUCTION rədd edir — real alışlar təsdiqlənə bilməyəcək.',
       present,
       keyLooksPem,
       issuerLooksUuid,
