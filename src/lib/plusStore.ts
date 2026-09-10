@@ -31,12 +31,31 @@ export async function verifyWithServer(body: VerifyBody): Promise<{ active: bool
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   if (!token) throw new Error(tr('iap.signInRequired'));
-  const res = await fetch(`${API_URL}/api/iap/verify`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify(body),
-  });
-  const json = (await res.json().catch(() => ({}))) as { active?: boolean; expiresAt?: number | null; error?: string };
-  if (!res.ok) throw new Error(json.error ?? tr('iap.serverError', { code: res.status }));
-  return { active: !!json.active, expiresAt: json.expiresAt ?? null };
+  // The purchase itself has already gone through by the time this runs, so a
+  // dropped connection here means money taken and nothing granted. iOS reports
+  // exactly that as "The Internet connection appears to be offline" in the
+  // seconds after the payment sheet closes, which is a transient state worth
+  // riding out rather than reporting as a failure — the request is idempotent,
+  // so repeating it is safe.
+  let last: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt) await new Promise((ok) => setTimeout(ok, attempt * 1500));
+    let res: Response;
+    try {
+      res = await fetch(`${API_URL}/api/iap/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+    } catch (e) {
+      last = e;
+      continue;
+    }
+    const json = (await res.json().catch(() => ({}))) as { active?: boolean; expiresAt?: number | null; error?: string };
+    // A refusal from our own server (a bad key, a rejected receipt) is an answer,
+    // not a lost connection: repeating it would only produce the same answer.
+    if (!res.ok) throw new Error(json.error ?? tr('iap.serverError', { code: res.status }));
+    return { active: !!json.active, expiresAt: json.expiresAt ?? null };
+  }
+  throw last instanceof Error ? last : new Error(String(last));
 }
