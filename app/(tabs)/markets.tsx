@@ -193,7 +193,9 @@ function BestStoreView({
           * fits the whole name, the whole price and the difference from the best,
           * and the bar makes the gap visible without doing arithmetic.
           */}
-        <View style={{ marginTop: 14 }}>
+        {/* The hero centres its children, so without stretching this the rows
+            shrink to their content and the store names get cut to a letter. */}
+        <View style={{ marginTop: 14, alignSelf: 'stretch' }}>
           {o.ranked.map((r, i) => {
             const active = r.store.id === chosen.store.id;
             const complete = r.missing.length === 0;

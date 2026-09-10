@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -48,6 +48,24 @@ export default function Plus() {
   useEffect(() => {
     track('plus_view');
   }, []);
+
+  /**
+   * Close this screen the moment the subscription turns active.
+   *
+   * It is a modal, and the celebration is drawn above every screen — so leaving
+   * it open put the confetti behind the paywall the person had just paid on.
+   * Whoever arrives already subscribed is left alone: only the change is a
+   * reason to dismiss.
+   */
+  const wasPlus = useRef(isPlus);
+  useEffect(() => {
+    if (isPlus && !wasPlus.current) {
+      wasPlus.current = true;
+      const t = setTimeout(() => router.back(), 250);
+      return () => clearTimeout(t);
+    }
+    wasPlus.current = isPlus;
+  }, [isPlus, router]);
 
   const redeem = async () => {
     if (!auth.user) return router.push('/auth');
