@@ -38,9 +38,25 @@ export async function GET(req: Request) {
     return { status: res.status, body: (await res.text().catch(() => '')).slice(0, 200) };
   };
 
+  // The same key, tried against the App Store Connect API. That service accepts
+  // team keys; the App Store Server API accepts only in-app-purchase keys. The
+  // two look identical in every way this page can inspect — same shape of id,
+  // same issuer format, same .p8 — so the only way to tell them apart is to ask
+  // each service which one it recognises.
+  const probeConnect = async () => {
+    try {
+      const t = appleServerToken({ bundleId: false });
+      const res = await fetch('https://api.appstoreconnect.apple.com/v1/apps?limit=1', { headers: { Authorization: `Bearer ${t}` } });
+      return { status: res.status };
+    } catch (e) {
+      return { status: 0, error: errText(e) };
+    }
+  };
+
   try {
     const prod = await probe('https://api.storekit.itunes.apple.com');
     const sandbox = await probe('https://api.storekit-sandbox.itunes.apple.com');
+    const connect = await probeConnect();
     // Each environment is judged on its own. A key that production accepts and
     // sandbox refuses looks fine here while every sandbox purchase fails, which
     // is exactly the case that is hard to see from the phone.
@@ -61,6 +77,12 @@ export async function GET(req: Request) {
       keyIdLooksRight,
       prod,
       sandbox,
+      connect,
+      diagnosis: !accepted
+        ? connect.status === 200
+          ? 'Bu açar App Store Connect API-də işləyir, yəni "Team key"dir. Ödəniş yoxlaması üçün AYRI açar lazımdır: Users and Access → Integrations → In-App Purchase → yeni açar. Issuer ID-ni də həmin səhifədən götür.'
+          : 'Açar hər iki servisdə rədd edilir, yəni üçlük bir-birinə uyğun deyil: ya Issuer ID başqa səhifədəndir, ya KEY_ID bu .p8 faylına aid deyil, ya da açar ləğv edilib (revoked). Ən sadəsi: In-App Purchase bölməsində yeni açar yarat və hər üç dəyəri həmin səhifədən götür.'
+        : undefined,
     });
   } catch (e) {
     return NextResponse.json({ ok: false, stage: 'sorğu', present, error: errText(e) }, { status: 200 });
