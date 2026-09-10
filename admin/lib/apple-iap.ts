@@ -11,14 +11,18 @@ const SANDBOX = 'https://api.storekit-sandbox.itunes.apple.com';
 const b64u = (b: Buffer | string) => Buffer.from(b).toString('base64url');
 
 /** Short-lived JWT for the App Store Server API (ES256, signed with the In-App Purchase key). */
-export function appleServerToken(): string {
+export function appleServerToken(opts: { bundleId?: boolean } = {}): string {
   const kid = process.env.APPLE_IAP_KEY_ID;
   const iss = process.env.APPLE_IAP_ISSUER_ID;
   const pem = (process.env.APPLE_IAP_PRIVATE_KEY || '').replace(/\\n/g, '\n');
   if (!kid || !iss || !pem) throw new Error('APPLE_IAP_KEY_ID / APPLE_IAP_ISSUER_ID / APPLE_IAP_PRIVATE_KEY təyin edilməyib');
   const now = Math.floor(Date.now() / 1000);
   const header = b64u(JSON.stringify({ alg: 'ES256', kid, typ: 'JWT' }));
-  const payload = b64u(JSON.stringify({ iss, iat: now, exp: now + 20 * 60, aud: 'appstoreconnect-v1', bid: BUNDLE_ID }));
+  // The bundle id belongs on tokens for the App Store Server API. The diagnostic
+  // also signs one without it, to try the same key against the App Store Connect
+  // API — which is what tells a team key apart from an in-app-purchase key.
+  const claims = { iss, iat: now, exp: now + 20 * 60, aud: 'appstoreconnect-v1', ...(opts.bundleId === false ? {} : { bid: BUNDLE_ID }) };
+  const payload = b64u(JSON.stringify(claims));
   const key = crypto.createPrivateKey(pem);
   const sig = crypto.sign('sha256', Buffer.from(`${header}.${payload}`), { key, dsaEncoding: 'ieee-p1363' });
   return `${header}.${payload}.${b64u(sig)}`;

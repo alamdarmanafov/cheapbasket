@@ -34,16 +34,28 @@ export function usePlusStore(): PlusStore {
 
   const { connected, subscriptions, fetchProducts, requestPurchase, finishTransaction, getAvailablePurchases, availablePurchases } = useIAP({
     onPurchaseSuccess: async (purchase) => {
+      if (!isPlusSku(purchase.productId)) return;
       try {
-        if (!isPlusSku(purchase.productId)) return;
         const r = await verifyWithServer(verifyBody(purchase));
-        await finishTransaction({ purchase });
         await auth.refreshProfile();
         if (r.active) notify(tr('iap.activeTitle'), tr('iap.activeBody'));
         else setError(tr('iap.pendingBody'));
       } catch (e) {
         setError((e as Error).message);
       } finally {
+        // The transaction is finished whether or not our server could confirm it.
+        //
+        // It used to be finished only after a successful verification, so a
+        // server-side failure left it sitting in the store's queue — and the
+        // store refuses to start a new purchase of a product that already has an
+        // unfinished one. That is the "Failed to request purchase" that followed
+        // every failed verification: the first attempt jammed the queue and every
+        // later attempt was refused before it began.
+        //
+        // Nothing is lost by finishing: a subscription's entitlement lives with
+        // the store account, so "Alışları bərpa et" reads it back and verifies it
+        // again once the server side is working.
+        await finishTransaction({ purchase }).catch(() => undefined);
         setBusy(false);
       }
     },
