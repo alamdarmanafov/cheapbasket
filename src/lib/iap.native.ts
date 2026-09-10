@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { ErrorCode, useIAP, type Purchase, type ProductSubscription } from 'expo-iap';
 import { notify } from './confirm';
+import { celebrate } from './celebrate';
 import { useAuth } from '@/store/auth';
 import { API_URL, PLUS_SKUS, PLUS_SKU_LIST, PlusPeriod, PlusStore, verifyWithServer } from './plusStore';
 
@@ -38,7 +39,7 @@ export function usePlusStore(): PlusStore {
       try {
         const r = await verifyWithServer(verifyBody(purchase));
         await auth.refreshProfile();
-        if (r.active) notify(tr('iap.activeTitle'), tr('iap.activeBody'));
+        if (r.active) celebrate(tr('iap.activeTitle'), tr('iap.activeBody'));
         else setError(tr('iap.pendingBody'));
       } catch (e) {
         setError((e as Error).message);
@@ -132,7 +133,7 @@ export function usePlusStore(): PlusStore {
       }
       await auth.refreshProfile();
       if (silent) return;
-      if (active) notify(tr('iap.restored'), tr('iap.restoredBody'));
+      if (active) celebrate(tr('iap.restored'), tr('iap.restoredBody'));
       else if (lastErr) setError(lastErr);
       else notify(tr('iap.notActive'), tr('iap.notActiveBody'));
     },

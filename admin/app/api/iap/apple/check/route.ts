@@ -94,11 +94,20 @@ export async function GET(req: Request) {
       prod,
       sandbox,
       connect,
-      diagnosis: !accepted
-        ? connect.status === 200
-          ? 'Bu açar App Store Connect API-də işləyir, yəni "Team key"dir. Ödəniş yoxlaması üçün AYRI açar lazımdır: Users and Access → Integrations → In-App Purchase → yeni açar. Issuer ID-ni də həmin səhifədən götür.'
-          : 'Açar hər iki servisdə rədd edilir, yəni üçlük bir-birinə uyğun deyil: ya Issuer ID başqa səhifədəndir, ya KEY_ID bu .p8 faylına aid deyil, ya da açar ləğv edilib (revoked). Ən sadəsi: In-App Purchase bölməsində yeni açar yarat və hər üç dəyəri həmin səhifədən götür.'
-        : undefined,
+      // The diagnosis has to follow the same per-environment reading as the
+      // verdict. It used to describe "both refused" whenever the pair was not
+      // perfect, so a key that sandbox had started accepting was still reported
+      // as broken — the two lines contradicted each other.
+      diagnosis:
+        ok(prod.status) && ok(sandbox.status)
+          ? undefined
+          : !ok(prod.status) && !ok(sandbox.status)
+            ? connect.status === 200
+              ? 'Bu açar App Store Connect API-də işləyir, yəni "Team key"dir. Ödəniş yoxlaması üçün AYRI açar lazımdır: Users and Access → Integrations → In-App Purchase → yeni açar. Issuer ID-ni də həmin səhifədən götür.'
+              : 'Açar hər iki servisdə rədd edilir, yəni üçlük bir-birinə uyğun deyil: ya Issuer ID başqa səhifədəndir, ya KEY_ID bu .p8 faylına aid deyil, ya da açar ləğv edilib (revoked).'
+            : ok(sandbox.status)
+              ? 'Sandbox açarı qəbul edir — sandbox alışları təsdiqlənəcək, test edə bilərsən. Production hələ rədd edir; tətbiq App Store-da yayımlanandan sonra bunu yenidən yoxla, çünki real alışlar production üzərindən təsdiqlənir.'
+              : 'Production qəbul edir, sandbox rədd edir — sandbox testləri təsdiqlənməyəcək.',
     });
   } catch (e) {
     return NextResponse.json({ ok: false, stage: 'sorğu', present, values, error: errText(e) }, { status: 200 });
