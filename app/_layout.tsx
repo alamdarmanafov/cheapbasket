@@ -8,6 +8,7 @@ import { CatalogProvider } from '@/store/catalog';
 import { AuthProvider } from '@/store/auth';
 import { I18nProvider } from '@/lib/i18n';
 import { PhoneFrame } from '@/components/PhoneFrame';
+import { CelebrationHost } from '@/components/CelebrationHost';
 import { colors } from '@/theme';
 import { hasSupabase } from '@/lib/supabase';
 import { useNotificationDeepLink } from '@/lib/notifications';
@@ -59,6 +60,8 @@ export default function RootLayout() {
           <Stack.Screen name="feedback" options={{ presentation: 'modal' }} />
           <Stack.Screen name="product/[id]" />
         </Stack>
+        {/* Above every screen, so a purchase that completes anywhere is celebrated. */}
+        <CelebrationHost />
       </PhoneFrame>
     </BasketProvider>
     </AuthProvider>

@@ -98,7 +98,15 @@ export default function Profile() {
     return r.value;
   };
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingTop: insets.top + space.md, padding: space.lg, paddingBottom: space.xxl }} refreshControl={refresh.control}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: colors.bg }}
+      contentContainerStyle={{ paddingTop: insets.top + space.md, padding: space.lg, paddingBottom: space.xxl }}
+      refreshControl={refresh.control}
+      // Without this the pull is only available once the content is taller than
+      // the screen — on a short profile (signed out, or a small phone with few
+      // rows) there is nothing to pull against and the gesture does nothing.
+      alwaysBounceVertical
+    >
       <Txt v="title">{t('profile.title')}</Txt>
 
       <Pressable onPress={() => router.push(auth.user ? '/account' : '/auth')} style={({ pressed }) => [styles.card, pressed && { opacity: 0.9 }]}>
