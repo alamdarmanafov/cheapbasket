@@ -54,6 +54,14 @@ export async function fetchAppleTransaction(transactionId: string): Promise<Appl
       return decodeJws<AppleTransaction>(j.signedTransactionInfo);
     }
     last = `${res.status} ${await res.text().catch(() => '')}`.slice(0, 200);
+    // 401/403 is our own credentials being refused, not a missing transaction.
+    // Reporting it as "not found" sent everyone looking in App Store Connect for
+    // a purchase that had in fact gone through.
+    if (res.status === 401 || res.status === 403) {
+      throw new Error(
+        `Apple açarı qəbul edilmədi (${res.status}). APPLE_IAP_KEY_ID / APPLE_IAP_ISSUER_ID / APPLE_IAP_PRIVATE_KEY yoxlanmalıdır — açar "In-App Purchase" tipində olmalıdır.`,
+      );
+    }
     if (res.status !== 404) break;
   }
   throw new Error(`Apple: tranzaksiya tapılmadı (${last})`);
@@ -66,6 +74,9 @@ export async function fetchAppleSubscriptionStatus(originalTransactionId: string
     const res = await fetch(`${base}/inApps/v1/subscriptions/${encodeURIComponent(originalTransactionId)}`, { headers: { Authorization: `Bearer ${token}` } });
     if (!res.ok) {
       if (res.status === 404) continue;
+      if (res.status === 401 || res.status === 403) {
+        throw new Error(`Apple açarı qəbul edilmədi (${res.status}). APPLE_IAP_KEY_ID / APPLE_IAP_ISSUER_ID / APPLE_IAP_PRIVATE_KEY yoxlanmalıdır.`);
+      }
       throw new Error(`Apple ${res.status}`);
     }
     const j = (await res.json()) as { data?: Array<{ lastTransactions?: Array<{ signedTransactionInfo: string }> }> };

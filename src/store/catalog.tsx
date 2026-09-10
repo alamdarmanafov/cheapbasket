@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Linking, Platform } from 'react-native';
 import * as Location from 'expo-location';
-import { Product, Branch, Banner, Category, Store, LatLng, DEFAULT_LOCATION, catalog, withDistances, withStoreHours } from '@/data/products';
+import { Product, Branch, Banner, Store, LatLng, DEFAULT_LOCATION, catalog, withDistances, withStoreHours } from '@/data/products';
 import { fetchBanners, fetchBranches, fetchCategories, fetchProducts, fetchStores } from '@/lib/catalog';
 import { tr } from '@/lib/i18n';
 import { hasSupabase, supabase } from '@/lib/supabase';
@@ -42,34 +42,45 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
     if (!hasSupabase) return;
     setLoading(true);
     setError(null);
-    try {
-      const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error(tr('err.network'))), 10000));
-      const [s, p, b, bn, cs] = await Promise.race([
-        Promise.all([fetchStores(), fetchProducts(), fetchBranches(catalog.location), fetchBanners().catch(() => [] as Banner[]), fetchCategories().catch(() => [] as Category[])]),
-        timeout,
-      ]);
-      // Hours live on the store; branches without their own inherit them here,
-      // so every screen can keep reading them straight off the branch.
-      //
-      // Distances are recomputed from the location as it stands *now*, not as it
-      // stood when the fetch began. The two run in parallel on launch, and when
-      // the position arrived mid-fetch its recompute was immediately overwritten
-      // by this result — leaving every distance measured from the default point
-      // in the city centre rather than from where the person actually is.
-      const branches = withDistances(withStoreHours(b, s), catalog.location);
-      catalog.categories = cs;
+
+    // Each source lands on screen as it arrives instead of everything waiting on
+    // the slowest. The home screen needs the stores, the banner and the
+    // categories — a few dozen rows between them — but it used to sit behind the
+    // whole product catalogue, which is thousands of rows and most of the wait.
+    const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
+    const deadline = <T,>(p: Promise<T>): Promise<T> =>
+      Promise.race([p, new Promise<never>((_, reject) => setTimeout(() => reject(new Error(tr('err.network'))), 15000))]);
+
+    const storesP = deadline(fetchStores()).then((s) => {
       catalog.stores = s;
-      catalog.products = p;
-      catalog.branches = branches;
       setStores(s);
-      setProducts(p);
-      setBranches(branches);
-      setBanners(bn);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
+      return s;
+    });
+
+    const jobs: Promise<unknown>[] = [
+      storesP.catch(fail),
+      deadline(fetchCategories()).then((cs) => { catalog.categories = cs; }).catch(() => undefined),
+      deadline(fetchBanners()).then(setBanners).catch(() => undefined),
+      deadline(fetchProducts())
+        .then((p) => { catalog.products = p; setProducts(p); })
+        .catch(fail),
+      // Branches carry their store's hours, so they wait for the stores — not for
+      // the catalogue.
+      Promise.all([deadline(fetchBranches(catalog.location)), storesP])
+        .then(([b, s]) => {
+          // Distances are recomputed from the location as it stands *now*, not as
+          // it stood when the fetch began: the position arriving mid-fetch would
+          // otherwise be overwritten by this result, leaving every distance
+          // measured from the default point in the city centre.
+          const branches = withDistances(withStoreHours(b, s), catalog.location);
+          catalog.branches = branches;
+          setBranches(branches);
+        })
+        .catch(fail),
+    ];
+
+    await Promise.allSettled(jobs);
+    setLoading(false);
   }, []);
 
   const requestLocation = useCallback(async (opts: { interactive?: boolean; prompt?: boolean } = {}) => {

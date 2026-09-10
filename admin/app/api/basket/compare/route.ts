@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { adminDb, errText } from '@/lib/server';
+import { adminDb, errText, requireAdmin } from '@/lib/server';
+import { userFromToken } from '@/lib/iap';
 
 export const maxDuration = 30;
 
@@ -29,11 +30,22 @@ interface CompareResponse {
  * Returns: best market + per-market price breakdown.
  * No AI — pure arithmetic. AI is only for product matching, not price decisions.
  */
+/** A basket nobody would actually build; past this the request is abuse, not use. */
+const MAX_ITEMS = 200;
+
 export async function POST(req: Request) {
   try {
+    // This route reads with the service role. Nothing in the app calls it, and it
+    // was open to anyone: a loop posting large baskets would run unbounded
+    // queries against the database on our bill. It now needs a signed-in caller
+    // (their own Supabase token, as the app sends elsewhere) and a capped basket.
+    if (!(await requireAdmin(req)) && !(await userFromToken(req.headers.get('authorization')))) {
+      return NextResponse.json({ error: 'Giriş tələb olunur' }, { status: 401 });
+    }
     const body = (await req.json()) as { products?: BasketItem[] };
     const items = body.products ?? [];
     if (!items.length) return NextResponse.json({ error: 'products[] boşdur' }, { status: 400 });
+    if (items.length > MAX_ITEMS) return NextResponse.json({ error: `Ən çox ${MAX_ITEMS} məhsul` }, { status: 400 });
 
     const productIds = [...new Set(items.map((i) => i.product_id))];
     const db = adminDb();

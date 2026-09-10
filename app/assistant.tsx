@@ -97,7 +97,7 @@ export default function Assistant() {
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScreenHeader title={t('ai.title')} closeIcon />
       <PlusLock feature={t('ai.subtitle')} minHeight={400} fill>
-      <ScrollView ref={scrollRef} contentContainerStyle={{ padding: space.lg, gap: space.md, paddingBottom: space.xl }}>
+      <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: space.lg, gap: space.md, paddingBottom: space.xl }}>
         {msgs.map((m) => (
           <View key={m.id} style={{ alignItems: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
             <View style={[styles.bubble, m.role === 'user' ? styles.user : styles.ai]}>

@@ -42,6 +42,14 @@ export default function Profile() {
   const [deleting, setDeleting] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
   const { t, lang, setLang } = useI18n();
+
+  /** "12 gün" for a subscription that expires, nothing for one that does not. */
+  const plusLeft = (() => {
+    const at = auth.profile?.planExpiresAt;
+    if (!isPlus || !at) return null;
+    const days = Math.max(0, Math.ceil((new Date(at).getTime() - Date.now()) / 86400000));
+    return t('profile.plusDaysLeft', { days, date: new Date(at).toLocaleDateString(lang) });
+  })();
   const displayName = auth.profile?.display_name || auth.user?.user_metadata?.display_name || auth.user?.user_metadata?.full_name || auth.user?.email?.split('@')[0] || t('profile.guest');
   const initial = displayName.trim().charAt(0).toUpperCase() || '?';
 
@@ -126,6 +134,13 @@ export default function Profile() {
         </Row>
       </Pressable>
 
+      {/*
+        * The Plus card sells Plus, so it is for people who do not have it. A
+        * subscriber saw a full-width advert for something they already pay for;
+        * their subscription is a row in the list below instead, where the rest
+        * of the account settings are.
+        */}
+      {!isPlus && (
       <Pressable onPress={() => router.push('/plus')} style={({ pressed }) => [styles.plus, pressed && { opacity: 0.92 }]}>
         <Txt style={{ fontSize: 26, lineHeight: 32 }}>⭐</Txt>
         <View style={{ flex: 1, marginLeft: 12 }}>
@@ -145,6 +160,7 @@ export default function Profile() {
         </View>
         <Ionicons name="chevron-forward" size={20} color={colors.white} />
       </Pressable>
+      )}
 
       <Pressable onPress={() => router.push('/savings')} style={({ pressed }) => [styles.savings, pressed && { opacity: 0.9 }]}>
         <View style={{ flex: 1 }}>
@@ -174,6 +190,24 @@ export default function Profile() {
           </View>
           <Switch value={notif} disabled={notifBusy || !isPlus} onValueChange={toggleNotif} trackColor={{ true: colors.primary, false: colors.line }} thumbColor={colors.white} />
         </Row>
+        {isPlus && (
+          <Pressable
+            onPress={() => router.push('/plus')}
+            style={({ pressed }) => [styles.row, styles.rowLine, pressed && { backgroundColor: colors.fill }]}
+          >
+            <Ionicons name="star-outline" size={20} color={colors.dark} />
+            <Txt v="body" style={{ marginLeft: 12, fontSize: 13 }}>
+              {t('profile.plusActive')}
+            </Txt>
+            <View style={{ flex: 1 }} />
+            {plusLeft && (
+              <Txt v="caption" color={colors.gray} style={{ marginRight: 6, fontSize: 12 }} numberOfLines={1}>
+                {plusLeft}
+              </Txt>
+            )}
+            <Ionicons name="chevron-forward" size={18} color={colors.grayLight} />
+          </Pressable>
+        )}
         {ROWS.map((r, i) => (
           <Pressable
             key={r.key}

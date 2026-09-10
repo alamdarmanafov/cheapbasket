@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -84,9 +84,9 @@ export default function Plus() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScreenHeader closeIcon />
-      <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: 170 }} refreshControl={refresh.control}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: space.lg, paddingBottom: 170 }} refreshControl={refresh.control}>
         <View style={{ alignItems: 'center' }}>
           <View style={styles.star}>
             <Txt style={{ fontSize: 30, lineHeight: 36 }}>⭐</Txt>
@@ -212,7 +212,7 @@ export default function Plus() {
           </>
         )}
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
