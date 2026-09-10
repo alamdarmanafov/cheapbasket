@@ -3,6 +3,8 @@
  * (stores, products, prices, branches) — there is no bundled demo data.
  */
 
+import { categoryLabel } from './categoryNames';
+
 export type StoreId = string;
 
 export interface Store {
@@ -175,7 +177,10 @@ const norm = (s: string) =>
 export function searchProducts(query: string): Product[] {
   const q = norm(query.trim());
   if (!q) return [];
-  return catalog.products.filter((p) => norm(`${p.brand} ${p.name} ${p.category}`).includes(q));
+  // The category is stored in Azerbaijani, so someone reading the app in English
+  // would type the word on the chip in front of them and match nothing. Both the
+  // stored name and the displayed one are searched.
+  return catalog.products.filter((p) => norm(`${p.brand} ${p.name} ${p.category} ${categoryLabel(p.category)}`).includes(q));
 }
 
 /** Category names present in the current catalog, in admin order (for chips). */

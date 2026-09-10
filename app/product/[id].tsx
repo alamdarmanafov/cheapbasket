@@ -11,6 +11,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { StateView } from '@/components/states';
 import { PlusLock, PlusTag } from '@/components/PlusLock';
 import { cheapest, getProduct, maxSaving, sortedPrices } from '@/data/products';
+import { categoryLabel } from '@/data/categoryNames';
 import { fetchPriceHistory } from '@/lib/catalog';
 import { hasSupabase } from '@/lib/supabase';
 import { useBasket } from '@/store/basket';
@@ -97,7 +98,7 @@ export default function ProductScreen() {
           </Txt>
           <Row gap={8} style={{ marginTop: space.sm }}>
             <Pill text={product.size} />
-            <Pill text={product.category} />
+            <Pill text={categoryLabel(product.category)} />
             {product.rating && <Pill icon="star" text={product.rating.toFixed(1)} tone="warning" />}
           </Row>
         </View>
