@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -88,9 +88,9 @@ export default function Plus() {
       <ScreenHeader closeIcon />
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: space.lg, paddingBottom: 170 }} refreshControl={refresh.control}>
         <View style={{ alignItems: 'center' }}>
-          <View style={styles.star}>
-            <Txt style={{ fontSize: 30, lineHeight: 36 }}>⭐</Txt>
-          </View>
+          {/* The app's own mark, not a generic star — this screen is about Plus,
+              and the brand is what the reader is being asked to pay for. */}
+          <Image source={require('../assets/icon.png')} style={styles.logo} accessibilityIgnoresInvertColors />
           <Txt v="display" center style={{ marginTop: space.md }}>
             Cheap Market AI{' '}
             <Txt v="display" color={colors.primary}>
@@ -117,7 +117,7 @@ export default function Plus() {
               FREE
             </Txt>
             <Txt v="captionStrong" color={colors.primary} style={styles.col} center>
-              ⭐ PLUS
+              PLUS
             </Txt>
           </Row>
           {FEATURES.map(([label, free, plus], i) => (
@@ -234,7 +234,7 @@ function Cell({ v, plus }: { v: string | boolean; plus?: boolean }) {
 
 const styles = StyleSheet.create({
   promoInput: { flex: 1, backgroundColor: colors.white, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: 14, height: 48, fontFamily: fonts.semibold, fontSize: 16, letterSpacing: 1.5, color: colors.dark },
-  star: { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.warningSoft, alignItems: 'center', justifyContent: 'center' },
+  logo: { width: 72, height: 72, borderRadius: 18 },
   table: { marginTop: space.xl, backgroundColor: colors.white, borderRadius: radius.lg, overflow: 'hidden', ...shadow.card },
   tr: { paddingVertical: 12, paddingHorizontal: space.md },
   th: { backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.line },
