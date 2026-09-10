@@ -46,42 +46,50 @@ export interface AppleTransaction {
 /** GET /inApps/v1/transactions/{id} — tries production, then sandbox (Apple returns 404 for sandbox txns on prod). */
 export async function fetchAppleTransaction(transactionId: string): Promise<AppleTransaction> {
   const token = appleServerToken();
-  let last = '';
+  const seen: string[] = [];
+  let refused = 0;
   for (const base of [PROD, SANDBOX]) {
     const res = await fetch(`${base}/inApps/v1/transactions/${encodeURIComponent(transactionId)}`, { headers: { Authorization: `Bearer ${token}` } });
     if (res.ok) {
       const j = (await res.json()) as { signedTransactionInfo: string };
       return decodeJws<AppleTransaction>(j.signedTransactionInfo);
     }
-    last = `${res.status} ${await res.text().catch(() => '')}`.slice(0, 200);
-    // 401/403 is our own credentials being refused, not a missing transaction.
-    // Reporting it as "not found" sent everyone looking in App Store Connect for
-    // a purchase that had in fact gone through.
-    if (res.status === 401 || res.status === 403) {
-      throw new Error(
-        `Apple açarı qəbul edilmədi (${res.status}). APPLE_IAP_KEY_ID / APPLE_IAP_ISSUER_ID / APPLE_IAP_PRIVATE_KEY yoxlanmalıdır — açar "In-App Purchase" tipində olmalıdır.`,
-      );
-    }
+    const where = base === PROD ? 'production' : 'sandbox';
+    seen.push(`${where} ${res.status} ${await res.text().catch(() => '')}`.slice(0, 160));
+    // A refusal from one environment is not the end of the search: a sandbox
+    // purchase is looked for in production first, and that request can come back
+    // 401 while sandbox — where the transaction actually lives — answers
+    // perfectly well. Throwing on the first 401 stopped the search before it
+    // reached the environment that had the purchase.
+    if (res.status === 401 || res.status === 403) { refused++; continue; }
     if (res.status !== 404) break;
   }
-  throw new Error(`Apple: tranzaksiya tapılmadı (${last})`);
+  // Both environments refusing the token is a credentials problem; anything else
+  // means the transaction was not found where we looked.
+  if (refused === 2) {
+    throw new Error(
+      `Apple açarı qəbul edilmədi. APPLE_IAP_KEY_ID / APPLE_IAP_ISSUER_ID / APPLE_IAP_PRIVATE_KEY yoxlanmalıdır — açar "In-App Purchase" tipində olmalıdır. (${seen.join(' · ')})`,
+    );
+  }
+  throw new Error(`Apple: tranzaksiya tapılmadı (${seen.join(' · ')})`);
 }
 
 /** Latest transaction of a subscription (by original transaction id) — used for renewals and restore. */
 export async function fetchAppleSubscriptionStatus(originalTransactionId: string): Promise<AppleTransaction | null> {
   const token = appleServerToken();
+  let refused = 0;
   for (const base of [PROD, SANDBOX]) {
     const res = await fetch(`${base}/inApps/v1/subscriptions/${encodeURIComponent(originalTransactionId)}`, { headers: { Authorization: `Bearer ${token}` } });
     if (!res.ok) {
-      if (res.status === 404) continue;
-      if (res.status === 401 || res.status === 403) {
-        throw new Error(`Apple açarı qəbul edilmədi (${res.status}). APPLE_IAP_KEY_ID / APPLE_IAP_ISSUER_ID / APPLE_IAP_PRIVATE_KEY yoxlanmalıdır.`);
-      }
+      // As above: one environment refusing the token must not stop the other
+      // from being asked, since only one of them holds the subscription.
+      if (res.status === 404 || res.status === 401 || res.status === 403) { refused += res.status === 404 ? 0 : 1; continue; }
       throw new Error(`Apple ${res.status}`);
     }
     const j = (await res.json()) as { data?: Array<{ lastTransactions?: Array<{ signedTransactionInfo: string }> }> };
     const jws = j.data?.[0]?.lastTransactions?.[0]?.signedTransactionInfo;
     return jws ? decodeJws<AppleTransaction>(jws) : null;
   }
+  if (refused === 2) throw new Error('Apple açarı qəbul edilmədi (401/403) — APPLE_IAP_* dəyişənləri yoxlanmalıdır.');
   return null;
 }
