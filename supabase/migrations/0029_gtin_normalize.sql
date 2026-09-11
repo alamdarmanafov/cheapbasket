@@ -35,14 +35,27 @@ begin
   return d;
 end $$;
 
--- Existing rows. A row whose canonical spelling is already taken by another
--- product is left alone: that is a duplicate for the admin's duplicate finder,
--- not something a migration should merge blind.
+-- Existing rows. Barcodes are unique, so of every set of rows that spell the
+-- same code differently exactly one may take the canonical form: the one that
+-- already has it, or failing that the first by id. The others keep their old
+-- spelling — they are duplicates for the admin's duplicate finder, not
+-- something a migration should merge blind. (Rewriting all of them, guarded
+-- only against a canonical row that already exists, tripped the constraint
+-- the moment two zero-padded spellings of one code met, and rolled the whole
+-- file back.)
+with candidates as (
+  select p.id, gtin_normalize(p.barcode) as canon,
+         row_number() over (partition by gtin_normalize(p.barcode) order by p.id) as rn
+    from products p
+   where p.barcode is not null
+     and gtin_normalize(p.barcode) is distinct from p.barcode
+)
 update products p
-   set barcode = gtin_normalize(p.barcode)
- where p.barcode is not null
-   and gtin_normalize(p.barcode) is distinct from p.barcode
-   and not exists (select 1 from products q where q.barcode = gtin_normalize(p.barcode) and q.id <> p.id);
+   set barcode = c.canon
+  from candidates c
+ where c.id = p.id
+   and c.rn = 1
+   and not exists (select 1 from products q where q.barcode = c.canon and q.id <> p.id);
 
 update pending_products p
    set barcode = gtin_normalize(p.barcode)
