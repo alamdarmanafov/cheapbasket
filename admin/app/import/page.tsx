@@ -1,4 +1,5 @@
 'use client';
+import { normalizeGtin } from '@/lib/gtin';
 import { useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { Download, Search, Tags, Upload } from 'lucide-react';
@@ -328,15 +329,19 @@ export default function ImportPage() {
       const idByBarcode = new Map<string, string>();
       let updated = 0;
       for (const r of selected) {
-        const known = r.existingId ?? match(r) ?? (r.barcode ? idByBarcode.get(r.barcode) : undefined) ?? (usedIds.has(r.barcode ?? `wolt-${slugify(r.name)}`) ? (r.barcode ?? `wolt-${slugify(r.name)}`) : null);
-        let id = known ?? r.barcode ?? `wolt-${slugify(r.name)}`;
+        // The canonical spelling is what becomes the product's barcode and, for
+        // a new row, its id — so a 14-digit code from one source and the same
+        // code at 13 from another never mint two products.
+        const bc = normalizeGtin(r.barcode);
+        const known = r.existingId ?? match(r) ?? (bc ? idByBarcode.get(bc) : undefined) ?? (usedIds.has(bc ?? `wolt-${slugify(r.name)}`) ? (bc ?? `wolt-${slugify(r.name)}`) : null);
+        let id = known ?? bc ?? `wolt-${slugify(r.name)}`;
         if (!known && usedIds.has(id)) id = `${id}-${r.ext_id.slice(-4)}`;
         usedIds.add(id);
-        if (r.barcode) idByBarcode.set(r.barcode, id);
+        if (bc) idByBarcode.set(bc, id);
         if (!known) {
           const name = (r.title ?? '').trim();
           if (!name) continue;
-          products.push({ id, barcode: r.barcode, name, brand: (r.brand ?? '').trim(), size: (r.size ?? '').trim() || '—', category: r.appCategory, emoji: '🛒', tint: '#F3F4F6', image_url: r.image_url });
+          products.push({ id, barcode: bc, name, brand: (r.brand ?? '').trim(), size: (r.size ?? '').trim() || '—', category: r.appCategory, emoji: '🛒', tint: '#F3F4F6', image_url: r.image_url });
         } else {
           updated++;
           if (r.updateInfo && !infoUpdates.some((u) => u.id === id)) infoUpdates.push({ id, name: r.title.trim(), brand: r.brand.trim(), size: r.size.trim() || '—', category: r.appCategory, image_url: r.image_url });
@@ -495,7 +500,7 @@ export default function ImportPage() {
       const usedIds = new Set(fresh.map((p) => p.id));
 
       for (const row of csvRows) {
-        const barcode = getCsvField(row, 'barcode') || null;
+        const barcode = normalizeGtin(getCsvField(row, 'barcode'));
         const name = getCsvField(row, 'name');
         const brand = getCsvField(row, 'brand');
         const size = getCsvField(row, 'size') || '—';
