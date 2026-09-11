@@ -1,6 +1,7 @@
 import { Product, Branch, Banner, Category, Store, StoreId, LatLng, withDistances } from '@/data/products';
 import { supabase } from './supabase';
 import { tr } from './i18n';
+import { gtinVariants, normalizeGtin } from './gtin';
 
 interface BranchRow {
   id: string;
@@ -91,7 +92,7 @@ function rowToProduct(r: ProductPriceRow, history: number[] = []): Product {
   const updatedMinutesAgo = r.updated_at ? Math.max(0, Math.round((Date.now() - new Date(r.updated_at).getTime()) / 60000)) : 0;
   return {
     id: r.id,
-    barcode: r.barcode ?? '',
+    barcode: normalizeGtin(r.barcode) ?? '',
     name: r.name,
     brand: r.brand,
     size: r.size,
@@ -147,7 +148,10 @@ export async function fetchPriceHistory(productId: string, storeId: string): Pro
 }
 
 export async function fetchByBarcode(code: string): Promise<Product | undefined> {
-  const { data } = await need().from('product_prices').select('*').eq('barcode', code).maybeSingle();
+  // Every spelling of the code, so a row stored before normalisation is found too.
+  const variants = gtinVariants(code);
+  if (!variants.length) return undefined;
+  const { data } = await need().from('product_prices').select('*').in('barcode', variants).limit(1).maybeSingle();
   return data ? rowToProduct(data as ProductPriceRow) : undefined;
 }
 

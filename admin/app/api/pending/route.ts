@@ -16,6 +16,7 @@
 import { NextResponse } from 'next/server';
 import { adminDb, errText, fetchAll, requireAdmin } from '@/lib/server';
 import { rewardSuggester } from '@/lib/reward';
+import { normalizeGtin } from '@/lib/gtin';
 
 export const maxDuration = 30;
 
@@ -57,7 +58,7 @@ export async function POST(req: Request) {
           id: pending.id,
           name,
           brand: String(body.brand ?? pending.brand ?? '').trim(),
-          barcode: pending.barcode ?? null,
+          barcode: normalizeGtin(pending.barcode as string | null),
           size: pending.size ?? '',
           image_url: pending.image_url ?? null,
           category: body.category ?? pending.category ?? '',
@@ -103,7 +104,7 @@ export async function POST(req: Request) {
         id: p.id,
         name: p.name,
         brand: p.brand ?? '',
-        barcode: p.barcode ?? null,
+        barcode: normalizeGtin(p.barcode as string | null),
         size: p.size ?? '',
         image_url: p.image_url ?? null,
         category: p.category ?? '',

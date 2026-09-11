@@ -1,4 +1,5 @@
 'use client';
+import { normalizeGtin } from '@/lib/gtin';
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { Camera, Copy, Download, Plus, Search, Trash2, X } from 'lucide-react';
 
@@ -209,7 +210,7 @@ export default function Products() {
     const bad = validate(cells);
     if (bad) { setMsg({ ok: false, text: bad }); return; }
     setBusy(true);
-    const row = { ...p, id: p.id || slugify(`${p.brand} ${p.name} ${p.size}`), barcode: p.barcode?.trim() || null, rating: p.rating || null, image_url: p.image_url?.trim() || null };
+    const row = { ...p, id: p.id || slugify(`${p.brand} ${p.name} ${p.size}`), barcode: normalizeGtin(p.barcode), rating: p.rating || null, image_url: p.image_url?.trim() || null };
     try {
       await db.upsert('products', [row]);
       const now = new Date().toISOString();

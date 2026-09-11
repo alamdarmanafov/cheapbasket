@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { normalizeGtin } from '@/lib/gtin';
 import { adminDb, errText, fetchAll, requireAdmin } from '@/lib/server';
 import { buildMatcher, MatchableProduct } from '@/lib/wolt';
 import { slugify } from '@/lib/supabase';
@@ -105,7 +106,7 @@ If no products are visible, return {"products":[]}.`;
   const unmatched: ExtractedProduct[] = [];
 
   for (const p of allExtracted) {
-    const id = match({ name: p.name, barcode: p.barcode ?? null });
+    const id = match({ name: p.name, barcode: normalizeGtin(p.barcode) });
     if (id) {
       const prod = productList.find((x) => x.id === id);
       matched.push({ ...p, product_id: id, product_name: prod ? `${prod.brand} ${prod.name} ${prod.size}`.trim() : id });
@@ -163,7 +164,7 @@ export async function PUT(req: Request) {
         const existing = await fetchAll<{ id: string }>((from, to) => db.from('pending_products').select('id').range(from, to));
         const existingIds = new Set(existing.map((r) => r.id));
         const pendingRows = unmatched
-          .map((u) => { try { return { id: slugify(u.name), name: u.name, brand: u.brand ?? null, barcode: u.barcode ?? null, size: u.size ?? null, store_id, source_name: null }; } catch { return null; } })
+          .map((u) => { try { return { id: slugify(u.name), name: u.name, brand: u.brand ?? null, barcode: normalizeGtin(u.barcode), size: u.size ?? null, store_id, source_name: null }; } catch { return null; } })
           .filter((r): r is { id: string; name: string; brand: string | null; barcode: string | null; size: string | null; store_id: string; source_name: null } => !!r?.id && !existingIds.has(r.id));
         for (let i = 0; i < pendingRows.length; i += 200) {
           await db.from('pending_products').insert(pendingRows.slice(i, i + 200)).then(() => {}, () => {});

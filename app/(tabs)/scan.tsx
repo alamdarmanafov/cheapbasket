@@ -16,6 +16,7 @@ import { Freshness, ProductArt, StoreAvatar } from '@/components/product';
 import { StateView } from '@/components/states';
 import { Product, StoreId, catalog, cheapest, findByBarcode, getStore, sortedPrices } from '@/data/products';
 import { categoryLabel } from '@/data/categoryNames';
+import { normalizeGtin } from '@/lib/gtin';
 import { useBasket } from '@/store/basket';
 import { useT } from '@/lib/i18n';
 
@@ -75,7 +76,7 @@ export default function Scan() {
   const resolve = (scanned: string, p: Product | undefined) => {
     if (lockRef.current) return;
     lockRef.current = true;
-    setCode(scanned.replace(/\D/g, ''));
+    setCode(normalizeGtin(scanned) ?? '');
     track('scan', { product_id: p?.id ?? null, found: !!p, store_id: hereId });
     setPhase('searching');
     setTimeout(() => {
