@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, hasSupabase } from '@/lib/supabase';
 import { PlanId } from '@/data/plans';
 import { tr } from '@/lib/i18n';
+import { checkRewards } from '@/lib/rewards';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -65,11 +66,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return d ? decodeURIComponent(d.replace(/\+/g, ' ')) : null;
   });
 
-  const loadProfile = useCallback(async (userId: string | undefined) => {
+  const loadProfile = useCallback(async (userId: string | undefined, opts: { rewards?: boolean } = {}) => {
     if (!supabase || !userId) {
       setProfile(null);
       return;
     }
+    // Rewards are settled before the row is read, so what lands on screen
+    // already reflects them: a balance that just cleared a tier arrives as
+    // Plus, not as a number that changes a second later. Re-entry is guarded —
+    // the check itself never asks for another check.
+    if (opts.rewards !== false) await checkRewards(userId).catch(() => false);
     const { data } = await supabase.from('profiles').select('display_name, plan, plan_expires_at, blocked, city, points, referral_code').eq('user_id', userId).maybeSingle();
     if (!data) {
       setProfile({ display_name: null, plan: 'free', planExpiresAt: null, blocked: false, city: null, points: 0, referralCode: null });

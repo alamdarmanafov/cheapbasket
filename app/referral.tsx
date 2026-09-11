@@ -14,8 +14,10 @@ import { useI18n, type Key } from '@/lib/i18n';
 import { SITE_URL } from '@/lib/links';
 
 interface Ledger { delta: number; reason: string; created_at: string }
-interface PointsSettings { referral: number; trip: number; plus_cost: number; plus_days: number }
-const REASON: Record<string, Key> = { referral_received: 'ref.reasonReceived', referral_sent: 'ref.reasonSent', trip: 'ref.reasonTrip', plus_redeem: 'ref.reasonRedeem' };
+interface Tier { points: number; days: number }
+interface PointsSettings { referral: number; trip: number; suggestion: number; plus_tiers: Tier[] }
+const DEFAULT_TIERS: Tier[] = [{ points: 100, days: 7 }, { points: 200, days: 30 }, { points: 350, days: 90 }];
+const REASON: Record<string, Key> = { referral_received: 'ref.reasonReceived', referral_sent: 'ref.reasonSent', trip: 'ref.reasonTrip', plus_redeem: 'ref.reasonRedeem', suggestion: 'ref.reasonSuggestion' };
 
 /** Points & referral: my code, share, enter a friend's code, convert points into Plus days. */
 export default function Referral() {
@@ -28,9 +30,11 @@ export default function Referral() {
   const [code, setCode] = useState<string | null>(auth.profile?.referralCode ?? null);
   const [friend, setFriend] = useState('');
   const [ledger, setLedger] = useState<Ledger[]>([]);
-  const [cfg, setCfg] = useState<PointsSettings>({ referral: 100, trip: 10, plus_cost: 300, plus_days: 7 });
+  const [cfg, setCfg] = useState<PointsSettings>({ referral: 100, trip: 10, suggestion: 10, plus_tiers: DEFAULT_TIERS });
   const [busy, setBusy] = useState<string | null>(null);
   const points = auth.profile?.points ?? 0;
+  const tiers = [...cfg.plus_tiers].sort((a, b) => a.points - b.points);
+  const affordable = [...tiers].reverse().find((tier) => points >= tier.points) ?? null;
 
   const load = useCallback(async () => {
     if (!supabase || !auth.user) return;
@@ -42,7 +46,10 @@ export default function Referral() {
     if (typeof c === 'string') setCode(c);
     else if (auth.profile?.referralCode) setCode(auth.profile.referralCode);
     setLedger((l ?? []) as Ledger[]);
-    if (s?.value) setCfg({ ...cfg, ...(s.value as Partial<PointsSettings>) });
+    if (s?.value) {
+      const v = s.value as Partial<PointsSettings>;
+      setCfg({ ...cfg, ...v, plus_tiers: Array.isArray(v.plus_tiers) && v.plus_tiers.length ? v.plus_tiers : DEFAULT_TIERS });
+    }
     await auth.refreshProfile();
   }, [auth.user]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -107,9 +114,28 @@ export default function Referral() {
             {t('ref.points', { points })}
           </Txt>
           <Txt v="caption" color="rgba(255,255,255,0.85)" style={{ marginTop: 6 }}>
-            {t('ref.rates', { cost: cfg.plus_cost, days: cfg.plus_days, trip: cfg.trip, referral: cfg.referral })}
+            {t('ref.earnSuggest', { points: cfg.suggestion })} · +{cfg.trip} {t('ref.reasonTrip').toLowerCase()} · +{cfg.referral} {t('ref.reasonSent').toLowerCase()}
           </Txt>
-          <Btn title={t('ref.redeem', { cost: cfg.plus_cost, days: cfg.plus_days })} variant="secondary" size="md" loading={busy === 'redeem'} disabled={points < cfg.plus_cost} onPress={redeem} style={{ marginTop: space.md }} />
+          {/* The tiers, best rate last. The balance converts on its own once
+              Plus lapses; the button is for someone who would rather not wait. */}
+          <Txt v="captionStrong" color="rgba(255,255,255,0.9)" style={{ marginTop: space.md }}>
+            {t('ref.tiers')}
+          </Txt>
+          <Row gap={space.sm} style={{ marginTop: 6, flexWrap: 'wrap' }}>
+            {tiers.map((tier) => (
+              <View key={tier.points} style={[styles.tier, points >= tier.points && styles.tierOn]}>
+                <Txt v="captionStrong" color={colors.white} style={{ fontSize: 12 }}>
+                  {t('ref.tier', { points: tier.points, days: tier.days })}
+                </Txt>
+              </View>
+            ))}
+          </Row>
+          <Txt v="caption" color="rgba(255,255,255,0.7)" style={{ marginTop: 6, fontSize: 11 }}>
+            {t('ref.tiersNote')}
+          </Txt>
+          {affordable && (
+            <Btn title={t('ref.redeemNow', { points: affordable.points })} variant="secondary" size="md" loading={busy === 'redeem'} onPress={redeem} style={{ marginTop: space.md }} />
+          )}
         </View>
 
         <Card style={{ marginTop: space.lg }}>
@@ -173,6 +199,8 @@ export default function Referral() {
 
 const styles = StyleSheet.create({
   hero: { backgroundColor: colors.dark, borderRadius: radius.xl, padding: space.xl },
+  tier: { borderRadius: radius.pill, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)', paddingHorizontal: 10, paddingVertical: 5 },
+  tierOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   // The code is the thing to read on this screen, so it is set on the dark
   // ground the app uses for emphasis rather than the grey fill, which made it
   // look like a disabled field.

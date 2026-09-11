@@ -11,9 +11,11 @@
 // --   source_name text,
 // --   created_at timestamptz DEFAULT now()
 // -- );
+// -- suggested_by / suggested_at come from migration 0027 (user suggestions).
 
 import { NextResponse } from 'next/server';
 import { adminDb, errText, fetchAll, requireAdmin } from '@/lib/server';
+import { rewardSuggester } from '@/lib/reward';
 
 export const maxDuration = 30;
 
@@ -32,7 +34,7 @@ export async function GET(req: Request) {
 }
 
 type Body =
-  | { op: 'approve'; id: string; category?: string }
+  | { op: 'approve'; id: string; category?: string; name?: string; brand?: string }
   | { op: 'reject'; id: string }
   | { op: 'approve_all' };
 
@@ -46,11 +48,15 @@ export async function POST(req: Request) {
     if (body.op === 'approve') {
       const { data: pending, error: e1 } = await db.from('pending_products').select('*').eq('id', body.id).single();
       if (e1 || !pending) return NextResponse.json({ error: 'Məhsul tapılmadı' }, { status: 404 });
+      // A user's suggestion arrives with whatever they typed in the shop; the
+      // admin can correct the name and brand right on the row before it lands.
+      const name = String(body.name ?? pending.name ?? '').trim();
+      if (!name) return NextResponse.json({ error: 'Məhsulun adı boşdur' }, { status: 400 });
       const { error: e2 } = await db.from('products').upsert(
         {
           id: pending.id,
-          name: pending.name,
-          brand: pending.brand ?? '',
+          name,
+          brand: String(body.brand ?? pending.brand ?? '').trim(),
           barcode: pending.barcode ?? null,
           size: pending.size ?? '',
           image_url: pending.image_url ?? null,
@@ -63,7 +69,17 @@ export async function POST(req: Request) {
       );
       if (e2) return NextResponse.json({ error: errText(e2) }, { status: 500 });
       await db.from('pending_products').delete().eq('id', body.id);
-      return NextResponse.json({ ok: true });
+      // The product is in by now; a failed payout must not read as a failed
+      // approval. It is reported instead, and the credit is idempotent, so the
+      // admin can retry it from the ledger without paying twice.
+      let points = 0;
+      let warning: string | undefined;
+      try {
+        points = await rewardSuggester(pending.suggested_by as string | null, pending.barcode as string | null, name);
+      } catch (e) {
+        warning = `Xal verilmədi: ${errText(e)}`;
+      }
+      return NextResponse.json({ ok: true, points, warning });
     }
 
     if (body.op === 'reject') {
@@ -110,7 +126,17 @@ export async function POST(req: Request) {
         if (e3) return NextResponse.json({ error: errText(e3) }, { status: 500 });
       }
 
-      return NextResponse.json({ ok: true, count: productRows.length, skipped: nameless });
+      // Suggested rows in the batch pay their suggesters too — one by one, since
+      // each is a separate person, barcode and push.
+      let rewarded = 0;
+      const approved = new Set(ids);
+      for (const p of pending as Array<Record<string, unknown>>) {
+        if (!p.suggested_by || !approved.has(p.id as string)) continue;
+        const pts = await rewardSuggester(p.suggested_by as string, p.barcode as string | null, String(p.name ?? '')).catch(() => 0);
+        if (pts > 0) rewarded++;
+      }
+
+      return NextResponse.json({ ok: true, count: productRows.length, skipped: nameless, rewarded });
     }
 
     return NextResponse.json({ error: 'Naməlum əməliyyat' }, { status: 400 });
