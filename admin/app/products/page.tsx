@@ -29,13 +29,17 @@ const normSlug = (s: string) =>
 function findDuplicates(products: Product[]): DupGroup[] {
   const groups: DupGroup[] = [];
 
-  // By barcode
+  // By barcode — in its canonical spelling, so "04006…" and "4006…" land in
+  // one group. Migration 0029 leaves exactly these pairs behind: it may give
+  // the canonical form to only one of them, and this is where the other is
+  // meant to be found.
   const byBarcode = new Map<string, Product[]>();
   for (const p of products) {
-    if (p.barcode) {
-      const arr = byBarcode.get(p.barcode) ?? [];
+    const bc = normalizeGtin(p.barcode);
+    if (bc) {
+      const arr = byBarcode.get(bc) ?? [];
       arr.push(p);
-      byBarcode.set(p.barcode, arr);
+      byBarcode.set(bc, arr);
     }
   }
   for (const [bc, ps] of byBarcode) {
@@ -354,6 +358,14 @@ export default function Products() {
     finally { setDupBusy(false); }
   }, []);
 
+  /** Once the others are gone the unique slot is free: the survivor takes the canonical spelling. */
+  const settleBarcode = async (group: DupGroup, keepId: string) => {
+    if (group.kind !== 'barcode') return;
+    const kept = group.products.find((p) => p.id === keepId);
+    const canon = normalizeGtin(kept?.barcode);
+    if (kept && canon && kept.barcode !== canon) await db.upsert('products', [{ id: keepId, barcode: canon }], 'id');
+  };
+
   const mergeDupGroup = async (group: DupGroup) => {
     const keepId = dupKeep[group.key];
     if (!keepId) return;
@@ -369,6 +381,7 @@ export default function Products() {
         }
         await db.delete('products', { id: p.id });
       }
+      await settleBarcode(group, keepId);
       setMsg({ ok: true, text: `${toDelete.length} dublikat silindi, qiymətlər birləşdirildi` });
       const all = await db.select<Product>('products', { columns: 'id,barcode,name,brand,size,category,image_url', fetchAll: true });
       const groups = findDuplicates(all);
@@ -391,6 +404,7 @@ export default function Products() {
         }
         await db.delete('products', { id: p.id });
       }
+      await settleBarcode(group, keepId);
       return { merged: toDelete.length };
     } catch (e) { return { merged: 0, error: (e as Error).message }; }
   };

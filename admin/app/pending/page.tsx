@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { normalizeGtin } from '@/lib/gtin';
 import { CheckCircle, CheckCheck, Copy, Trash2, X } from 'lucide-react';
 import { Shell } from '@/components/Shell';
 import { useCategories } from '@/lib/supabase';
@@ -34,10 +35,11 @@ function findPendingDuplicates(items: PendingProduct[]): PendingDupGroup[] {
   const groups: PendingDupGroup[] = [];
   const byBarcode = new Map<string, PendingProduct[]>();
   for (const p of items) {
-    if (p.barcode) {
-      const arr = byBarcode.get(p.barcode) ?? [];
+    const bc = normalizeGtin(p.barcode);
+    if (bc) {
+      const arr = byBarcode.get(bc) ?? [];
       arr.push(p);
-      byBarcode.set(p.barcode, arr);
+      byBarcode.set(bc, arr);
     }
   }
   for (const [bc, ps] of byBarcode) {
