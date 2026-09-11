@@ -4,6 +4,7 @@
  */
 
 import { categoryLabel } from './categoryNames';
+import { normalizeGtin } from '@/lib/gtin';
 
 export type StoreId = string;
 
@@ -160,7 +161,11 @@ export function getProduct(id: string): Product | undefined {
 }
 
 export function findByBarcode(code: string): Product | undefined {
-  return catalog.products.find((p) => p.barcode === code);
+  // The catalogue's barcodes are normalised on load; the scanner's reading is
+  // normalised here, so "0" + EAN-13 from one side meets the EAN-13 from the other.
+  const want = normalizeGtin(code);
+  if (!want) return undefined;
+  return catalog.products.find((p) => p.barcode === want);
 }
 
 const norm = (s: string) =>

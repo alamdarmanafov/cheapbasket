@@ -1,3 +1,4 @@
+import { normalizeGtin } from './gtin';
 import type { WoltItem, WoltResult } from './wolt';
 
 /**
@@ -70,7 +71,7 @@ function fromEmbeddedJson(html: string, base: URL): WoltItem[] {
       description: str(o.description ?? o.short_description),
       price,
       regular_price: old != null && old > price ? old : null,
-      barcode: barcode && /^\d{8,14}$/.test(barcode) ? barcode : null,
+      barcode: barcode && /^\d{8,14}$/.test(barcode) ? normalizeGtin(barcode) : null,
       image_url: absImg,
       category: str(o.category ?? o.category_name ?? o.categoryName ?? obj(o.category)?.name) ?? str(obj(arr(o.categories)[0])?.name),
     });
@@ -157,7 +158,7 @@ function fromJsonLd(html: string, base: URL): WoltItem[] {
           description: str(o.description),
           price,
           regular_price: null,
-          barcode: [o.gtin13, o.gtin, o.gtin14, o.gtin12, o.gtin8].map(str).find((x) => x && /^\d{8,14}$/.test(x)) ?? null,
+          barcode: normalizeGtin([o.gtin13, o.gtin, o.gtin14, o.gtin12, o.gtin8].map(str).find((x) => x && /^\d{8,14}$/.test(x)) ?? null),
           image_url: img ? new URL(img, base).toString() : null,
           category: str(o.category) ?? str(obj(o.category)?.name),
         });
@@ -208,7 +209,7 @@ async function fromAI(text: string, base: URL): Promise<WoltItem[]> {
     const old = parsePrice(it.old_price);
     const name = [it.name, it.size].filter(Boolean).join(' ').trim();
     if (!name || price == null) return;
-    out.push({ ext_id: `${base.hostname}-${i}-${name.toLowerCase().replace(/[^a-z0-9əıöüşçğ]+/g, '-')}`, name, description: null, price, regular_price: old != null && old > price ? old : null, barcode: it.barcode && /^\d{8,14}$/.test(it.barcode) ? it.barcode : null, image_url: null, category: it.category ?? null });
+    out.push({ ext_id: `${base.hostname}-${i}-${name.toLowerCase().replace(/[^a-z0-9əıöüşçğ]+/g, '-')}`, name, description: null, price, regular_price: old != null && old > price ? old : null, barcode: it.barcode && /^\d{8,14}$/.test(it.barcode) ? normalizeGtin(it.barcode) : null, image_url: null, category: it.category ?? null });
   });
   return out;
 }

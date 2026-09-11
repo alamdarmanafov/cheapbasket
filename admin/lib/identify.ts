@@ -1,3 +1,4 @@
+import { gtinVariants } from './gtin';
 import { adminDb, fetchAll } from './server';
 
 export interface Identified { brand: string | null; name: string | null; size: string | null; barcode: string | null; query: string }
@@ -39,7 +40,7 @@ export async function identifyWithOpenAI(imageBase64: string): Promise<Identifie
 export async function matchProducts(id: Identified, limit = 5): Promise<Candidate[]> {
   const db = adminDb();
   if (id.barcode && id.barcode.length >= 8) {
-    const { data } = await db.from('products').select('id, brand, name, size').eq('barcode', id.barcode).maybeSingle();
+    const { data } = await db.from('products').select('id, brand, name, size').in('barcode', gtinVariants(id.barcode)).limit(1).maybeSingle();
     if (data) return [{ ...data, score: 100 }];
   }
   const data = await fetchAll<{ id: string; brand: string; name: string; size: string; category: string }>(

@@ -3,6 +3,7 @@
  * normalises items into products + regular/discount prices.
  * Wolt's API shape changes over time, so several endpoints and field names are tried.
  */
+import { normalizeGtin } from './gtin';
 export interface WoltItem {
   ext_id: string;
   name: string;
@@ -125,7 +126,7 @@ function normalise(it: Obj, categoryOf: (it: Obj) => string | null): WoltItem | 
     description: str(it.description),
     price,
     regular_price: orig != null && price != null && orig > price ? orig : null,
-    barcode: bc && /^\d{8,14}$/.test(bc) ? bc : null,
+    barcode: bc && /^\d{8,14}$/.test(bc) ? normalizeGtin(bc) : null,
     image_url: firstImage(it),
     category: categoryOf(it),
   };
@@ -295,9 +296,13 @@ export interface MatchableProduct { id: string; barcode: string | null; brand: s
 /** Word-order-independent slug: sort the words so "Banan Azərbaycan" == "Azərbaycan Banan". */
 const sortedSlug = (s: string) => slug(s).split('-').filter(Boolean).sort().join('-');
 
-/** Existing-product lookup shared by the import page and the sync job: barcode first, then normalised name. */
+/** Existing-product lookup shared by the import { normalizeGtin } from './gtin';
+import page and the sync job: barcode first, then normalised name. */
 export function buildMatcher(list: MatchableProduct[]): (it: { name: string; barcode: string | null }) => string | null {
-  const byBarcode = new Map(list.filter((p) => p.barcode).map((p) => [p.barcode as string, p.id]));
+  // Both sides go through the same spelling, so a 14-digit Wolt code finds
+  // the 13-digit row it names and a row stored before normalisation still
+  // matches.
+  const byBarcode = new Map(list.filter((p) => p.barcode).map((p) => [normalizeGtin(p.barcode) as string, p.id]));
   const byName = new Map<string, string>();
   const bySorted = new Map<string, string>();
   for (const p of list) {
@@ -310,7 +315,8 @@ export function buildMatcher(list: MatchableProduct[]): (it: { name: string; bar
     if (p.id.startsWith('wolt-')) byName.set(p.id.slice(5), p.id);
   }
   return (it) => {
-    if (it.barcode && byBarcode.has(it.barcode)) return byBarcode.get(it.barcode) ?? null;
+    const bc = normalizeGtin(it.barcode);
+    if (bc && byBarcode.has(bc)) return byBarcode.get(bc) ?? null;
     const sp = splitName(it.name);
     return (
       byName.get(slug(it.name)) ??

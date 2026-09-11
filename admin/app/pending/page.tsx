@@ -15,6 +15,9 @@ interface PendingProduct {
   store_id: string | null;
   source_name: string | null;
   created_at: string;
+  /** Set when a shopper queued this from the scanner; approval pays them points. */
+  suggested_by: string | null;
+  suggested_at: string | null;
 }
 
 // ── Duplicate detection for pending ─────────────────────────────────────────
@@ -59,6 +62,10 @@ function findPendingDuplicates(items: PendingProduct[]): PendingDupGroup[] {
 export default function PendingPage() {
   const [items, setItems] = useState<PendingProduct[]>([]);
   const [cats, setCats] = useState<Record<string, string>>({});
+  // Name and brand as the admin corrected them before approving. Shoppers type
+  // what they see on the shelf, which is rarely the catalogue's spelling.
+  const [names, setNames] = useState<Record<string, string>>({});
+  const [brands, setBrands] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -98,8 +105,10 @@ export default function PendingPage() {
     setBusy(item.id);
     setMsg(null);
     try {
-      await api({ op: 'approve', id: item.id, category: cats[item.id] ?? item.category ?? '' });
-      setMsg({ ok: true, text: `"${item.name}" məhsullar siyahısına əlavə edildi.` });
+      const name = (names[item.id] ?? item.name).trim();
+      const r = await api({ op: 'approve', id: item.id, category: cats[item.id] ?? item.category ?? '', name, brand: (brands[item.id] ?? item.brand ?? '').trim() });
+      const paid = r.points ? ` Təklif edənə +${r.points} xal verildi.` : '';
+      setMsg({ ok: !r.warning, text: `"${name}" məhsullar siyahısına əlavə edildi.${paid}${r.warning ? ` ${r.warning}` : ''}` });
       load();
     } catch (e) {
       setMsg({ ok: false, text: (e as Error).message });
@@ -128,7 +137,7 @@ export default function PendingPage() {
     setMsg(null);
     try {
       const r = await api({ op: 'approve_all' });
-      setMsg({ ok: true, text: `${r.count} məhsul qəbul edildi.${r.skipped ? ` ${r.skipped} sətir adsız olduğu üçün növbədə qaldı.` : ''}` });
+      setMsg({ ok: true, text: `${r.count} məhsul qəbul edildi.${r.rewarded ? ` ${r.rewarded} istifadəçiyə xal verildi.` : ''}${r.skipped ? ` ${r.skipped} sətir adsız olduğu üçün növbədə qaldı.` : ''}` });
       load();
     } catch (e) {
       setMsg({ ok: false, text: (e as Error).message });
@@ -259,12 +268,37 @@ export default function PendingPage() {
                       )}
                     </td>
                     <td>
-                      <div style={{ fontWeight: 500 }}>
-                        {item.brand && <span className="muted" style={{ marginRight: 4, fontWeight: 400 }}>{item.brand}</span>}
-                        {item.name}
-                      </div>
+                      {item.suggested_by ? (
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <input
+                            value={brands[item.id] ?? item.brand ?? ''}
+                            onChange={(e) => setBrands((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                            placeholder="Brend"
+                            style={{ fontSize: 13, width: 110 }}
+                          />
+                          <input
+                            value={names[item.id] ?? item.name}
+                            onChange={(e) => setNames((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                            placeholder="Məhsulun adı"
+                            style={{ fontSize: 13, minWidth: 200 }}
+                          />
+                        </div>
+                      ) : (
+                        <div style={{ fontWeight: 500 }}>
+                          {item.brand && <span className="muted" style={{ marginRight: 4, fontWeight: 400 }}>{item.brand}</span>}
+                          {item.name}
+                        </div>
+                      )}
                       {item.size && <div className="muted" style={{ fontSize: 12 }}>{item.size}</div>}
-                      <div style={{ fontFamily: 'monospace', fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>{item.id}</div>
+                      <div style={{ fontFamily: 'monospace', fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
+                        {item.id}
+                        {item.barcode && item.barcode !== item.id.replace(/^sug-/, '') ? ` · ${item.barcode}` : ''}
+                      </div>
+                      {item.suggested_by && (
+                        <span style={{ display: 'inline-block', marginTop: 4, fontSize: 11, padding: '2px 8px', borderRadius: 999, background: '#FEF3C7', color: '#92400E' }} title={`İstifadəçi: ${item.suggested_by}`}>
+                          👤 İstifadəçi təklifi · qəbul edilsə +xal
+                        </span>
+                      )}
                     </td>
                     <td>
                       <select
