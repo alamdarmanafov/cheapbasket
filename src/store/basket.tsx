@@ -96,8 +96,16 @@ export function BasketProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
     };
   }, [entries, userId, hydrated]);
+  // Signing out empties the local basket. It is already in the cloud under
+  // the account that just left, and it comes back on the next sign-in; kept
+  // here, it would be merged into whoever signs in next on this phone.
+  const prevUser = useRef<string | null>(null);
   useEffect(() => {
-    if (!userId) syncedFor.current = null;
+    if (!userId) {
+      syncedFor.current = null;
+      if (prevUser.current) setEntries([]);
+    }
+    prevUser.current = userId;
   }, [userId]);
 
   // 3. Lines always carry the live product (prices refresh with the catalogue); unknown ids are kept until the catalogue loads.

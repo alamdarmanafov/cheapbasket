@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Animated, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -49,9 +49,16 @@ export default function Scan() {
   const lockRef = useRef(false);
   const camRef = useRef<CameraView>(null);
 
-  // Which store is the user standing in? Defaults to the AI's best store for their basket.
-  const hereId = ((params.store as StoreId) || basket.optimization.best?.store.id || cat.stores[0]?.id || '') as StoreId;
-  const here = getStore(hereId);
+  // Which store is the user standing in? The route can say, the user can say,
+  // and the nearest branch is a fair guess when the location is known. It
+  // used to fall back to the first store alphabetically, and then judge
+  // "good to buy here" against it — advice about Araz for someone standing
+  // in Bravo. With nothing to go on the chip asks instead of asserting.
+  const [picked, setPicked] = useState<StoreId | null>(null);
+  const [pickOpen, setPickOpen] = useState(false);
+  const nearest = cat.locationGranted === true ? cat.branches[0]?.storeId : undefined;
+  const hereId = ((params.store as StoreId) || picked || nearest || '') as StoreId;
+  const here = hereId ? getStore(hereId) : null;
 
   useEffect(() => {
     if (Platform.OS !== 'web' && permission && !permission.granted && permission.canAskAgain) requestPermission();
@@ -112,12 +119,13 @@ export default function Scan() {
       {/* Top bar */}
       <Row style={{ position: 'absolute', top: insets.top + space.sm, left: space.lg, right: space.lg, justifyContent: 'space-between' }}>
         <IconBtn name="close" bg="rgba(255,255,255,0.15)" color={colors.white} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} label={t('common.close')} />
-        <View style={styles.hereChip}>
-          <StoreAvatar store={here} size={20} />
-          <Txt v="captionStrong" color={colors.white} style={{ marginLeft: 6 }}>
-            {t('scan.youAreAt', { store: here.name })}
+        <Pressable onPress={() => setPickOpen(true)} style={styles.hereChip} accessibilityRole="button" accessibilityLabel={t('scan.pickStoreTitle')}>
+          {here && <StoreAvatar store={here} size={20} />}
+          <Txt v="captionStrong" color={colors.white} style={{ marginLeft: here ? 6 : 0 }} numberOfLines={1}>
+            {here ? t('scan.youAreAt', { store: here.name }) : t('scan.pickStore')}
           </Txt>
-        </View>
+          <Ionicons name="chevron-down" size={14} color="rgba(255,255,255,0.8)" style={{ marginLeft: 4 }} />
+        </Pressable>
         <IconBtn name={torch ? 'flashlight' : 'flashlight-outline'} bg={torch ? colors.primary : 'rgba(255,255,255,0.15)'} color={colors.white} label={t('scan.torch')} onPress={() => (canUseCamera ? setTorch((t) => !t) : notify(t('scan.torch'), t('scan.torchOnlyApp')))} />
       </Row>
 
@@ -187,6 +195,41 @@ export default function Scan() {
       )}
 
 
+      <Modal visible={pickOpen} transparent animationType="fade" onRequestClose={() => setPickOpen(false)}>
+        <Pressable style={styles.pickBackdrop} onPress={() => setPickOpen(false)} accessibilityLabel={t('common.close')} />
+        <View style={[styles.pickSheet, { paddingBottom: insets.bottom + space.lg }]}>
+          <Txt v="bodyStrong">{t('scan.pickStoreTitle')}</Txt>
+          <Txt v="caption" color={colors.gray} style={{ marginTop: 2, marginBottom: space.sm }}>
+            {t('scan.pickStoreBody')}
+          </Txt>
+          <ScrollView style={{ maxHeight: 360 }}>
+            {cat.stores.map((s) => (
+              <Pressable
+                key={s.id}
+                onPress={() => {
+                  setPicked(s.id);
+                  setPickOpen(false);
+                }}
+                style={({ pressed }) => [styles.pickRow, pressed && { backgroundColor: colors.fill }]}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: s.id === hereId }}
+              >
+                <StoreAvatar store={s} size={28} />
+                <Txt v="body" style={{ flex: 1, marginLeft: 10, fontSize: 14 }}>
+                  {s.name}
+                </Txt>
+                {s.id === nearest && (
+                  <Txt v="caption" color={colors.gray} style={{ marginRight: 8, fontSize: 11 }}>
+                    {t('scan.nearestHint')}
+                  </Txt>
+                )}
+                {s.id === hereId && <Ionicons name="checkmark-circle" size={20} color={colors.success} />}
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      </Modal>
+
       {phase === 'found' && product && (
         <FoundSheet
           product={product}
@@ -228,11 +271,14 @@ function FoundSheet({
   const t = useT();
   const prices = sortedPrices(product);
   const c = cheapest(product);
-  const herePrice = product.prices[here];
+  const herePrice = here ? product.prices[here] : undefined;
   const hereStore = getStore(here);
   const diff = herePrice != null && c.price != null ? herePrice - c.price : null;
-  const verdict: { tone: 'success' | 'warning' | 'neutral'; title: string; body: string } =
-    herePrice == null
+  // No store known → no verdict. A cheapest price is still a fact; "good to
+  // buy here" without a "here" is not.
+  const verdict: { tone: 'success' | 'warning' | 'neutral'; title: string; body: string } | null = !here
+    ? null
+    : herePrice == null
       ? { tone: 'neutral', title: t('scan.notSoldHere', { store: hereStore.name }), body: t('scan.cheapestAt', { store: c.store.name, price: c.price?.toFixed(2) ?? '' }) }
       : diff != null && diff <= 0.05
         ? { tone: 'success', title: t('scan.goodBuy'), body: t('scan.goodBuyBody', { store: hereStore.name }) }
@@ -261,14 +307,16 @@ function FoundSheet({
         </Row>
 
         {/* Verdict for this store */}
-        <View style={[styles.verdict, verdict.tone === 'success' ? { backgroundColor: colors.successSoft } : verdict.tone === 'warning' ? { backgroundColor: colors.warningSoft } : { backgroundColor: colors.fill }]}>
-          <Txt v="bodyStrong" color={verdict.tone === 'success' ? colors.success : verdict.tone === 'warning' ? colors.warning : colors.gray}>
-            {verdict.title}
-          </Txt>
-          <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>
-            {verdict.body}
-          </Txt>
-        </View>
+        {verdict && (
+          <View style={[styles.verdict, verdict.tone === 'success' ? { backgroundColor: colors.successSoft } : verdict.tone === 'warning' ? { backgroundColor: colors.warningSoft } : { backgroundColor: colors.fill }]}>
+            <Txt v="bodyStrong" color={verdict.tone === 'success' ? colors.success : verdict.tone === 'warning' ? colors.warning : colors.gray}>
+              {verdict.title}
+            </Txt>
+            <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>
+              {verdict.body}
+            </Txt>
+          </View>
+        )}
 
         {/* Cheapest + list */}
         <Row style={{ marginTop: space.lg, justifyContent: 'space-between', alignItems: 'flex-end' }}>
@@ -360,7 +408,10 @@ const styles = StyleSheet.create({
   manualInput: { flex: 1, backgroundColor: 'rgba(255,255,255,0.12)', color: colors.white, borderRadius: 12, paddingHorizontal: 14, height: 44, fontFamily: fonts.semibold, fontSize: 16, letterSpacing: 1 },
   fakeCam: { backgroundColor: '#161616', alignItems: 'center', justifyContent: 'center' },
   center: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.xl },
-  hereChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 12, height: 36, borderRadius: radius.pill },
+  hereChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 12, height: 36, borderRadius: radius.pill, maxWidth: 200 },
+  pickBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
+  pickSheet: { backgroundColor: colors.white, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: space.lg },
+  pickRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4, borderRadius: radius.md },
   corner: { position: 'absolute', width: 36, height: 36 },
   laser: { position: 'absolute', left: 12, right: 12, height: 2, borderRadius: 1, opacity: 0.9 },
   sheet: {

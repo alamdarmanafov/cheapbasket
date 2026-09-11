@@ -13,6 +13,7 @@ import { PriceAlertCard } from '@/components/PriceAlertCard';
 import { cheapest, stalestMinutes } from '@/data/products';
 import { useBasket } from '@/store/basket';
 import { track } from '@/lib/track';
+import { confirmAsync } from '@/lib/confirm';
 import { useT } from '@/lib/i18n';
 
 export default function Basket() {
@@ -64,7 +65,15 @@ export default function Basket() {
           <Txt v="title">{t('basket.title')}</Txt>
           <Row gap={8}>
             <IconBtn name="bookmark-outline" bg={colors.white} onPress={() => router.push('/lists')} label={t('basket.myLists')} />
-            <IconBtn name="trash-outline" bg={colors.white} onPress={clear} label={t('basket.clear')} />
+            <IconBtn
+              name="trash-outline"
+              bg={colors.white}
+              label={t('basket.clear')}
+              // One tap on a trash icon wiped a fifteen-line basket. It asks now.
+              onPress={async () => {
+                if (await confirmAsync(t('basket.clear'), t('basket.clearAsk', { count }), t('common.delete'), true)) clear();
+              }}
+            />
           </Row>
         </Row>
         <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>

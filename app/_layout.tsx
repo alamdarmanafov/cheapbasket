@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -20,8 +20,13 @@ SplashScreen.preventAutoHideAsync().catch(() => undefined);
 /** Keeps the device's push token filed under whoever is signed in right now. */
 function PushTokenSync() {
   const { user } = useAuth();
+  // The user object is replaced on every token refresh; the account is not.
+  const synced = useRef<string | null>(null);
   useEffect(() => {
-    if (user) void syncPushToken(user.id);
+    const id = user?.id ?? null;
+    if (!id || synced.current === id) return;
+    synced.current = id;
+    void syncPushToken(id);
   }, [user]);
   return null;
 }
