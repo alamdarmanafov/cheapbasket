@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { tr } from './i18n';
 import { supabase } from './supabase';
 
@@ -8,6 +10,42 @@ export const PLUS_SKU_LIST: string[] = Object.values(PLUS_SKUS);
 
 /** Base URL of the admin/API deployment (e.g. https://cheapbasket-7ae9.vercel.app). */
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? '').replace(/\/$/, '');
+
+/**
+ * The last prices the store reported, kept so a lock badge on some other
+ * screen can say what Plus costs without opening a store connection of its
+ * own. The Plus screen refreshes them whenever it loads products; until the
+ * store has answered once on this device, there is simply no price to show.
+ */
+const PRICES_KEY = 'cb_plus_prices';
+type Prices = Partial<Record<PlusPeriod, string>>;
+let known: Prices = {};
+const priceListeners = new Set<(p: Prices) => void>();
+export function rememberPlusPrices(p: Prices): void {
+  if (!p.monthly && !p.yearly) return;
+  known = { ...known, ...p };
+  for (const fn of priceListeners) fn(known);
+  AsyncStorage.setItem(PRICES_KEY, JSON.stringify(known)).catch(() => undefined);
+}
+AsyncStorage.getItem(PRICES_KEY)
+  .then((raw) => {
+    if (!raw) return;
+    known = { ...(JSON.parse(raw) as Prices), ...known };
+    for (const fn of priceListeners) fn(known);
+  })
+  .catch(() => undefined);
+/** Last known store prices for Plus; empty until the store has answered once. */
+export function useKnownPlusPrices(): Prices {
+  const [p, setP] = useState<Prices>(known);
+  useEffect(() => {
+    priceListeners.add(setP);
+    setP(known);
+    return () => {
+      priceListeners.delete(setP);
+    };
+  }, []);
+  return p;
+}
 
 export interface PlusStore {
   /** false on web or when the store is not reachable — purchases only work in the native app. */

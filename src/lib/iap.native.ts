@@ -6,7 +6,7 @@ import { notify } from './confirm';
 import { celebrate } from './celebrate';
 import { track } from './track';
 import { useAuth } from '@/store/auth';
-import { API_URL, PLUS_SKUS, PLUS_SKU_LIST, PlusPeriod, PlusStore, verifyWithServer } from './plusStore';
+import { API_URL, PLUS_SKUS, PLUS_SKU_LIST, PlusPeriod, PlusStore, rememberPlusPrices, verifyWithServer } from './plusStore';
 
 const isPlusSku = (id: string | null | undefined) => !!id && PLUS_SKU_LIST.includes(id);
 
@@ -93,6 +93,7 @@ export function usePlusStore(): PlusStore {
     () => ({ monthly: priceOf(subscriptions, PLUS_SKUS.monthly), yearly: priceOf(subscriptions, PLUS_SKUS.yearly) }),
     [subscriptions],
   );
+  useEffect(() => rememberPlusPrices(prices), [prices]);
 
   const buy = useCallback(
     async (period: PlusPeriod) => {

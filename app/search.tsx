@@ -7,6 +7,7 @@ import { colors, radius, space } from '@/theme';
 import { Chip, Divider, Row, Txt } from '@/components/ui';
 import { ProductRow } from '@/components/product';
 import { ProductRowSkeleton, StateView } from '@/components/states';
+import { SuggestProduct } from '@/components/SuggestProduct';
 import { Product, catalogCategories, categoryEmoji, searchProducts } from '@/data/products';
 import { categoryLabel } from '@/data/categoryNames';
 import { useCatalog } from '@/store/catalog';
@@ -133,15 +134,22 @@ export default function Search() {
           keyboardShouldPersistTaps="handled"
         />
       ) : (
-        <StateView
-          emoji="🔍"
-          title={t('home.notFound')}
-          body={t('search.noResultBody', { q })}
-          cta={t('home.scanBarcode')}
-          onCta={() => router.push('/scan')}
-          secondary={t('search.clearSearch')}
-          onSecondary={() => setQ('')}
-        />
+        <View>
+          <StateView
+            emoji="🔍"
+            title={t('home.notFound')}
+            body={t('search.noResultBody', { q })}
+            cta={t('home.scanBarcode')}
+            onCta={() => router.push('/scan')}
+            secondary={t('search.clearSearch')}
+            onSecondary={() => setQ('')}
+          />
+          {/* A search that finds nothing is the other place someone holds a
+              product we do not list. The query is the name, prefilled. */}
+          <View style={{ paddingHorizontal: space.lg }}>
+            <SuggestProduct initialName={q} title={t('search.suggestTitle')} body={t('search.suggestBody', { points: 10 })} onDone={() => setQ('')} />
+          </View>
+        </View>
       )}
 
       {basket.count > 0 && (

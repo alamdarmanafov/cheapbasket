@@ -14,7 +14,8 @@ import { tr, activeLang } from './i18n';
  * purchase, because to the person holding the phone it is the same news.
  */
 
-const SEEN_KEY = 'cb_rewards_seen';
+export const REWARDS_SEEN_KEY = 'cb_rewards_seen';
+const SEEN_KEY = REWARDS_SEEN_KEY;
 
 interface Redeemed { days: number; cost: number; expires_at: string }
 

@@ -14,6 +14,7 @@ import { colors, fonts, radius, shadow, space } from '@/theme';
 import { Btn, Divider, IconBtn, Pill, Price, Row, Txt } from '@/components/ui';
 import { Freshness, ProductArt, StoreAvatar } from '@/components/product';
 import { StateView } from '@/components/states';
+import { SuggestProduct } from '@/components/SuggestProduct';
 import { Product, StoreId, catalog, cheapest, findByBarcode, getStore, sortedPrices } from '@/data/products';
 import { categoryLabel } from '@/data/categoryNames';
 import { normalizeGtin } from '@/lib/gtin';
@@ -45,9 +46,6 @@ export default function Scan() {
   // ever saw the product lookup's result; the code itself used to be gone by
   // the time the sheet came up.
   const [code, setCode] = useState('');
-  const [suggestName, setSuggestName] = useState('');
-  const [suggesting, setSuggesting] = useState(false);
-  const [reward, setReward] = useState(10);
   const lockRef = useRef(false);
   const camRef = useRef<CameraView>(null);
 
@@ -58,20 +56,6 @@ export default function Scan() {
   useEffect(() => {
     if (Platform.OS !== 'web' && permission && !permission.granted && permission.canAskAgain) requestPermission();
   }, [permission, requestPermission]);
-
-  // What a suggestion is worth is an admin setting, not a constant in the app.
-  useEffect(() => {
-    if (!supabase) return;
-    supabase
-      .from('app_settings')
-      .select('value')
-      .eq('key', 'points')
-      .maybeSingle()
-      .then(({ data }) => {
-        const v = Number((data?.value as { suggestion?: number } | null)?.suggestion);
-        if (Number.isFinite(v) && v > 0) setReward(v);
-      });
-  }, []);
 
   const resolve = (scanned: string, p: Product | undefined) => {
     if (lockRef.current) return;
@@ -94,30 +78,7 @@ export default function Scan() {
     setProduct(null);
     setAdded(false);
     setHint(null);
-    setSuggestName('');
     setPhase('scanning');
-  };
-
-  /** Queues the unknown barcode for the admin; the reward lands when it is approved. */
-  const suggest = async () => {
-    if (!supabase) return;
-    if (!auth.user) {
-      router.push('/auth');
-      return;
-    }
-    setSuggesting(true);
-    const { data, error } = await supabase.rpc('suggest_product', { p_barcode: code, p_name: suggestName.trim(), p_store_id: hereId || null });
-    setSuggesting(false);
-    if (error) {
-      notify(t('common.error'), error.message.replace(/^.*?: /, ''));
-      return;
-    }
-    const status = (data as { status?: string } | null)?.status;
-    track('suggest', { barcode: code, status: status ?? 'unknown', store_id: hereId });
-    if (status === 'exists') notify(t('scan.notFound'), t('scan.suggestExists'));
-    else if (status === 'pending') notify(t('scan.suggestThanks'), t('scan.suggestPending'));
-    else notify(t('scan.suggestThanks'), t('scan.suggestThanksBody', { points: reward }));
-    reset();
   };
 
   const canUseCamera = Platform.OS !== 'web' && permission?.granted;
@@ -154,7 +115,7 @@ export default function Scan() {
         <View style={styles.hereChip}>
           <StoreAvatar store={here} size={20} />
           <Txt v="captionStrong" color={colors.white} style={{ marginLeft: 6 }}>
-            {here.name}-dasan
+            {t('scan.youAreAt', { store: here.name })}
           </Txt>
         </View>
         <IconBtn name={torch ? 'flashlight' : 'flashlight-outline'} bg={torch ? colors.primary : 'rgba(255,255,255,0.15)'} color={colors.white} label={t('scan.torch')} onPress={() => (canUseCamera ? setTorch((t) => !t) : notify(t('scan.torch'), t('scan.torchOnlyApp')))} />
@@ -164,10 +125,10 @@ export default function Scan() {
         <View style={styles.center} pointerEvents="box-none">
           <Frame />
           <Txt v="bodyStrong" color={colors.white} center style={{ marginTop: space.xl }}>
-            Barkodu çərçivəyə gətir
+            {t('scan.frameHint')}
           </Txt>
           <Txt v="caption" color="rgba(255,255,255,0.7)" center style={{ marginTop: 4 }}>
-            Məhsul tanındıqdan sonra qiymətləri avtomatik müqayisə edəcəyik.
+            {t('scan.frameBody')}
           </Txt>
           <View style={{ marginTop: space.xxl, alignItems: 'center', gap: space.sm }}>
             {!canUseCamera && (
@@ -199,10 +160,10 @@ export default function Scan() {
         <View style={styles.center}>
           <Frame active />
           <Txt v="bodyStrong" color={colors.white} center style={{ marginTop: space.xl }}>
-            Məhsul axtarılır…
+            {t('scan.searching')}
           </Txt>
           <Txt v="caption" color="rgba(255,255,255,0.7)" center style={{ marginTop: 4 }}>
-            {cat.stores.length} marketdə qiymətlər yoxlanılır
+            {t('scan.searchingBody', { n: cat.stores.length })}
           </Txt>
         </View>
       )}
@@ -221,40 +182,7 @@ export default function Scan() {
           {/* "Not found" was a dead end: the person is holding a product we do
               not list and had no way to tell us. Now the code goes to the
               admin's queue with a name, and approval pays them back in points. */}
-          {code.length >= 8 && (
-            <View style={styles.suggestBox}>
-              <Row gap={space.sm}>
-                <Ionicons name="add-circle" size={20} color={colors.primary} />
-                <Txt v="bodyStrong" style={{ flex: 1 }}>
-                  {t('scan.suggest')}
-                </Txt>
-                <Txt v="caption" color={colors.gray} style={{ fontFamily: fonts.semibold }}>
-                  {code}
-                </Txt>
-              </Row>
-              <Txt v="caption" color={colors.gray} style={{ marginTop: 4 }}>
-                {t('scan.suggestBody', { points: reward })}
-              </Txt>
-              <TextInput
-                value={suggestName}
-                onChangeText={setSuggestName}
-                placeholder={t('scan.suggestName')}
-                placeholderTextColor={colors.grayLight}
-                returnKeyType="send"
-                onSubmitEditing={suggest}
-                style={styles.suggestInput}
-                maxLength={120}
-              />
-              <Btn
-                title={auth.user ? t('scan.suggestSend', { points: reward }) : t('scan.suggestSignIn')}
-                size="md"
-                loading={suggesting}
-                disabled={!!auth.user && suggestName.trim().length < 2}
-                onPress={suggest}
-                style={{ marginTop: space.sm }}
-              />
-            </View>
-          )}
+          {code.length >= 8 && <SuggestProduct barcode={code} storeId={hereId} title={t('scan.suggest')} onDone={reset} />}
         </View>
       )}
 
@@ -346,7 +274,7 @@ function FoundSheet({
         <Row style={{ marginTop: space.lg, justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <View>
             <Txt v="caption" color={colors.gray}>
-              Ən ucuz qiymət
+              {t('scan.cheapestLabel')}
             </Txt>
             {c.price != null && <Price value={c.price} size="lg" color={colors.primary} />}
             <Row gap={6} style={{ marginTop: 4 }}>
@@ -371,7 +299,7 @@ function FoundSheet({
                   </Txt>
                 ) : (
                   <Txt v="caption" color={colors.grayLight}>
-                    mövcud deyil
+                    {t('scan.unavailable')}
                   </Txt>
                 )}
               </Row>
@@ -435,24 +363,6 @@ const styles = StyleSheet.create({
   hereChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 12, height: 36, borderRadius: radius.pill },
   corner: { position: 'absolute', width: 36, height: 36 },
   laser: { position: 'absolute', left: 12, right: 12, height: 2, borderRadius: 1, opacity: 0.9 },
-  suggestBox: {
-    marginTop: space.md,
-    backgroundColor: colors.fill,
-    borderRadius: radius.lg,
-    padding: space.md,
-  },
-  suggestInput: {
-    marginTop: space.sm,
-    backgroundColor: colors.white,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.line,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    fontFamily: fonts.regular,
-    color: colors.dark,
-  },
   sheet: {
     position: 'absolute',
     left: 0,

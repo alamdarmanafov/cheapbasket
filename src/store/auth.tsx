@@ -9,7 +9,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, hasSupabase } from '@/lib/supabase';
 import { PlanId } from '@/data/plans';
 import { tr } from '@/lib/i18n';
-import { checkRewards } from '@/lib/rewards';
+import { checkRewards, REWARDS_SEEN_KEY } from '@/lib/rewards';
+import { unregisterPush } from '@/lib/notifications';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -210,6 +211,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return error ? { error: error.message } : {};
       },
       async signOut() {
+        // The push token stays with the device, and a token filed under this
+        // user would keep delivering their basket alerts to whoever signs in
+        // next on the same phone. It is unfiled first, while the session can
+        // still authorise the delete. The rewards marker goes too, so the
+        // next account does not inherit "already shown".
+        const uid = session?.user.id ?? null;
+        await unregisterPush(uid).catch(() => undefined);
+        await AsyncStorage.removeItem(REWARDS_SEEN_KEY).catch(() => undefined);
         await supabase?.auth.signOut();
         setProfile(null);
       },

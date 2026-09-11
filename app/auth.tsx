@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { LogoMark } from '@/components/Logo';
 import { useAuth } from '@/store/auth';
 import { useT, type Key } from '@/lib/i18n';
+import { SITE_URL } from '@/lib/links';
 
 type Mode = 'signin' | 'signup' | 'reset';
 
@@ -150,8 +151,18 @@ export default function AuthScreen() {
         )}
 
 
+        {/* "By continuing you agree to…" used to be plain text with nothing
+            to tap. The two documents it names are links now. */}
         <Txt v="caption" color={colors.grayLight} center style={{ marginTop: space.xl, fontSize: 11 }}>
-          {t('auth.terms')}
+          {t('auth.termsPrefix')}{' '}
+          <Txt v="caption" color={colors.gray} style={{ fontSize: 11, textDecorationLine: 'underline' }} onPress={() => Linking.openURL(`${SITE_URL}/terms`)}>
+            {t('auth.termsLink')}
+          </Txt>
+          {' '}{t('auth.termsAnd')}{' '}
+          <Txt v="caption" color={colors.gray} style={{ fontSize: 11, textDecorationLine: 'underline' }} onPress={() => Linking.openURL(`${SITE_URL}/privacy`)}>
+            {t('auth.privacyLink')}
+          </Txt>
+          {' '}{t('auth.termsSuffix')}
         </Txt>
       </ScrollView>
     </KeyboardAvoidingView>

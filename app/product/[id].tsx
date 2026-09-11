@@ -110,7 +110,7 @@ export default function ProductScreen() {
           ) : (
             <>
               <Txt v="caption" color={colors.gray}>
-                Ən ucuz qiymət
+                {t('prod.cheapestLabel')}
               </Txt>
               {c.regular != null && (
                 <Row gap={6} style={{ marginBottom: 2 }}>
@@ -130,7 +130,7 @@ export default function ProductScreen() {
         {/* Comparison */}
         <View style={{ paddingHorizontal: space.lg, marginTop: space.xl }}>
           <Row style={{ justifyContent: 'space-between', marginBottom: space.sm }}>
-            <Txt v="bodyStrong">Qiymət müqayisəsi</Txt>
+            <Txt v="bodyStrong">{t('prod.compareTitle')}</Txt>
             <Freshness minutes={product.updatedMinutesAgo} />
           </Row>
           <Card style={{ padding: space.xs }}>
@@ -156,13 +156,13 @@ export default function ProductScreen() {
         {/* History */}
         <View style={{ paddingHorizontal: space.lg, marginTop: space.xl }}>
           <Row gap={8} style={{ marginBottom: space.sm }}>
-            <Txt v="bodyStrong">Qiymət tarixçəsi</Txt>
+            <Txt v="bodyStrong">{t('prod.historyTitle')}</Txt>
             <PlusTag />
           </Row>
           {!hasHistory ? (
             <Card>
               <Txt v="caption" color={colors.gray}>
-                Hələ tarixçə yoxdur — qiymət hər dəyişəndə burada qrafik yığılacaq.
+                {t('prod.noHistory')}
               </Txt>
             </Card>
           ) : (
@@ -192,7 +192,7 @@ export default function ProductScreen() {
               <PlusTag />
             </Row>
             <Txt v="caption" color={colors.gray}>
-              AI eyni kateqoriyada 3 variant təklif edəcək
+              {t('prod.aiAlternatives')}
             </Txt>
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.grayLight} />

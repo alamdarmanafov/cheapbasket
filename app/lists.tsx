@@ -83,7 +83,7 @@ export default function Lists() {
             {!basket.isPlus && <PlusTag />}
           </Row>
           <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>
-            {basket.count} məhsul · {basket.isPlus ? t('lists.unlimited') : t('lists.freeLimit', { limit: FREE_LIMIT })}
+            {t('lists.itemCount', { count: basket.count })} · {basket.isPlus ? t('lists.unlimited') : t('lists.freeLimit', { limit: FREE_LIMIT })}
           </Txt>
           <Row gap={space.sm} style={{ marginTop: space.md }}>
             <TextInput value={name} onChangeText={setName} placeholder={t('lists.namePlaceholder')} placeholderTextColor={colors.grayLight} style={styles.input} returnKeyType="done" onSubmitEditing={save} />
@@ -92,11 +92,11 @@ export default function Lists() {
         </Card>
 
         <Txt v="bodyStrong" style={{ marginTop: space.xl, marginBottom: space.sm }}>
-          Yadda saxlanan siyahılar
+          {t('lists.savedTitle')}
         </Txt>
         {lists == null ? (
           <Txt v="caption" color={colors.gray}>
-            Yüklənir…
+            {t('common.loading')}
           </Txt>
         ) : lists.length === 0 ? (
           <StateView emoji="📋" title={t('lists.none')} body={t('lists.noneBody', { name: t('lists.namePlaceholder') })} />
@@ -119,7 +119,7 @@ export default function Lists() {
                   </View>
                   <Pressable onPress={() => loadInto(l)} accessibilityRole="button" style={styles.loadBtn}>
                     <Txt v="captionStrong" color={colors.white}>
-                      Səbətə yüklə
+                      {t('lists.loadToBasket')}
                     </Txt>
                   </Pressable>
                   <Pressable onPress={() => remove(l)} hitSlop={8} accessibilityLabel="Sil" accessibilityRole="button">
@@ -134,7 +134,7 @@ export default function Lists() {
           <Row gap={8} style={{ marginTop: space.md, alignItems: 'center' }}>
             <Pill tone="primary" text="PLUS" />
             <Txt v="caption" color={colors.gray} style={{ flex: 1 }}>
-              Limitsiz siyahı üçün Plus-a keç.
+              {t('lists.plusForUnlimited')}
             </Txt>
           </Row>
         )}

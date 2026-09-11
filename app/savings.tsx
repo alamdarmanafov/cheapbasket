@@ -89,16 +89,16 @@ export default function Savings() {
           <Card style={{ marginTop: space.lg, alignItems: 'center', padding: space.xl }}>
             <Txt style={{ fontSize: 36, lineHeight: 44 }}>🧺</Txt>
             <Txt v="bodyStrong" style={{ marginTop: space.sm }}>
-              Səbət yarat, qənaəti göstərək
+              {t('sav.emptyTitle')}
             </Txt>
             <Txt v="caption" color={colors.gray} center style={{ marginTop: 4 }}>
-              Aylıq statistika alış-verişlər qeydə alındıqca yığılacaq.
+              {t('sav.emptyBody')}
             </Txt>
           </Card>
         )}
 
         <Txt v="bodyStrong" style={{ marginTop: space.xl, marginBottom: space.sm }}>
-          Alış-veriş tarixçəsi
+          {t('sav.historyTitle')}
         </Txt>
         <PlusLock feature={t('sav.monthly')} minHeight={200}>
           <Row gap={space.md}>

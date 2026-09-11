@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import Constants from 'expo-constants';
+import { SITE_URL } from '@/lib/links';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,7 +18,7 @@ import * as StoreReview from 'expo-store-review';
 import { confirmAsync, notify } from '@/lib/confirm';
 import { LANGS, useI18n, type Key } from '@/lib/i18n';
 
-type RowDef = { key: Key; icon: keyof typeof Ionicons.glyphMap; value?: string; route?: string; plus?: boolean; action?: 'location' | 'rate' | 'language'; info?: boolean };
+type RowDef = { key: Key; icon: keyof typeof Ionicons.glyphMap; value?: string; route?: string; href?: string; plus?: boolean; action?: 'location' | 'rate' | 'language'; info?: boolean };
 const ROWS: RowDef[] = [
   { key: 'profile.rowAccount', icon: 'person-outline', route: '/account' },
   { key: 'profile.rowLocation', icon: 'location-outline', action: 'location' },
@@ -28,6 +30,9 @@ const ROWS: RowDef[] = [
   { key: 'profile.rowCurrency', icon: 'cash-outline', value: '₼ AZN', info: true },
   { key: 'profile.rowSupport', icon: 'chatbubble-ellipses-outline', route: '/feedback' },
   { key: 'profile.rowRate', icon: 'star-outline', action: 'rate' },
+  // The documents the sign-in screen names; reviewers look for them in-app.
+  { key: 'profile.rowPrivacy', icon: 'shield-checkmark-outline', href: `${SITE_URL}/privacy` },
+  { key: 'profile.rowTerms', icon: 'document-text-outline', href: `${SITE_URL}/terms` },
 ];
 
 export default function Profile() {
@@ -68,6 +73,7 @@ export default function Profile() {
   };
   const onRow = async (r: RowDef) => {
     if (r.route) return router.push(r.route as never);
+    if (r.href) return Linking.openURL(r.href).catch(() => undefined);
     if (r.action === 'location') return cat.requestLocation({ interactive: true });
     if (r.action === 'language') return setLangOpen(true);
     if (r.action === 'rate') {
@@ -237,6 +243,10 @@ export default function Profile() {
           </Pressable>
         ))}
       </View>
+
+      <Txt v="caption" color={colors.grayLight} center style={{ marginTop: space.md, fontSize: 11 }}>
+        {t('profile.version', { version: Constants.expoConfig?.version ?? '' })}
+      </Txt>
 
       {/* Account actions live at the very bottom, away from everyday settings. */}
       {auth.user && (

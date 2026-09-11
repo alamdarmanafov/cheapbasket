@@ -100,7 +100,7 @@ export function ResultSheet({ visible, onClose, onShowMap, onGoToStore }: { visi
                 >
                   <Ionicons name="location" size={15} color={colors.white} />
                   <Txt v="captionStrong" color={colors.white} style={{ marginLeft: 6 }}>
-                    Filiallara bax
+                    {t('result.seeBranchesShort')}
                   </Txt>
                 </Pressable>
               )}

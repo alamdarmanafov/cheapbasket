@@ -132,6 +132,7 @@ export function ProductRow({ product, showStore = true }: { product: Product; sh
 
 /** One line in a price comparison list. */
 export function PriceLine({ item, rank, best }: { item: StorePrice; rank: number; best: number }) {
+  const t = useT();
   const unavailable = item.price == null;
   const diff = item.price != null ? item.price - best : 0;
   return (
@@ -152,7 +153,7 @@ export function PriceLine({ item, rank, best }: { item: StorePrice; rank: number
         </Txt>
         {unavailable ? (
           <Txt v="caption" color={colors.grayLight}>
-            Hazırda mövcud deyil
+            {t('prod.unavailableNow')}
           </Txt>
         ) : rank === 0 ? (
           <Txt v="caption" color={colors.success}>
