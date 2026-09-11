@@ -17,15 +17,30 @@ create index if not exists pending_products_suggested_idx on pending_products (s
 update app_settings
    set value = value
      || jsonb_build_object('suggestion', 10)
+     || jsonb_build_object('suggestions_per_day', 30)
      || jsonb_build_object('plus_tiers', '[{"points":100,"days":7},{"points":200,"days":30},{"points":350,"days":90}]'::jsonb),
        updated_at = now()
  where key = 'points'
    and not (value ? 'plus_tiers');
 insert into app_settings (key, value)
-values ('points', '{"referral": 100, "trip": 10, "plus_cost": 300, "plus_days": 7, "trip_cooldown_hours": 6, "suggestion": 10, "plus_tiers": [{"points":100,"days":7},{"points":200,"days":30},{"points":350,"days":90}]}')
+values ('points', '{"referral": 100, "trip": 10, "plus_cost": 300, "plus_days": 7, "trip_cooldown_hours": 6, "suggestion": 10, "suggestions_per_day": 30, "plus_tiers": [{"points":100,"days":7},{"points":200,"days":30},{"points":350,"days":90}]}')
 on conflict (key) do nothing;
 
--- 3. The user queues a barcode from the scanner.
+-- 3. Every suggestion ever made, whatever became of it. The pending queue
+--    cannot carry the daily count: an approved row leaves it, and thirty quick
+--    approvals would open the door to thirty more the same afternoon.
+create table if not exists suggestion_log (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references auth.users(id) on delete cascade,
+  barcode    text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists suggestion_log_user_day_idx on suggestion_log (user_id, created_at desc);
+alter table suggestion_log enable row level security;
+drop policy if exists "own suggestions" on suggestion_log;
+create policy "own suggestions" on suggestion_log for select using (auth.uid() = user_id);
+
+-- 4. The user queues a barcode from the scanner.
 --    Security definer so it works whatever RLS the (hand-created) pending table
 --    has; the checks are the function's own.
 create or replace function public.suggest_product(p_barcode text, p_name text, p_store_id text default null)
@@ -34,7 +49,8 @@ declare
   uid uuid := auth.uid();
   code text := regexp_replace(coalesce(p_barcode, ''), '\D', '', 'g');
   nm text := left(btrim(coalesce(p_name, '')), 120);
-  open_count int;
+  per_day int := points_setting('suggestions_per_day', 30);
+  today int;
 begin
   if uid is null then raise exception 'Giriş tələb olunur'; end if;
   if length(code) < 8 or length(code) > 14 then raise exception 'Barkod düzgün deyil'; end if;
@@ -49,20 +65,21 @@ begin
     return jsonb_build_object('status', 'pending');
   end if;
 
-  -- Points make a queue worth flooding. Thirty open suggestions is more than
-  -- anyone fills in one shop visit; past that the admin clears the backlog first.
-  select count(*) into open_count from pending_products where suggested_by = uid;
-  if open_count >= 30 then raise exception 'Gözləyən təkliflərin çoxdur — admin yoxlayandan sonra davam et'; end if;
+  -- Points make a queue worth flooding. Thirty a day is more than anyone
+  -- fills in one shop visit and a hard ceiling on what a script can earn.
+  select count(*) into today from suggestion_log where user_id = uid and created_at > now() - interval '24 hours';
+  if today >= per_day then raise exception 'Günlük limit: % təklif. Sabah davam et.', per_day; end if;
 
   insert into pending_products (id, name, brand, barcode, size, category, store_id, source_name, suggested_by, suggested_at)
   values ('sug-' || code, nm, '', code, '', null, nullif(p_store_id, ''), 'İstifadəçi təklifi', uid, now())
   on conflict (id) do nothing;
-  return jsonb_build_object('status', 'queued');
+  insert into suggestion_log (user_id, barcode) values (uid, code);
+  return jsonb_build_object('status', 'queued', 'left', per_day - today - 1);
 end $$;
 revoke all on function public.suggest_product(text, text, text) from public;
 grant execute on function public.suggest_product(text, text, text) to authenticated;
 
--- 4. Points for an approved suggestion. Called by the admin API (service role)
+-- 5. Points for an approved suggestion. Called by the admin API (service role)
 --    once the pending row has become a product; once per barcode per user, so
 --    re-approving or a retried request cannot pay twice.
 create or replace function public.award_suggestion_points(p_user uuid, p_barcode text)
@@ -77,7 +94,7 @@ end $$;
 revoke all on function public.award_suggestion_points(uuid, text) from public, anon, authenticated;
 grant execute on function public.award_suggestion_points(uuid, text) to service_role;
 
--- 5. Tiers. The largest one the balance affords wins: 350 points is three
+-- 6. Tiers. The largest one the balance affords wins: 350 points is three
 --    months, which is a far better rate than 100 points three times over.
 create or replace function public.best_plus_tier(have int)
 returns table (cost int, days int) language sql stable as $$
@@ -108,7 +125,7 @@ begin
 end $$;
 revoke all on function public.apply_plus_tier(uuid, int, int) from public, anon, authenticated;
 
--- 6. Automatic redemption, for the signed-in user.
+-- 7. Automatic redemption, for the signed-in user.
 --
 --    Points are spent only when Plus is *needed*. While any Plus is running —
 --    paid, promo, or an earlier tier — the balance grows untouched; the moment
@@ -143,7 +160,7 @@ begin
 end $$;
 revoke all on function public.auto_redeem_points_for(uuid) from public, anon, authenticated;
 
--- 7. The manual button on the points screen: same tiers, but the user asked, so
+-- 8. The manual button on the points screen: same tiers, but the user asked, so
 --    it extends even a running subscription.
 create or replace function public.redeem_points_for_plus()
 returns jsonb language plpgsql security definer set search_path = public as $$
@@ -160,7 +177,7 @@ begin
 end $$;
 grant execute on function public.redeem_points_for_plus() to authenticated;
 
--- 8. Earning credits the balance and then lets the tier check run, so a
+-- 9. Earning credits the balance and then lets the tier check run, so a
 --    referral or a shopping trip that crosses a line turns into Plus right there.
 create or replace function public.add_points(uid uuid, d int, why text, r text)
 returns void language plpgsql security definer set search_path = public as $$
