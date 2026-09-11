@@ -1,4 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
+import { notify } from '@/lib/confirm';
+import { track } from '@/lib/track';
+import { useAuth } from '@/store/auth';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -148,8 +152,26 @@ function BestStoreView({
     );
   }
 
+  const auth = useAuth();
+  const [logging, setLogging] = useState(false);
   const best = o.best;
   const chosen = o.ranked.find((r) => r.store.id === chosenStore) ?? best;
+  const logTrip = async () => {
+    if (!supabase) return;
+    if (!auth.user) {
+      router.push('/auth');
+      return;
+    }
+    setLogging(true);
+    const branchForTrip = nearestBranch(chosen.store.id);
+    const saving = chosen.store.id === best.store.id ? o.saving : Math.max(0, (o.worst?.total ?? chosen.total) - chosen.total);
+    const { data, error } = await supabase.rpc('record_trip', { p_store_id: chosen.store.id, p_branch_id: branchForTrip?.id ?? null, p_total: Number(chosen.total.toFixed(2)), p_saving: Number(saving.toFixed(2)), p_items: lines.length });
+    setLogging(false);
+    if (error) return notify(t('common.error'), error.message.replace(/^.*?: /, ''));
+    const earned = (data as { points_earned?: number } | null)?.points_earned ?? 0;
+    track('trip', { store_id: chosen.store.id, total: chosen.total, earned });
+    notify(t('markets.boughtThanks'), earned > 0 ? t('markets.boughtBodyPoints', { n: earned }) : t('markets.boughtBody'));
+  };
   const isBest = chosen.store.id === best.store.id;
   const branch = nearestBranch(chosen.store.id);
   const worst = o.worst;
@@ -193,6 +215,20 @@ function BestStoreView({
             </Txt>
           </>
         )}
+
+        {/* Purchases made through the app get written down: the trip goes to
+            the savings history and earns points, and the month's board counts
+            it. One tap, after the shopping, on the store you actually used. */}
+        <Btn
+          title={t('markets.boughtHere', { store: chosen.store.name })}
+          variant="secondary"
+          size="md"
+          full={false}
+          icon="checkmark-done"
+          loading={logging}
+          onPress={logTrip}
+          style={{ marginTop: space.md }}
+        />
 
         {/*
           * Every store, one per line, best first.

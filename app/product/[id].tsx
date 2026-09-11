@@ -20,11 +20,15 @@ import { useT } from '@/lib/i18n';
 import { useRefresh } from '@/lib/useRefresh';
 import { notify } from '@/lib/confirm';
 import { productUrl } from '@/lib/links';
+import { track } from '@/lib/track';
+import { useAuth } from '@/store/auth';
+import { supabase } from '@/lib/supabase';
 
 /** Product comparison + detail: one screen, price first. */
 export default function ProductScreen() {
   const t = useT();
   const router = useRouter();
+  const auth = useAuth();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const basket = useBasket();
@@ -63,6 +67,30 @@ export default function ProductScreen() {
   const best = basket.optimization.best;
   const atBest = best ? product.prices[best.store.id] : null;
 
+  const [watching, setWatching] = useState(false);
+  const [watchBusy, setWatchBusy] = useState(false);
+  useEffect(() => {
+    if (!supabase || !auth.user || !product) return;
+    supabase.from('price_alerts').select('product_id').eq('user_id', auth.user.id).eq('product_id', product.id).maybeSingle().then(({ data }) => setWatching(!!data));
+  }, [auth.user, product?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const toggleWatch = async () => {
+    if (!supabase || !product) return;
+    if (!auth.user) {
+      router.push('/auth');
+      return;
+    }
+    setWatchBusy(true);
+    const next = !watching;
+    const { error } = next
+      ? await supabase.from('price_alerts').upsert({ user_id: auth.user.id, product_id: product.id })
+      : await supabase.from('price_alerts').delete().eq('user_id', auth.user.id).eq('product_id', product.id);
+    setWatchBusy(false);
+    if (error) return notify(t('common.error'), error.message);
+    setWatching(next);
+    track('watch', { product_id: product.id, on: next });
+    notify(t(next ? 'prod.watchOn' : 'prod.watchOff'), t(next ? 'prod.watchOnBody' : 'prod.watchOffBody', { name: `${product.brand} ${product.name}`.trim() }));
+  };
+
   /** System share sheet: cheapest price + link to the web version of this product. */
   const share = async () => {
     const url = productUrl(product.id);
@@ -85,7 +113,17 @@ export default function ProductScreen() {
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScreenHeader
         title={`${product.brand} ${product.name} ${product.size}`}
-        right={<Pressable hitSlop={8} accessibilityLabel={t('prod.share')} accessibilityRole="button" onPress={share}><Ionicons name="share-outline" size={22} color={colors.dark} /></Pressable>}
+        right={
+          <Row gap={14}>
+            {/* Watch a product without putting it in the basket: the bell files
+                a price_alerts row, and the alert sweep reads it alongside the
+                basket. */}
+            <Pressable hitSlop={8} accessibilityLabel={t(watching ? 'prod.watching' : 'prod.watch')} accessibilityRole="button" onPress={toggleWatch} disabled={watchBusy}>
+              <Ionicons name={watching ? 'notifications' : 'notifications-outline'} size={22} color={watching ? colors.primary : colors.dark} />
+            </Pressable>
+            <Pressable hitSlop={8} accessibilityLabel={t('prod.share')} accessibilityRole="button" onPress={share}><Ionicons name="share-outline" size={22} color={colors.dark} /></Pressable>
+          </Row>
+        }
       />
       <ScrollView contentContainerStyle={{ paddingBottom: 140 }} refreshControl={refresh.control}>
         {/* Hero */}

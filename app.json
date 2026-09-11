@@ -46,6 +46,11 @@
               "scheme": "https",
               "host": "cheapmarket.app",
               "pathPrefix": "/p"
+            },
+            {
+              "scheme": "https",
+              "host": "cheapmarket.app",
+              "pathPrefix": "/r"
             }
           ],
           "category": [

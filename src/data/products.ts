@@ -179,13 +179,55 @@ const norm = (s: string) =>
     .replace(/ç/g, 'c')
     .replace(/ğ/g, 'g');
 
+/** Edit distance capped at 2: enough to say "one letter off" without walking the whole matrix. */
+function within1(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0;
+  let j = 0;
+  let edits = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) {
+      i++;
+      j++;
+      continue;
+    }
+    if (++edits > 1) return false;
+    if (a.length > b.length) i++;
+    else if (b.length > a.length) j++;
+    else {
+      i++;
+      j++;
+    }
+  }
+  return edits + (a.length - i) + (b.length - j) <= 1;
+}
+
 export function searchProducts(query: string): Product[] {
   const q = norm(query.trim());
   if (!q) return [];
   // The category is stored in Azerbaijani, so someone reading the app in English
   // would type the word on the chip in front of them and match nothing. Both the
   // stored name and the displayed one are searched.
-  return catalog.products.filter((p) => norm(`${p.brand} ${p.name} ${p.category} ${categoryLabel(p.category)}`).includes(q));
+  //
+  // Exact substring matches come first. Behind them, a word of four letters
+  // or more may be one letter off from a word in the product — "yumrta" finds
+  // yumurta, "qatiq" already did through normalisation. Shorter words stay
+  // exact: at three letters one edit matches half the dictionary.
+  const words = q.split(/\s+/).filter(Boolean);
+  const exact: Product[] = [];
+  const near: Product[] = [];
+  for (const p of catalog.products) {
+    const hay = norm(`${p.brand} ${p.name} ${p.category} ${categoryLabel(p.category)}`);
+    if (hay.includes(q)) {
+      exact.push(p);
+      continue;
+    }
+    const tokens = hay.split(/[^a-z0-9]+/).filter(Boolean);
+    const ok = words.every((w) => hay.includes(w) || (w.length >= 4 && tokens.some((tk) => within1(w, tk))));
+    if (ok) near.push(p);
+  }
+  return [...exact, ...near];
 }
 
 /** Category names present in the current catalog, in admin order (for chips). */

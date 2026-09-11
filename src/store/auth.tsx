@@ -8,7 +8,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, hasSupabase } from '@/lib/supabase';
 import { PlanId } from '@/data/plans';
-import { tr } from '@/lib/i18n';
+import { tr, useI18n } from '@/lib/i18n';
 import { checkRewards, REWARDS_SEEN_KEY } from '@/lib/rewards';
 import { unregisterPush } from '@/lib/notifications';
 
@@ -66,6 +66,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const d = p.get('error_description') || p.get('error');
     return d ? decodeURIComponent(d.replace(/\+/g, ' ')) : null;
   });
+
+  // The reader's language rides on the profile so a push arrives in it. The
+  // provider sits inside I18nProvider, so the value is the one on screen.
+  const { lang } = useI18n();
+  useEffect(() => {
+    const uid = session?.user.id;
+    if (!supabase || !uid) return;
+    supabase.from('profiles').upsert({ user_id: uid, lang }).then(() => undefined, () => undefined);
+  }, [lang, session?.user.id]);
 
   const loadProfile = useCallback(async (userId: string | undefined, opts: { rewards?: boolean } = {}) => {
     if (!supabase || !userId) {
