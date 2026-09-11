@@ -15,6 +15,8 @@ import { Btn, Divider, IconBtn, Pill, Price, Row, Txt } from '@/components/ui';
 import { Freshness, ProductArt, StoreAvatar } from '@/components/product';
 import { StateView } from '@/components/states';
 import { SuggestProduct } from '@/components/SuggestProduct';
+import { UnitPrice } from '@/components/UnitPrice';
+import { pushRecent, readRecents, RECENT_SCANS } from '@/lib/recents';
 import { Product, StoreId, catalog, cheapest, findByBarcode, getStore, sortedPrices } from '@/data/products';
 import { categoryLabel } from '@/data/categoryNames';
 import { normalizeGtin } from '@/lib/gtin';
@@ -46,6 +48,11 @@ export default function Scan() {
   // ever saw the product lookup's result; the code itself used to be gone by
   // the time the sheet came up.
   const [code, setCode] = useState('');
+  const [recentIds, setRecentIds] = useState<string[]>([]);
+  useEffect(() => {
+    readRecents(RECENT_SCANS).then(setRecentIds);
+  }, []);
+  const recentProducts = recentIds.map((id) => cat.products.find((p) => p.id === id)).filter((p): p is Product => !!p);
   const lockRef = useRef(false);
   const camRef = useRef<CameraView>(null);
 
@@ -74,6 +81,7 @@ export default function Scan() {
       if (p) {
         setProduct(p);
         setPhase('found');
+        pushRecent(RECENT_SCANS, p.id).then(setRecentIds);
       } else {
         setPhase('notfound');
       }
@@ -161,6 +169,24 @@ export default function Scan() {
               </View>
             )}
           </View>
+        </View>
+      )}
+
+      {phase === 'scanning' && recentProducts.length > 0 && (
+        <View style={[styles.recentRow, { bottom: insets.bottom + 92 }]} pointerEvents="box-none">
+          <Txt v="caption" color="rgba(255,255,255,0.7)" style={{ marginLeft: space.lg, marginBottom: 6 }}>
+            {t('scan.recent')}
+          </Txt>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: space.lg, gap: 8 }}>
+            {recentProducts.map((p) => (
+              <Pressable key={p.id} onPress={() => router.push(`/product/${p.id}`)} style={styles.recentChip} accessibilityRole="button">
+                <ProductArt product={p} size={24} emojiScale={0.6} />
+                <Txt v="captionStrong" color={colors.white} numberOfLines={1} style={{ marginLeft: 6, maxWidth: 140 }}>
+                  {p.brand} {p.name}
+                </Txt>
+              </Pressable>
+            ))}
+          </ScrollView>
         </View>
       )}
 
@@ -325,6 +351,7 @@ function FoundSheet({
               {t('scan.cheapestLabel')}
             </Txt>
             {c.price != null && <Price value={c.price} size="lg" color={colors.primary} />}
+            <UnitPrice price={c.price} size={product.size} />
             <Row gap={6} style={{ marginTop: 4 }}>
               <StoreAvatar store={c.store} size={20} />
               <Txt v="captionStrong">{c.store.name}</Txt>
@@ -409,6 +436,8 @@ const styles = StyleSheet.create({
   fakeCam: { backgroundColor: '#161616', alignItems: 'center', justifyContent: 'center' },
   center: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.xl },
   hereChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 12, height: 36, borderRadius: radius.pill, maxWidth: 200 },
+  recentRow: { position: 'absolute', left: 0, right: 0 },
+  recentChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: radius.pill, paddingHorizontal: 10, height: 36 },
   pickBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   pickSheet: { backgroundColor: colors.white, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: space.lg },
   pickRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4, borderRadius: radius.md },

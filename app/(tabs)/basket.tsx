@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,7 +13,8 @@ import { PriceAlertCard } from '@/components/PriceAlertCard';
 import { cheapest, stalestMinutes } from '@/data/products';
 import { useBasket } from '@/store/basket';
 import { track } from '@/lib/track';
-import { confirmAsync } from '@/lib/confirm';
+import { confirmAsync, notify } from '@/lib/confirm';
+import { SITE_URL } from '@/lib/links';
 import { useT } from '@/lib/i18n';
 
 export default function Basket() {
@@ -30,6 +31,21 @@ export default function Basket() {
   useEffect(() => {
     if (params.compare && lines.length) setShowResult(true);
   }, [params.compare, lines.length]);
+
+  /** The list as a message — the "buy these" a household sends itself. */
+  const shareBasket = async () => {
+    const items = lines.map((l) => `• ${l.qty > 1 ? `${l.qty}× ` : ''}${l.product.brand} ${l.product.name} ${l.product.size}`.trim()).join('\n');
+    const message = t('basket.shareText', { items, store: best?.store.name ?? '—', total: (best?.total ?? 0).toFixed(2), url: SITE_URL });
+    track('share', { what: 'basket', items: lines.length });
+    try {
+      if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(message);
+        notify(t('prod.copied'), t('prod.copiedBody'));
+      } else await Share.share({ message });
+    } catch {
+      /* dismissed */
+    }
+  };
 
   const compare = () => {
     track('compare', { store_id: o.best?.store.id ?? null, items: lines.length, total: o.best?.total ?? null, saving: o.saving });
@@ -64,6 +80,7 @@ export default function Basket() {
         <Row style={{ justifyContent: 'space-between' }}>
           <Txt v="title">{t('basket.title')}</Txt>
           <Row gap={8}>
+            <IconBtn name="share-outline" bg={colors.white} onPress={shareBasket} label={t('basket.share')} />
             <IconBtn name="bookmark-outline" bg={colors.white} onPress={() => router.push('/lists')} label={t('basket.myLists')} />
             <IconBtn
               name="trash-outline"

@@ -13,6 +13,7 @@ import { colors } from '@/theme';
 import { hasSupabase } from '@/lib/supabase';
 import { syncPushToken, useNotificationDeepLink } from '@/lib/notifications';
 import { track } from '@/lib/track';
+import { setMonitoredUser, withMonitoring } from '@/lib/monitoring';
 import { View, Text } from 'react-native';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
@@ -20,6 +21,7 @@ SplashScreen.preventAutoHideAsync().catch(() => undefined);
 /** Keeps the device's push token filed under whoever is signed in right now. */
 function PushTokenSync() {
   const { user } = useAuth();
+  useEffect(() => setMonitoredUser(user?.id ?? null), [user?.id]);
   // The user object is replaced on every token refresh; the account is not.
   const synced = useRef<string | null>(null);
   useEffect(() => {
@@ -31,7 +33,7 @@ function PushTokenSync() {
   return null;
 }
 
-export default function RootLayout() {
+function RootLayout() {
   const [loaded, error] = useFonts({ Inter_400Regular, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold });
   useNotificationDeepLink();
 
@@ -84,3 +86,5 @@ export default function RootLayout() {
     </I18nProvider>
   );
 }
+
+export default withMonitoring(RootLayout);

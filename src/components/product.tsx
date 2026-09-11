@@ -8,6 +8,7 @@ import { useT } from '@/lib/i18n';
 import { Price, Row, Txt } from './ui';
 import { useBasket } from '@/store/basket';
 import { freshness, freshnessLevel } from '@/lib/format';
+import { UnitPrice } from './UnitPrice';
 
 /** Product visual on a soft tinted background — stands in for photography. */
 export function ProductArt({ product, size = 56, emojiScale = 0.5 }: { product: Product; size?: number; emojiScale?: number }) {
@@ -110,6 +111,7 @@ export function ProductRow({ product, showStore = true }: { product: Product; sh
       <View style={{ alignItems: 'flex-end', marginLeft: space.sm }}>
         {c.regular != null && <OldPrice value={c.regular} />}
         {c.price != null ? <Price value={c.price} size="sm" color={c.regular != null ? colors.primary : colors.dark} /> : <Txt v="caption" color={colors.gray}>—</Txt>}
+        <UnitPrice price={c.price} size={product.size} />
       </View>
       <Pressable
         onPress={(e) => {

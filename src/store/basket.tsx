@@ -1,4 +1,6 @@
 import { track } from '@/lib/track';
+import * as Haptics from 'expo-haptics';
+import { Platform } from 'react-native';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from './auth';
@@ -116,6 +118,8 @@ export function BasketProvider({ children }: { children: React.ReactNode }) {
 
   const add = useCallback((p: Product, qty = 1) => {
     track('basket_add', { product_id: p.id });
+    // A small tap under the thumb says "added" faster than the icon change.
+    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
     setEntries((es) => {
       const i = es.findIndex((e) => e.id === p.id);
       if (i >= 0) {

@@ -7,6 +7,7 @@ import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg'
 import { colors, radius, shadow, space } from '@/theme';
 import { Btn, Card, Divider, Pill, Price, Row, Txt } from '@/components/ui';
 import { Freshness, OldPrice, PriceLine, ProductArt, StoreAvatar } from '@/components/product';
+import { UnitPrice } from '@/components/UnitPrice';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { StateView } from '@/components/states';
 import { PlusLock, PlusTag } from '@/components/PlusLock';
@@ -18,7 +19,7 @@ import { useBasket } from '@/store/basket';
 import { useT } from '@/lib/i18n';
 import { useRefresh } from '@/lib/useRefresh';
 import { notify } from '@/lib/confirm';
-import { SITE_URL } from '@/lib/links';
+import { productUrl } from '@/lib/links';
 
 /** Product comparison + detail: one screen, price first. */
 export default function ProductScreen() {
@@ -64,7 +65,7 @@ export default function ProductScreen() {
 
   /** System share sheet: cheapest price + link to the web version of this product. */
   const share = async () => {
-    const url = SITE_URL;
+    const url = productUrl(product.id);
     const message = c.price != null ? t('prod.shareText', { product: `${product.brand} ${product.name} ${product.size}`, store: c.store.name, price: c.price.toFixed(2), url }) : t('prod.shareNoPrice', { product: `${product.brand} ${product.name} ${product.size}`, url });
     try {
       if (Platform.OS === 'web' && typeof navigator !== 'undefined' && (navigator as Navigator & { share?: (d: { title: string; text: string; url: string }) => Promise<void> }).share) {
@@ -119,6 +120,7 @@ export default function ProductScreen() {
                 </Row>
               )}
               <Price value={c.price ?? 0} size="xl" color={colors.primary} />
+              <UnitPrice price={c.price} size={product.size} fontSize={12} />
               <Row gap={6} style={{ marginTop: 4 }}>
                 <StoreAvatar store={c.store} size={22} />
                 <Txt v="bodyStrong">{c.store.name}</Txt>
