@@ -176,6 +176,10 @@ export default function Basket() {
           setShowResult(false);
           router.push({ pathname: '/(tabs)/markets', params: { view: 'branches', store: storeId } });
         }}
+        onShop={(storeId) => {
+          setShowResult(false);
+          router.push({ pathname: '/shop', params: { store: storeId } } as never);
+        }}
       />
     </View>
   );

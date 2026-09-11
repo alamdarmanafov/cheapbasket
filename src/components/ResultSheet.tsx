@@ -13,7 +13,7 @@ import { useT } from '@/lib/i18n';
  * Market comparison bottom sheet.
  * Shows all stores ranked by basket total, best store highlighted.
  */
-export function ResultSheet({ visible, onClose, onShowMap, onGoToStore }: { visible: boolean; onClose: () => void; onShowMap: () => void; onGoToStore?: (storeId: string) => void }) {
+export function ResultSheet({ visible, onClose, onShowMap, onGoToStore, onShop }: { visible: boolean; onClose: () => void; onShowMap: () => void; onGoToStore?: (storeId: string) => void; onShop?: (storeId: string) => void }) {
   const insets = useSafeAreaInsets();
   const { optimization: o, count, lines } = useBasket();
   const t = useT();
@@ -91,6 +91,9 @@ export function ResultSheet({ visible, onClose, onShowMap, onGoToStore }: { visi
                 <View style={{ marginTop: 6 }}>
                   <Freshness minutes={stalestMinutes(lines.map((l) => l.product))} label={t('result.checked')} />
                 </View>
+              )}
+              {onShop && (
+                <Btn title={t('shop.start')} icon="cart" size="md" onPress={() => onShop(best.store.id)} style={{ marginTop: space.md }} />
               )}
               {onGoToStore && (
                 <Pressable
