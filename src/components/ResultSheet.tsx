@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, space } from '@/theme';
 import { Btn, Divider, Pill, Price, Row, Txt } from './ui';
 import { Freshness, StoreAvatar } from './product';
+import { PriceAlertCard } from './PriceAlertCard';
 import { useBasket } from '@/store/basket';
 import { stalestMinutes, storeLabel, storeProductCount } from '@/data/products';
 import { useT } from '@/lib/i18n';
@@ -172,6 +173,9 @@ export function ResultSheet({ visible, onClose, onShowMap, onGoToStore, onShop }
               </View>
             )}
 
+            {/* The moment someone has just seen what their basket costs is the
+                moment "tell me when it gets cheaper" makes sense. */}
+            <PriceAlertCard lines={lines.length} />
             <Btn title={t('common.close')} variant="ghost" size="md" onPress={onClose} style={{ marginTop: space.lg }} />
           </ScrollView>
         )}

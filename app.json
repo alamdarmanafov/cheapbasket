@@ -92,7 +92,14 @@
         }
       ],
       "expo-web-browser",
-      "expo-iap"
+      "expo-iap",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Çekin şəklini çəkmək üçün kameraya icazə lazımdır.",
+          "photosPermission": "Çekin şəklini seçmək üçün foto kitabxanasına icazə lazımdır."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": false

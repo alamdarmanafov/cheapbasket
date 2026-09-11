@@ -1,5 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import ViewShot from 'react-native-view-shot';
+import * as Sharing from 'expo-sharing';
+import { LogoMark } from '@/components/Logo';
+import { track } from '@/lib/track';
+import { ScrollView, Share, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { colors, radius, space } from '@/theme';
@@ -41,11 +45,45 @@ export default function Savings() {
   const best = o.best;
   const worst = o.worst;
   const hasBasket = lines.length > 0 && !!best;
+  const shotRef = useRef<React.ElementRef<typeof ViewShot>>(null);
+  const shareCard = async () => {
+    try {
+      const uri = await shotRef.current?.capture?.();
+      if (!uri) return;
+      track('share', { what: 'savings_card', month_saving: monthSaving });
+      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: t('sav.shareCard') });
+      else await Share.share({ message: `${t('sav.cardTitle')} ${monthSaving.toFixed(2)} ₼ — cheapmarket.app` });
+    } catch {
+      /* dismissed */
+    }
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScreenHeader title={t('sav.title')} />
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxxl }} refreshControl={refresh.control}>
+        {/* The month's number as a picture: what a story post needs. Captured
+            off the same card that is on screen, so it never looks different
+            from what the reader saw. */}
+        <ViewShot ref={shotRef} options={{ format: 'png', quality: 1 }} style={styles.shareCard}>
+          <Row style={{ justifyContent: 'space-between' }}>
+            <LogoMark size={28} />
+            <Txt v="caption" color="rgba(255,255,255,0.75)">
+              cheapmarket.app
+            </Txt>
+          </Row>
+          <Txt v="body" color="rgba(255,255,255,0.85)" style={{ marginTop: space.lg }}>
+            {t('sav.cardTitle')}
+          </Txt>
+          <Txt v="display" color={colors.white}>
+            {monthSaving.toFixed(2)} ₼
+          </Txt>
+          <Txt v="caption" color="rgba(255,255,255,0.75)">
+            {t('sav.cardBody', { n: thisMonth.length })}
+          </Txt>
+        </ViewShot>
+        <Btn title={t('sav.shareCard')} variant="secondary" size="md" icon="share-social" onPress={shareCard} style={{ marginTop: space.sm, marginBottom: space.md }} />
+
         <View style={styles.hero}>
           <Txt v="body" color="rgba(255,255,255,0.8)">
             {hasBasket ? t('sav.thisBasket') : t('sav.notYet')}
@@ -154,5 +192,6 @@ function Stat({ value, label }: { value: string; label: string }) {
 }
 
 const styles = StyleSheet.create({
+  shareCard: { backgroundColor: colors.primary, borderRadius: radius.xl, padding: space.xl, marginBottom: space.sm },
   hero: { backgroundColor: colors.success, borderRadius: radius.xl, padding: space.xl },
 });

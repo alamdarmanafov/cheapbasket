@@ -10,6 +10,7 @@ import { Price, Row, Txt } from './ui';
 import { useBasket } from '@/store/basket';
 import { freshness, freshnessLevel } from '@/lib/format';
 import { UnitPrice } from './UnitPrice';
+import { daysLeft } from '@/lib/discount';
 
 /** Product visual on a soft tinted background — stands in for photography. */
 export function ProductArt({ product, size = 56, emojiScale = 0.5 }: { product: Product; size?: number; emojiScale?: number }) {
@@ -115,6 +116,12 @@ export function ProductRow({ product, showStore = true }: { product: Product; sh
         {c.regular != null && <OldPrice value={c.regular} />}
         {c.price != null ? <Price value={c.price} size="sm" color={c.regular != null ? colors.primary : colors.dark} /> : <Txt v="caption" color={colors.gray}>—</Txt>}
         <UnitPrice price={c.price} size={product.size} />
+        {/* A discount about to end is worth a word: the price on the row will
+            not be there next week. */}
+        {c.regular != null && (() => {
+          const d = daysLeft(product.discountEnds?.[c.store.id]);
+          return d != null && d <= 3 ? <Txt v="caption" color={colors.warning} style={{ fontSize: 10 }}>{d === 0 ? t('deal.endsToday') : t('deal.endsIn', { n: d })}</Txt> : null;
+        })()}
       </View>
       <Pressable
         onPress={(e) => {

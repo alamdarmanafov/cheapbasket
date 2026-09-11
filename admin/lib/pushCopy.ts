@@ -14,6 +14,8 @@ export const langOf = (p: { lang?: string | null } | null | undefined): Lang => 
 
 const C = {
   az: {
+    receiptTitle: (pts: number) => `Çekin qəbul edildi 🧾 +${pts} xal`,
+    receiptBody: (n: number) => `${n} qiymət yeniləndi. Təşəkkürlər!`,
     dropOne: (n: string) => `${n} ucuzlaşdı 🔻`,
     dropMany: (n: number) => `Səbətindəki ${n} məhsul ucuzlaşdı 🔻`,
     watchMany: (n: number) => `İzlədiyin ${n} məhsul ucuzlaşdı 🔻`,
@@ -26,6 +28,8 @@ const C = {
     aiLang: 'Azərbaycan dilində',
   },
   en: {
+    receiptTitle: (pts: number) => `Receipt approved 🧾 +${pts} points`,
+    receiptBody: (n: number) => `${n} prices updated. Thank you!`,
     dropOne: (n: string) => `${n} just got cheaper 🔻`,
     dropMany: (n: number) => `${n} items in your basket got cheaper 🔻`,
     watchMany: (n: number) => `${n} items you watch got cheaper 🔻`,
@@ -38,6 +42,8 @@ const C = {
     aiLang: 'in English',
   },
   tr: {
+    receiptTitle: (pts: number) => `Fişin kabul edildi 🧾 +${pts} puan`,
+    receiptBody: (n: number) => `${n} fiyat güncellendi. Teşekkürler!`,
     dropOne: (n: string) => `${n} ucuzladı 🔻`,
     dropMany: (n: number) => `Sepetindeki ${n} ürün ucuzladı 🔻`,
     watchMany: (n: number) => `Takip ettiğin ${n} ürün ucuzladı 🔻`,
@@ -50,6 +56,8 @@ const C = {
     aiLang: 'Türkçe',
   },
   ru: {
+    receiptTitle: (pts: number) => `Чек принят 🧾 +${pts} баллов`,
+    receiptBody: (n: number) => `Обновлено цен: ${n}. Спасибо!`,
     dropOne: (n: string) => `${n} подешевел 🔻`,
     dropMany: (n: number) => `В корзине подешевело товаров: ${n} 🔻`,
     watchMany: (n: number) => `Подешевело отслеживаемых товаров: ${n} 🔻`,

@@ -11,6 +11,7 @@ import { StateView } from '@/components/states';
 import { ResultSheet } from '@/components/ResultSheet';
 import { PriceAlertCard } from '@/components/PriceAlertCard';
 import { cheapest, stalestMinutes } from '@/data/products';
+import { suggestSubstitute } from '@/lib/substitute';
 import { useBasket } from '@/store/basket';
 import { track } from '@/lib/track';
 import { confirmAsync, notify } from '@/lib/confirm';
@@ -23,7 +24,7 @@ export default function Basket() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ compare?: string }>();
-  const { lines, count, setQty, remove, clear, optimization: o, setChosenStore } = useBasket();
+  const { lines, count, setQty, remove, add, clear, optimization: o, setChosenStore } = useBasket();
   const [showResult, setShowResult] = useState(false);
   const best = o.best;
 
@@ -125,6 +126,18 @@ export default function Basket() {
                     ) : (
                       <View style={{ marginTop: 4 }}>
                         <Pill tone="warning" text={t('basket.missingAt', { store: best?.store.name ?? '' })} />
+                        {/* Missing at the best store → the closest thing it does
+                            sell, one tap to swap. */}
+                        {best && (() => {
+                          const alt = suggestSubstitute(l.product, best.store.id);
+                          return alt ? (
+                            <Pressable onPress={() => { remove(l.product.id); add(alt.product, l.qty); }} style={{ marginTop: 4 }} accessibilityRole="button">
+                              <Txt v="caption" color={colors.primary} numberOfLines={1} style={{ fontSize: 11 }}>
+                                {t('basket.substitute', { name: `${alt.product.brand} ${alt.product.name}`.trim(), price: alt.price.toFixed(2) })}
+                              </Txt>
+                            </Pressable>
+                          ) : null;
+                        })()}
                       </View>
                     )}
                   </View>

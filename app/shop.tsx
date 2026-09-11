@@ -81,6 +81,11 @@ export default function Shop() {
     notify(t('markets.boughtThanks'), r.earned > 0 ? t('markets.boughtBodyPoints', { n: r.earned }) : t('markets.boughtBody'));
     // Bought means the basket has done its job; offer to start the next one clean.
     if (await confirmAsync(t('shop.clearTitle'), t('shop.clearBody'), t('common.yes'))) clear();
+    // The receipt is in hand right now — the one moment it will be photographed.
+    if (await confirmAsync(t('receipt.afterShopTitle'), t('receipt.afterShopBody'), t('receipt.takePhoto'))) {
+      router.replace({ pathname: '/receipt', params: { store: storeId } } as never);
+      return;
+    }
     router.back();
   };
 

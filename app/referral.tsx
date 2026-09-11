@@ -15,9 +15,9 @@ import { referralUrl } from '@/lib/links';
 
 interface Ledger { delta: number; reason: string; created_at: string }
 interface Tier { points: number; days: number }
-interface PointsSettings { referral: number; trip: number; suggestion: number; plus_tiers: Tier[] }
+interface PointsSettings { referral: number; trip: number; suggestion: number; plus_tiers: Tier[]; referral_plus_at: number; referral_plus_days: number }
 const DEFAULT_TIERS: Tier[] = [{ points: 100, days: 7 }, { points: 200, days: 30 }, { points: 350, days: 90 }];
-const REASON: Record<string, Key> = { referral_received: 'ref.reasonReceived', referral_sent: 'ref.reasonSent', trip: 'ref.reasonTrip', plus_redeem: 'ref.reasonRedeem', suggestion: 'ref.reasonSuggestion' };
+const REASON: Record<string, Key> = { referral_received: 'ref.reasonReceived', referral_sent: 'ref.reasonSent', trip: 'ref.reasonTrip', plus_redeem: 'ref.reasonRedeem', suggestion: 'ref.reasonSuggestion', receipt: 'ref.reasonReceipt', referral_bonus: 'ref.reasonBonus' };
 
 /** Points & referral: my code, share, enter a friend's code, convert points into Plus days. */
 export default function Referral() {
@@ -33,7 +33,7 @@ export default function Referral() {
   const [friend, setFriend] = useState((params.code ?? '').toUpperCase());
   const [board, setBoard] = useState<Array<{ rank: number; name: string; points: number; me: boolean }>>([]);
   const [ledger, setLedger] = useState<Ledger[]>([]);
-  const [cfg, setCfg] = useState<PointsSettings>({ referral: 100, trip: 10, suggestion: 10, plus_tiers: DEFAULT_TIERS });
+  const [cfg, setCfg] = useState<PointsSettings>({ referral: 100, trip: 10, suggestion: 10, plus_tiers: DEFAULT_TIERS, referral_plus_at: 3, referral_plus_days: 7 });
   const [busy, setBusy] = useState<string | null>(null);
   const points = auth.profile?.points ?? 0;
   const tiers = [...cfg.plus_tiers].sort((a, b) => a.points - b.points);
@@ -137,6 +137,9 @@ export default function Referral() {
           </Row>
           <Txt v="caption" color="rgba(255,255,255,0.7)" style={{ marginTop: 6, fontSize: 11 }}>
             {t('ref.tiersNote')}
+          </Txt>
+          <Txt v="captionStrong" color="#A7F3C6" style={{ marginTop: space.sm, fontSize: 12 }}>
+            {t('ref.inviteBonus', { n: cfg.referral_plus_at, days: cfg.referral_plus_days })}
           </Txt>
           {affordable && (
             <Btn title={t('ref.redeemNow', { points: affordable.points })} variant="secondary" size="md" loading={busy === 'redeem'} onPress={redeem} style={{ marginTop: space.md }} />

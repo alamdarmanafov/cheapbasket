@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Platform, Pressable, ScrollView, Share, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, Share, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import { colors, radius, shadow, space } from '@/theme';
-import { Btn, Card, Divider, Pill, Price, Row, Txt } from '@/components/ui';
+import { Btn, Card, Chip, Divider, Pill, Price, Row, Txt } from '@/components/ui';
 import { Freshness, OldPrice, PriceLine, ProductArt, StoreAvatar } from '@/components/product';
 import { UnitPrice } from '@/components/UnitPrice';
 import { ScreenHeader } from '@/components/ScreenHeader';
@@ -89,6 +89,26 @@ export default function ProductScreen() {
     setWatching(next);
     track('watch', { product_id: product.id, on: next });
     notify(t(next ? 'prod.watchOn' : 'prod.watchOff'), t(next ? 'prod.watchOnBody' : 'prod.watchOffBody', { name: `${product.brand} ${product.name}`.trim() }));
+  };
+
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportStore, setReportStore] = useState<string | null>(null);
+  const [reportReason, setReportReason] = useState<'outdated' | 'wrong' | 'missing'>('outdated');
+  const [reportBusy, setReportBusy] = useState(false);
+  const sendReport = async () => {
+    if (!supabase || !product || !reportStore) return;
+    if (!auth.user) {
+      setReportOpen(false);
+      router.push('/auth');
+      return;
+    }
+    setReportBusy(true);
+    const { error } = await supabase.from('price_reports').insert({ user_id: auth.user.id, product_id: product.id, store_id: reportStore, reason: reportReason });
+    setReportBusy(false);
+    setReportOpen(false);
+    if (error) return notify(t('common.error'), error.message);
+    track('price_report', { product_id: product.id, store_id: reportStore, reason: reportReason });
+    notify(t('prod.reportThanks'), t('prod.reportThanksBody'));
   };
 
   /** System share sheet: cheapest price + link to the web version of this product. */
@@ -194,6 +214,38 @@ export default function ProductScreen() {
         </View>
 
         {/* History */}
+        {/* A wrong price seen once loses the reader; this turns it into a
+            report instead. Store + reason, two taps, lands next to the
+            receipts in the admin panel. */}
+        <Pressable onPress={() => setReportOpen(true)} style={{ alignSelf: 'center', marginTop: space.sm, padding: 6 }} accessibilityRole="button">
+          <Txt v="caption" color={colors.gray} style={{ textDecorationLine: 'underline' }}>
+            {t('prod.reportPrice')}
+          </Txt>
+        </Pressable>
+        <Modal visible={reportOpen} transparent animationType="fade" onRequestClose={() => setReportOpen(false)}>
+          <Pressable style={styles.reportBackdrop} onPress={() => setReportOpen(false)} accessibilityLabel={t('common.close')} />
+          <View style={styles.reportSheet}>
+            <Txt v="bodyStrong">{t('prod.reportTitle')}</Txt>
+            <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>
+              {t('prod.reportStore')}
+            </Txt>
+            <Row gap={8} style={{ flexWrap: 'wrap', marginTop: space.sm }}>
+              {sortedPrices(product).map((sp) => (
+                <Chip key={sp.store.id} text={sp.store.name} active={reportStore === sp.store.id} onPress={() => setReportStore(sp.store.id)} />
+              ))}
+            </Row>
+            <Txt v="caption" color={colors.gray} style={{ marginTop: space.md }}>
+              {t('prod.reportReason')}
+            </Txt>
+            <Row gap={8} style={{ flexWrap: 'wrap', marginTop: space.sm }}>
+              {(['outdated', 'wrong', 'missing'] as const).map((r) => (
+                <Chip key={r} text={t(`prod.reason_${r}` as never)} active={reportReason === r} onPress={() => setReportReason(r)} />
+              ))}
+            </Row>
+            <Btn title={t('prod.reportSend')} size="md" loading={reportBusy} disabled={!reportStore} onPress={sendReport} style={{ marginTop: space.lg }} />
+          </View>
+        </Modal>
+
         <View style={{ paddingHorizontal: space.lg, marginTop: space.xl }}>
           <Row gap={8} style={{ marginBottom: space.sm }}>
             <Txt v="bodyStrong">{t('prod.historyTitle')}</Txt>
@@ -298,6 +350,8 @@ function PriceChart({ data }: { data: number[] }) {
 }
 
 const styles = StyleSheet.create({
+  reportBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
+  reportSheet: { backgroundColor: colors.white, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: space.lg, paddingBottom: space.xxl },
   savingNote: { marginTop: space.md, backgroundColor: colors.successSoft, padding: space.md, borderRadius: radius.md },
   aiRow: {
     marginHorizontal: space.lg,

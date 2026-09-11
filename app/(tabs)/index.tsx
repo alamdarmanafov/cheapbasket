@@ -9,9 +9,11 @@ import { ProductRowSkeleton } from '@/components/states';
 import { TopBar } from '@/components/TopBar';
 import { BannerSlider } from '@/components/BannerSlider';
 import { PlusTag } from '@/components/PlusLock';
-import { Product, catalogCategories, categoryEmoji, nearestBranch, searchProducts } from '@/data/products';
+import { Product, catalogCategories, categoryEmoji, cheapest, nearestBranch, searchProducts } from '@/data/products';
 import { categoryLabel } from '@/data/categoryNames';
 import { useCatalog } from '@/store/catalog';
+import { useAuth } from '@/store/auth';
+import { supabase } from '@/lib/supabase';
 import { useRefresh } from '@/lib/useRefresh';
 import { useBasket } from '@/store/basket';
 import { useT } from '@/lib/i18n';
@@ -22,9 +24,34 @@ export default function Home() {
   const basket = useBasket();
   const { optimization: o } = basket;
   const cat = useCatalog();
+  const auth = useAuth();
   const refresh = useRefresh();
   const t = useT();
   const categories = catalogCategories();
+  const [reminderDays, setReminderDays] = useState<number | null>(null);
+  useEffect(() => {
+    if (!supabase || !auth.user) return;
+    supabase.from('trips').select('created_at').order('created_at', { ascending: false }).limit(1).maybeSingle().then(({ data }) => {
+      if (!data) return;
+      const days = Math.floor((Date.now() - new Date(data.created_at).getTime()) / 86400000);
+      setReminderDays(days >= 7 ? days : null);
+    });
+  }, [auth.user]);
+  // The cheapest product of each of the first eight categories — by the
+  // cheapest price anywhere. Only categories with a priced product count.
+  const cheapestByCategory = React.useMemo(() => {
+    const out: Array<{ category: string; product: Product; price: number }> = [];
+    for (const c of categories.slice(0, 8)) {
+      let best: { product: Product; price: number } | null = null;
+      for (const p of cat.products) {
+        if (p.category !== c) continue;
+        const price = cheapest(p).price;
+        if (price != null && (best == null || price < best.price)) best = { product: p, price };
+      }
+      if (best) out.push({ category: c, ...best });
+    }
+    return out;
+  }, [categories, cat.products]);
   const [q, setQ] = useState('');
   const [results, setResults] = useState<Product[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -192,6 +219,44 @@ export default function Home() {
           </View>
         )}
 
+        {/* The weekly shop repeats. A basket that is empty a week after the
+            last trip gets a nudge back to the saved lists. */}
+        {reminderDays != null && basket.count === 0 && (
+          <Pressable onPress={() => router.push('/lists')} style={({ pressed }) => [styles.summary, { marginTop: 14 }, pressed && { opacity: 0.9 }]}>
+            <Txt style={{ fontSize: 28, lineHeight: 34 }}>🗓️</Txt>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Txt v="bodyStrong">{t('home.reminderTitle', { n: reminderDays })}</Txt>
+              <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>
+                {t('home.reminderBody')}
+              </Txt>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.grayLight} />
+          </Pressable>
+        )}
+
+        {/* Cheapest in each category today — one product per chip, the
+            catalogue's answer to "what is worth buying". */}
+        {cheapestByCategory.length > 0 && (
+          <View style={{ marginTop: 14 }}>
+            <Txt v="bodyStrong" style={{ marginBottom: 8 }}>
+              {t('home.cheapestByCat')}
+            </Txt>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              {cheapestByCategory.map(({ category, product, price }) => (
+                <Pressable key={product.id} onPress={() => router.push(`/product/${product.id}`)} style={({ pressed }) => [styles.catCard, pressed && { opacity: 0.85 }]} accessibilityRole="button">
+                  <Txt v="caption" color={colors.gray} numberOfLines={1} style={{ fontSize: 11 }}>
+                    {categoryEmoji(category) ? `${categoryEmoji(category)} ` : ''}{categoryLabel(category)}
+                  </Txt>
+                  <Txt v="captionStrong" numberOfLines={2} style={{ fontSize: 12, marginTop: 4, minHeight: 32 }}>
+                    {product.brand} {product.name}
+                  </Txt>
+                  <Price value={price} size="sm" color={colors.primary} />
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         {/* Deals */}
         <Pressable onPress={() => router.push('/deals')} style={({ pressed }) => [styles.summary, { marginTop: 14 }, pressed && { opacity: 0.9 }]}>
           <Txt style={{ fontSize: 28, lineHeight: 34 }}>🔻</Txt>
@@ -241,6 +306,7 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
+  catCard: { width: 132, backgroundColor: colors.white, borderRadius: radius.lg, padding: 10, ...shadow.card },
   search: {
     height: 48,
     borderRadius: 14,

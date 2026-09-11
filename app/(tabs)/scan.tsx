@@ -16,6 +16,7 @@ import { Freshness, ProductArt, StoreAvatar } from '@/components/product';
 import { StateView } from '@/components/states';
 import { SuggestProduct } from '@/components/SuggestProduct';
 import { UnitPrice } from '@/components/UnitPrice';
+import { suggestSubstitute } from '@/lib/substitute';
 import { pushRecent, readRecents, RECENT_SCANS } from '@/lib/recents';
 import { Product, StoreId, catalog, cheapest, findByBarcode, getStore, sortedPrices } from '@/data/products';
 import { categoryLabel } from '@/data/categoryNames';
@@ -341,6 +342,14 @@ function FoundSheet({
             <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>
               {verdict.body}
             </Txt>
+            {here && herePrice == null && (() => {
+              const alt = suggestSubstitute(product, here);
+              return alt ? (
+                <Txt v="caption" color={colors.primary} style={{ marginTop: 4 }}>
+                  {t('basket.substitute', { name: `${alt.product.brand} ${alt.product.name}`.trim(), price: alt.price.toFixed(2) })}
+                </Txt>
+              ) : null;
+            })()}
           </View>
         )}
 
