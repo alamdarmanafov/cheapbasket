@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Image, Linking, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Linking, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { colors, radius, shadow, space } from '@/theme';
@@ -57,7 +58,7 @@ export function PopupHost() {
             <Ionicons name="close" size={20} color={colors.gray} />
           </Pressable>
 
-          {shown.imageUrl ? <Image source={{ uri: shown.imageUrl }} style={styles.image} resizeMode="cover" accessibilityIgnoresInvertColors /> : null}
+          {shown.imageUrl ? <Image source={{ uri: shown.imageUrl }} style={styles.image} contentFit="cover" transition={200} cachePolicy="disk" accessibilityIgnoresInvertColors /> : null}
 
           <View style={{ padding: space.lg }}>
             <Txt v="title" center style={{ fontSize: 20, lineHeight: 26 }}>

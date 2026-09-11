@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Image, LayoutChangeEvent, Linking, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { LayoutChangeEvent, Linking, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { colors, radius, space } from '@/theme';
 import { Txt } from './ui';
@@ -71,7 +72,7 @@ export function BannerSlider({ banners, width }: { banners: Banner[]; width?: nu
       >
         {banners.map((b) => (
           <Pressable key={b.id} onPress={() => open(b)} disabled={!b.link} accessibilityRole={b.link ? 'button' : undefined} style={[styles.slide, { width: w, backgroundColor: b.bgColor }]}>
-            {b.imageUrl ? <Image source={{ uri: b.imageUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
+            {b.imageUrl ? <Image source={{ uri: b.imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} cachePolicy="disk" /> : null}
             {b.imageUrl ? <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.25)' }]} /> : null}
             <View style={{ maxWidth: '85%' }}>
               <Txt v="title" color={b.textColor} numberOfLines={2} style={{ fontSize: 20, lineHeight: 25 }}>
