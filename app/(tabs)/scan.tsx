@@ -18,6 +18,9 @@ import { SuggestProduct } from '@/components/SuggestProduct';
 import { UnitPrice } from '@/components/UnitPrice';
 import { suggestSubstitute } from '@/lib/substitute';
 import { pushRecent, readRecents, RECENT_SCANS } from '@/lib/recents';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const FAST_KEY = 'cb_scan_fast';
 import { Product, StoreId, catalog, cheapest, findByBarcode, getStore, sortedPrices } from '@/data/products';
 import { categoryLabel } from '@/data/categoryNames';
 import { normalizeGtin } from '@/lib/gtin';
@@ -72,11 +75,37 @@ export default function Scan() {
     if (Platform.OS !== 'web' && permission && !permission.granted && permission.canAskAgain) requestPermission();
   }, [permission, requestPermission]);
 
+  // Fast mode: every recognised product goes straight into the basket and the
+  // viewfinder comes back on its own. Twenty products in an aisle is twenty
+  // sheets to dismiss otherwise. Remembered across launches; not-found still
+  // stops, since that needs a decision.
+  const [fast, setFast] = useState(false);
+  const [flash, setFlash] = useState<Product | null>(null);
+  useEffect(() => {
+    AsyncStorage.getItem(FAST_KEY).then((v) => setFast(v === '1')).catch(() => undefined);
+  }, []);
+  const toggleFast = () => {
+    setFast((f) => {
+      AsyncStorage.setItem(FAST_KEY, f ? '0' : '1').catch(() => undefined);
+      return !f;
+    });
+  };
+
   const resolve = (scanned: string, p: Product | undefined) => {
     if (lockRef.current) return;
     lockRef.current = true;
     setCode(normalizeGtin(scanned) ?? '');
-    track('scan', { product_id: p?.id ?? null, found: !!p, store_id: hereId });
+    track('scan', { product_id: p?.id ?? null, found: !!p, store_id: hereId, fast });
+    if (fast && p) {
+      basket.add(p);
+      pushRecent(RECENT_SCANS, p.id).then(setRecentIds);
+      setFlash(p);
+      setTimeout(() => {
+        setFlash(null);
+        lockRef.current = false;
+      }, 1100);
+      return;
+    }
     setPhase('searching');
     setTimeout(() => {
       if (p) {
@@ -135,8 +164,44 @@ export default function Scan() {
           </Txt>
           <Ionicons name="chevron-down" size={14} color="rgba(255,255,255,0.8)" style={{ marginLeft: 4 }} />
         </Pressable>
-        <IconBtn name={torch ? 'flashlight' : 'flashlight-outline'} bg={torch ? colors.primary : 'rgba(255,255,255,0.15)'} color={colors.white} label={t('scan.torch')} onPress={() => (canUseCamera ? setTorch((t) => !t) : notify(t('scan.torch'), t('scan.torchOnlyApp')))} />
+        <Row gap={8}>
+          <IconBtn name={fast ? 'flash' : 'flash-outline'} bg={fast ? colors.success : 'rgba(255,255,255,0.15)'} color={colors.white} label={t('scan.fastMode')} onPress={toggleFast} />
+          <IconBtn name={torch ? 'flashlight' : 'flashlight-outline'} bg={torch ? colors.primary : 'rgba(255,255,255,0.15)'} color={colors.white} label={t('scan.torch')} onPress={() => (canUseCamera ? setTorch((t) => !t) : notify(t('scan.torch'), t('scan.torchOnlyApp')))} />
+        </Row>
       </Row>
+
+      {/* Fast mode: what just went in, and where the basket stands. */}
+      {fast && phase === 'scanning' && (
+        <View style={[styles.fastBar, { top: insets.top + space.sm + 48 }]} pointerEvents="box-none">
+          <View style={styles.fastPill}>
+            <Ionicons name="flash" size={14} color={colors.white} />
+            <Txt v="captionStrong" color={colors.white} style={{ marginLeft: 6 }}>
+              {t('scan.fastOn')}
+            </Txt>
+          </View>
+          {flash && (
+            <View style={[styles.fastPill, { backgroundColor: colors.success, marginTop: 8 }]}>
+              <Ionicons name="checkmark" size={14} color={colors.white} />
+              <Txt v="captionStrong" color={colors.white} numberOfLines={1} style={{ marginLeft: 6, maxWidth: 240 }}>
+                {t('scan.fastAdded', { name: `${flash.brand} ${flash.name}`.trim() })}
+              </Txt>
+            </View>
+          )}
+        </View>
+      )}
+      {fast && phase === 'scanning' && basket.count > 0 && (
+        <Pressable onPress={() => router.replace('/basket')} style={[styles.fastFooter, { bottom: insets.bottom + 24 }]} accessibilityRole="button">
+          <Ionicons name="basket" size={18} color={colors.white} />
+          <Txt v="bodyStrong" color={colors.white} style={{ flex: 1, marginLeft: 8 }}>
+            {t('scan.fastBasket', { count: basket.count })}
+          </Txt>
+          {basket.optimization.best && (
+            <Txt v="bodyStrong" color={colors.white} num>
+              {basket.optimization.best.total.toFixed(2)} ₼
+            </Txt>
+          )}
+        </Pressable>
+      )}
 
       {phase === 'scanning' && (
         <View style={styles.center} pointerEvents="box-none">
@@ -174,7 +239,7 @@ export default function Scan() {
       )}
 
       {phase === 'scanning' && recentProducts.length > 0 && (
-        <View style={[styles.recentRow, { bottom: insets.bottom + 92 }]} pointerEvents="box-none">
+        <View style={[styles.recentRow, { bottom: insets.bottom + (fast && basket.count > 0 ? 150 : 92) }]} pointerEvents="box-none">
           <Txt v="caption" color="rgba(255,255,255,0.7)" style={{ marginLeft: space.lg, marginBottom: 6 }}>
             {t('scan.recent')}
           </Txt>
@@ -446,6 +511,9 @@ const styles = StyleSheet.create({
   center: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.xl },
   hereChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 12, height: 36, borderRadius: radius.pill, maxWidth: 200 },
   recentRow: { position: 'absolute', left: 0, right: 0 },
+  fastBar: { position: 'absolute', left: space.lg, right: space.lg, alignItems: 'center' },
+  fastPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: radius.pill, paddingHorizontal: 12, height: 32 },
+  fastFooter: { position: 'absolute', left: space.lg, right: space.lg, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.dark, borderRadius: radius.pill, paddingHorizontal: 16, height: 52 },
   recentChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: radius.pill, paddingHorizontal: 10, height: 36 },
   pickBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   pickSheet: { backgroundColor: colors.white, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: space.lg },
