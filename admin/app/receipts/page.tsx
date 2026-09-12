@@ -5,10 +5,10 @@ import { Shell } from '@/components/Shell';
 
 interface Line { product_id: string | null; name: string; price: number; qty: number; product_name?: string | null }
 interface Receipt { id: string; user_id: string; store_id: string | null; total: number | null; items: Line[]; created_at: string }
-interface Report { id: string; user_id: string; product_id: string; store_id: string | null; reason: string; note: string | null; created_at: string; products: { name: string; brand: string; size: string } | null }
+interface Report { id: string; user_id: string; product_id: string; store_id: string | null; reason: string; note: string | null; price: number | null; created_at: string; products: { name: string; brand: string; size: string } | null }
 interface Store { id: string; name: string }
 
-const REASON: Record<string, string> = { outdated: 'Köhnədir', wrong: 'Səhvdir', missing: 'Bu marketdə yoxdur' };
+const REASON: Record<string, string> = { outdated: 'Köhnədir', wrong: 'Səhvdir', missing: 'Bu marketdə yoxdur', add: 'Qiymət təklifi' };
 
 /** Shoppers' receipts awaiting approval, and their price reports. */
 export default function ReceiptsPage() {
@@ -96,7 +96,7 @@ export default function ReceiptsPage() {
       <h2 style={{ marginTop: 32 }}>Qiymət şikayətləri</h2>
       {reports.length === 0 ? <p className="muted">Açıq şikayət yoxdur.</p> : (
         <table>
-          <thead><tr><th>Vaxt</th><th>Məhsul</th><th>Market</th><th>Səbəb</th><th>Qeyd</th><th></th></tr></thead>
+          <thead><tr><th>Vaxt</th><th>Məhsul</th><th>Market</th><th>Səbəb</th><th>Qiymət</th><th>Qeyd</th><th></th></tr></thead>
           <tbody>
             {reports.map((x) => (
               <tr key={x.id}>
@@ -104,8 +104,14 @@ export default function ReceiptsPage() {
                 <td>{x.products ? `${x.products.brand} ${x.products.name} ${x.products.size}` : x.product_id}<div className="muted" style={{ fontFamily: 'monospace', fontSize: 11 }}>{x.product_id}</div></td>
                 <td>{stores.find((s) => s.id === x.store_id)?.name ?? x.store_id ?? '—'}</td>
                 <td>{REASON[x.reason] ?? x.reason}</td>
+                <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{x.price != null ? `${Number(x.price).toFixed(2)} ₼` : '—'}</td>
                 <td className="muted">{x.note ?? ''}</td>
-                <td style={{ textAlign: 'right' }}><button className="btn ghost" disabled={!!busy} onClick={async () => { setBusy(x.id); try { await api({ op: 'resolve_report', id: x.id }); setReports((p) => p.filter((y) => y.id !== x.id)); } finally { setBusy(null); } }}>Həll olundu</button></td>
+                <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  {x.price != null && x.store_id && (
+                    <button className="btn" style={{ marginRight: 6 }} disabled={!!busy} title="Qiyməti bazaya yaz, bildirənə xal ver" onClick={async () => { setBusy(x.id); try { const r = await api({ op: 'apply_report', id: x.id }) as { points?: number }; setMsg({ ok: true, text: `Qiymət yazıldı${r.points ? `, +${r.points} xal` : ''}` }); setReports((p) => p.filter((y) => y.id !== x.id)); } catch (e) { setMsg({ ok: false, text: (e as Error).message }); } finally { setBusy(null); } }}><CheckCircle size={14} /> Tətbiq et</button>
+                  )}
+                  <button className="btn ghost" disabled={!!busy} onClick={async () => { setBusy(x.id); try { await api({ op: 'resolve_report', id: x.id }); setReports((p) => p.filter((y) => y.id !== x.id)); } finally { setBusy(null); } }}>{x.price != null ? 'Rədd et' : 'Həll olundu'}</button>
+                </td>
               </tr>
             ))}
           </tbody>

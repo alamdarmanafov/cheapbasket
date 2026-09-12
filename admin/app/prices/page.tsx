@@ -122,6 +122,33 @@ export default function PricesPage() {
     }));
   }, [stores, products, priceMap]);
 
+  // How many stores each product is priced at. A product priced at one store
+  // cannot be compared, which is the whole point of the app.
+  const coverage = useMemo(() => {
+    const buckets = { none: [] as Product[], one: [] as Product[], two: [] as Product[], more: [] as Product[] };
+    for (const p of products) {
+      const n = priceMap.get(p.id)?.size ?? 0;
+      (n === 0 ? buckets.none : n === 1 ? buckets.one : n === 2 ? buckets.two : buckets.more).push(p);
+    }
+    return buckets;
+  }, [products, priceMap]);
+
+  /** Download a list as CSV: what to check on the next walk through a store. */
+  const exportCsv = (rows: Product[], filename: string, storeName?: string) => {
+    const esc = (v: string | null | undefined) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const head = ['Barkod', 'Brend', 'Ad', 'Ölçü', 'Kateqoriya', 'Qiymətli marketlər', ...(storeName ? [`${storeName} qiyməti`] : [])];
+    const body = rows.map((p) => {
+      const have = [...(priceMap.get(p.id)?.keys() ?? [])].map((id) => stores.find((s) => s.id === id)?.name ?? id).join(' / ');
+      return [p.barcode, p.brand, p.name, p.size, p.category, have, ...(storeName ? [''] : [])].map(esc).join(';');
+    });
+    const blob = new Blob(['\ufeff' + [head.map(esc).join(';'), ...body].join('\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
   // Wolt search
   const searchWolt = async (p: Product) => {
     setWoltProduct(p);
@@ -260,6 +287,28 @@ export default function PricesPage() {
       {/* ═══════════════════════ MISSING PRICES TAB ═══════════════════════ */}
       {activeTab === 'missing' && (
         <>
+          {/* Coverage: the number that decides whether a comparison is possible at all. */}
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontWeight: 700 }}>Əhatə: neçə marketdə qiyməti var</div>
+                <div className="muted" style={{ fontSize: 12 }}>Müqayisə üçün ən azı 2 market lazımdır. CSV-ni götürüb mağazada yoxlamaq, ya da "Çeklər" səhifəsindəki qiymət təkliflərini tətbiq etmək boşluğu bağlayır.</div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button className="btn secondary" style={{ fontSize: 12 }} onClick={() => exportCsv([...coverage.none, ...coverage.one], 'tek-marketli-mehsullar.csv')}>CSV: 0–1 marketli ({coverage.none.length + coverage.one.length})</button>
+                <button className="btn secondary" style={{ fontSize: 12 }} onClick={() => exportCsv(products, 'butun-mehsullar-ehate.csv')}>CSV: hamısı</button>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8, marginTop: 12 }}>
+              {([['0 market', coverage.none.length, '#B91C1C'], ['1 market', coverage.one.length, '#C2410C'], ['2 market', coverage.two.length, '#0F766E'], ['3+ market', coverage.more.length, '#15803D']] as const).map(([label, n, color]) => (
+                <div key={label} style={{ background: '#FAFAFA', borderRadius: 10, padding: '10px 12px' }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, color }}>{n}</div>
+                  <div className="muted" style={{ fontSize: 12 }}>{label}{products.length ? ` · ${Math.round((n / products.length) * 100)}%` : ''}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12, marginBottom: 20 }}>
             {missingPerStore.map(({ store: s, count }) => (
               <div
@@ -291,7 +340,8 @@ export default function PricesPage() {
             const missingList = products.filter((p) => !priceMap.get(p.id)?.has(s.id));
             return (
               <div key={s.id} className="card" style={{ marginBottom: 16 }}>
-                <h2 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h2 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <button className="btn secondary" style={{ fontSize: 12, marginLeft: 'auto', order: 9 }} onClick={() => exportCsv(missingList, `${s.id}-catismayan.csv`, s.name)}>CSV ({count})</button>
                   <span style={{ background: s.color, color: '#fff', borderRadius: '50%', width: 28, height: 28, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13 }}>{s.initial}</span>
                   {s.name} — {count} qiymətsiz məhsul
                 </h2>

@@ -15,6 +15,7 @@ import { Btn, Divider, IconBtn, Pill, Price, Row, Txt } from '@/components/ui';
 import { Freshness, ProductArt, StoreAvatar } from '@/components/product';
 import { StateView } from '@/components/states';
 import { SuggestProduct } from '@/components/SuggestProduct';
+import { PriceReportModal } from '@/components/PriceReportModal';
 import { useKeyboardHeight } from '@/lib/keyboard';
 import { UnitPrice } from '@/components/UnitPrice';
 import { suggestSubstitute } from '@/lib/substitute';
@@ -378,6 +379,7 @@ function FoundSheet({
   bottomInset: number;
 }) {
   const t = useT();
+  const [priceOpen, setPriceOpen] = useState(false);
   const prices = sortedPrices(product);
   const c = cheapest(product);
   const herePrice = here ? product.prices[here] : undefined;
@@ -424,6 +426,16 @@ function FoundSheet({
             <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>
               {verdict.body}
             </Txt>
+            {/* "No price here" is a gap the person in front of the shelf can
+                close: one tap, the price, two points once it is applied. */}
+            {here && herePrice == null && (
+              <Pressable onPress={() => setPriceOpen(true)} style={styles.addPrice} accessibilityRole="button">
+                <Ionicons name="pricetag" size={14} color={colors.primary} />
+                <Txt v="captionStrong" color={colors.primary} style={{ marginLeft: 6 }}>
+                  {t('scan.addPrice')}
+                </Txt>
+              </Pressable>
+            )}
             {here && herePrice == null && (() => {
               const alt = suggestSubstitute(product, here);
               return alt ? (
@@ -473,6 +485,8 @@ function FoundSheet({
           ))}
         </View>
       </ScrollView>
+
+      <PriceReportModal product={product} visible={priceOpen} onClose={() => setPriceOpen(false)} initialStore={here} initialReason="add" />
 
       <View style={{ marginTop: space.md, gap: space.sm }}>
         {added ? (
@@ -550,5 +564,6 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.line, alignSelf: 'center', marginBottom: space.md },
+  addPrice: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: radius.pill, backgroundColor: colors.white },
   verdict: { marginTop: space.lg, padding: space.md, borderRadius: radius.md },
 });
