@@ -24,9 +24,14 @@ export default function Onboarding() {
   const { height } = useWindowDimensions();
   // Measure the real container (inside the web phone frame the window is much wider than the screen).
   const [w, setW] = useState(0);
+  const [h, setH] = useState(0);
   const onLayout = (e: LayoutChangeEvent) => {
     const next = Math.round(e.nativeEvent.layout.width);
     if (next && next !== w) setW(next);
+    // A slide in a horizontal pager is only as tall as its content on web, so
+    // the picture could not sink to the bottom; the measured height makes it.
+    const nextH = Math.round(e.nativeEvent.layout.height);
+    if (nextH && nextH !== h) setH(nextH);
   };
   const ref = useRef<ScrollView>(null);
   const [index, setIndex] = useState(0);
@@ -67,7 +72,7 @@ export default function Onboarding() {
 
       <ScrollView ref={ref} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={onEnd} style={{ flex: 1 }} onLayout={onLayout}>
         {w > 0 && SLIDES.map((s) => (
-          <View key={s.key} style={{ width: w, paddingHorizontal: space.xl, alignItems: 'center' }}>
+          <View key={s.key} style={{ width: w, height: h || undefined, paddingHorizontal: space.xl, alignItems: 'center' }}>
             <Txt style={styles.h1} center>
               {t(s.line1)}
             </Txt>
@@ -77,9 +82,7 @@ export default function Onboarding() {
             <Txt v="body" color={colors.gray} center style={{ marginTop: space.md, maxWidth: 300 }}>
               {t(s.body)}
             </Txt>
-            {/* Bottom-aligned so the picture and its caption sit right above the
-                language row, whatever the screen height leaves spare. */}
-            <View style={{ flex: 1, justifyContent: 'flex-end', alignItems: 'center', width: '100%' }}>
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%' }}>
               {/* The illustrations are cropped straight from the design, so they
                   carry their own background — rounded so a photographic one
                   reads as a card rather than a rectangle stuck on the page. */}
