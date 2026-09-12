@@ -31,14 +31,15 @@ const foldAz = (s: string) =>
 /** Words of a brand + name, without the size, so "Süd 3,2% 1 L" and "Süd 3.2% 1L" share them. */
 function nameTokens(p: Product): string[] {
   const raw = foldAz(`${p.brand} ${p.name}`).replace(/(\d+)[.,](\d+)/g, '$1_$2').replace(/[^a-z0-9_%]+/g, ' ');
-  const seen = new Set<string>();
+  const seen: string[] = [];
   for (const t of raw.split(/\s+/)) {
     if (!t) continue;
-    // A size written into the name ("1l", "500 q") is the size's business.
-    if (/^\d+(_\d+)?(kq|kg|qr|q|g|l|lt|ml|ed|eded|pcs|x)?$/.test(t) && !/^\d+_\d+%?$/.test(t)) continue;
-    seen.add(t);
+    // A size glued to its unit in the name ("1l", "500q") is the size's
+    // business. A bare number stays: "30 ədəd" and "10 ədəd" are two products.
+    if (/^\d+(_\d+)?(kq|kg|qr|q|g|l|lt|ml)$/.test(t)) continue;
+    seen.push(t);
   }
-  return [...seen].sort();
+  return seen.sort();
 }
 
 /** "1 L" = "1L" = "1 lt" = "1000 ml": one spelling per size, or the raw text when it cannot be read. */
