@@ -17,17 +17,53 @@ const fmt = (v: number | null) => (v == null ? '' : String(v));
 const EMPTY: Product = { id: '', barcode: '', name: '', brand: '', size: '', category: CATEGORIES[0], emoji: '🛒', tint: '#F3F4F6', image_url: null, rating: null };
 
 // ── Duplicate detection ───────────────────────────────────────────────────────
-type DupGroup = { key: string; kind: 'barcode' | 'name'; products: Product[] };
+type DupKind = 'barcode' | 'name' | 'similar';
+type DupGroup = { key: string; kind: DupKind; products: Product[] };
 
-const normSlug = (s: string) =>
+const DUP_KIND_LABEL: Record<DupKind, string> = { barcode: 'Barkod', name: 'Eyni ad', similar: 'Oxşar ad · yoxla' };
+
+const foldAz = (s: string) =>
   s.toLowerCase()
+    .replace(/i̇/g, 'i')
     .replace(/ə/g, 'e').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ü/g, 'u')
-    .replace(/ş/g, 's').replace(/ç/g, 'c').replace(/ğ/g, 'g')
-    .replace(/[^a-z0-9]+/g, ' ').trim()
-    .split(/\s+/).sort().join(' ');
+    .replace(/ş/g, 's').replace(/ç/g, 'c').replace(/ğ/g, 'g');
 
-function findDuplicates(products: Product[]): DupGroup[] {
+/** Words of a brand + name, without the size, so "Süd 3,2% 1 L" and "Süd 3.2% 1L" share them. */
+function nameTokens(p: Product): string[] {
+  const raw = foldAz(`${p.brand} ${p.name}`).replace(/(\d+)[.,](\d+)/g, '$1_$2').replace(/[^a-z0-9_%]+/g, ' ');
+  const seen = new Set<string>();
+  for (const t of raw.split(/\s+/)) {
+    if (!t) continue;
+    // A size written into the name ("1l", "500 q") is the size's business.
+    if (/^\d+(_\d+)?(kq|kg|qr|q|g|l|lt|ml|ed|eded|pcs|x)?$/.test(t) && !/^\d+_\d+%?$/.test(t)) continue;
+    seen.add(t);
+  }
+  return [...seen].sort();
+}
+
+/** "1 L" = "1L" = "1 lt" = "1000 ml": one spelling per size, or the raw text when it cannot be read. */
+function sizeKey(size: string): string {
+  const s = foldAz(size).replace(',', '.').trim();
+  const pack = s.match(/^(\d+)\s*[x×*]\s*(.+)$/);
+  const mult = pack ? Number(pack[1]) : 1;
+  const m = (pack ? pack[2] : s).match(/(\d+(?:\.\d+)?)\s*([a-z.]+)/);
+  if (!m) return s.replace(/\s+/g, '');
+  const n = Number(m[1]) * mult;
+  const u = m[2].replace(/\.$/, '');
+  if (/^(kq|kg)$/.test(u)) return `${n}kg`;
+  if (/^(qr|q|g|gr)$/.test(u)) return `${n / 1000}kg`;
+  if (/^(l|lt|litr)$/.test(u)) return `${n}l`;
+  if (/^ml$/.test(u)) return `${n / 1000}l`;
+  if (/^(ed|eded|pcs|pc|st)$/.test(u)) return `${n}pc`;
+  return s.replace(/\s+/g, '');
+}
+
+const storesOf = (p: Product, prices: PriceMap) => Object.keys(prices[p.id] ?? {});
+
+/** Barcode groups, then exact-name groups, then near-name groups from different stores, each needing a look. */
+function findDuplicates(products: Product[], prices: PriceMap): DupGroup[] {
   const groups: DupGroup[] = [];
+  const taken = new Set<string>();
 
   // By barcode — in its canonical spelling, so "04006…" and "4006…" land in
   // one group. Migration 0029 leaves exactly these pairs behind: it may give
@@ -36,31 +72,71 @@ function findDuplicates(products: Product[]): DupGroup[] {
   const byBarcode = new Map<string, Product[]>();
   for (const p of products) {
     const bc = normalizeGtin(p.barcode);
-    if (bc) {
-      const arr = byBarcode.get(bc) ?? [];
-      arr.push(p);
-      byBarcode.set(bc, arr);
-    }
+    if (bc) byBarcode.set(bc, [...(byBarcode.get(bc) ?? []), p]);
   }
   for (const [bc, ps] of byBarcode) {
-    if (ps.length > 1) groups.push({ key: `Barkod: ${bc}`, kind: 'barcode', products: ps });
+    if (ps.length > 1) {
+      groups.push({ key: `Barkod: ${bc}`, kind: 'barcode', products: ps });
+      ps.forEach((p) => taken.add(p.id));
+    }
   }
 
-  // By normalised name (excluding ones already caught by barcode)
-  const barcodeProductIds = new Set(groups.flatMap((g) => g.products.map((p) => p.id)));
+  // By name: the same words in any order, the same size in any spelling.
   const byName = new Map<string, Product[]>();
   for (const p of products) {
-    if (barcodeProductIds.has(p.id)) continue;
-    const key = normSlug(`${p.brand} ${p.name} ${p.size}`);
-    const arr = byName.get(key) ?? [];
-    arr.push(p);
-    byName.set(key, arr);
+    if (taken.has(p.id)) continue;
+    const key = `${nameTokens(p).join(' ')} | ${sizeKey(p.size)}`;
+    byName.set(key, [...(byName.get(key) ?? []), p]);
   }
   for (const [key, ps] of byName) {
-    if (ps.length > 1) groups.push({ key: `Ad: ${key}`, kind: 'name', products: ps });
+    if (ps.length > 1) {
+      groups.push({ key: `Ad: ${key}`, kind: 'name', products: ps });
+      ps.forEach((p) => taken.add(p.id));
+    }
   }
 
+  // Near names: same size, most words shared, and priced at different stores —
+  // the shape a product takes when each store's feed spelled it its own way.
+  // Same-store pairs are left alone: those are two products, not one.
+  const rest = products.filter((p) => !taken.has(p.id));
+  const bySize = new Map<string, Array<{ p: Product; tokens: string[]; stores: string[] }>>();
+  for (const p of rest) {
+    const k = sizeKey(p.size);
+    if (!k) continue;
+    bySize.set(k, [...(bySize.get(k) ?? []), { p, tokens: nameTokens(p), stores: storesOf(p, prices) }]);
+  }
+  const parent = new Map<string, string>();
+  const find = (x: string): string => (parent.get(x) === x || !parent.has(x) ? x : find(parent.get(x) as string));
+  const union = (a: string, b: string) => { const ra = find(a), rb = find(b); if (ra !== rb) parent.set(ra, rb); };
+  for (const list of bySize.values()) {
+    if (list.length < 2 || list.length > 400) continue;
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const a = list[i], b = list[j];
+        if (a.tokens.length < 2 || b.tokens.length < 2) continue;
+        if (a.stores.some((sId) => b.stores.includes(sId))) continue;
+        const shared = a.tokens.filter((t) => b.tokens.includes(t)).length;
+        const jaccard = shared / (a.tokens.length + b.tokens.length - shared);
+        if (jaccard >= 0.6) union(a.p.id, b.p.id);
+      }
+    }
+  }
+  const near = new Map<string, Product[]>();
+  for (const list of bySize.values()) for (const { p } of list) {
+    if (!parent.has(p.id)) continue;
+    const root = find(p.id);
+    near.set(root, [...(near.get(root) ?? []), p]);
+  }
+  for (const ps of near.values()) {
+    if (ps.length > 1) groups.push({ key: `Oxşar: ${ps.map((p) => `${p.brand} ${p.name}`.trim()).join(' ≈ ')} · ${ps[0].size}`, kind: 'similar', products: ps });
+  }
   return groups;
+}
+
+/** Which row survives a merge: the one priced at most stores, then the one with a barcode, then with a photo. */
+function bestToKeep(ps: Product[], prices: PriceMap): string {
+  const score = (p: Product) => storesOf(p, prices).length * 100 + (normalizeGtin(p.barcode) ? 10 : 0) + (p.image_url ? 1 : 0);
+  return [...ps].sort((a, b) => score(b) - score(a))[0].id;
 }
 
 // ── Image preview modal ───────────────────────────────────────────────────────
@@ -348,15 +424,14 @@ export default function Products() {
     setDupBusy(true);
     try {
       const all = await db.select<Product>('products', { columns: 'id,barcode,name,brand,size,category,image_url', fetchAll: true });
-      const groups = findDuplicates(all);
+      const groups = findDuplicates(all, prices);
       setDupGroups(groups);
-      // Default: keep first in each group
       const defaults: Record<string, string> = {};
-      for (const g of groups) defaults[g.key] = g.products[0].id;
+      for (const g of groups) defaults[g.key] = bestToKeep(g.products, prices);
       setDupKeep(defaults);
     } catch (e) { setMsg({ ok: false, text: (e as Error).message }); }
     finally { setDupBusy(false); }
-  }, []);
+  }, [prices]);
 
   /** Once the others are gone the unique slot is free: the survivor takes the canonical spelling. */
   const settleBarcode = async (group: DupGroup, keepId: string) => {
@@ -373,19 +448,12 @@ export default function Products() {
     if (!confirm(`"${group.key}" qrupunda ${toDelete.length} dublikat silinsin?`)) return;
     setBusy(true);
     try {
-      for (const p of toDelete) {
-        const pPrices = await db.select<PriceRow>('prices', { eq: { product_id: p.id }, columns: 'product_id,store_id,price,discount_price,updated_at' });
-        if (pPrices.length) {
-          const moved = pPrices.map((r) => ({ ...r, product_id: keepId }));
-          await db.upsert('prices', moved as unknown as Record<string, unknown>[], 'product_id,store_id');
-        }
-        await db.delete('products', { id: p.id });
-      }
+      // merge_products (0036) carries prices, history, baskets, alerts, lists,
+      // receipts and reports over to the survivor before dropping the row.
+      for (const p of toDelete) await db.rpc('merge_products', { p_keep: keepId, p_drop: p.id });
       await settleBarcode(group, keepId);
       setMsg({ ok: true, text: `${toDelete.length} dublikat silindi, qiymətlər birləşdirildi` });
-      const all = await db.select<Product>('products', { columns: 'id,barcode,name,brand,size,category,image_url', fetchAll: true });
-      const groups = findDuplicates(all);
-      setDupGroups(groups);
+      setDupGroups((prev) => (prev ?? []).filter((g) => g.key !== group.key));
       load();
     } catch (e) { setMsg({ ok: false, text: (e as Error).message }); }
     finally { setBusy(false); }
@@ -396,14 +464,7 @@ export default function Products() {
     if (!keepId) return { merged: 0 };
     const toDelete = group.products.filter((p) => p.id !== keepId);
     try {
-      for (const p of toDelete) {
-        const pPrices = await db.select<PriceRow>('prices', { eq: { product_id: p.id }, columns: 'product_id,store_id,price,discount_price,updated_at' });
-        if (pPrices.length) {
-          const moved = pPrices.map((r) => ({ ...r, product_id: keepId }));
-          await db.upsert('prices', moved as unknown as Record<string, unknown>[], 'product_id,store_id');
-        }
-        await db.delete('products', { id: p.id });
-      }
+      for (const p of toDelete) await db.rpc('merge_products', { p_keep: keepId, p_drop: p.id });
       await settleBarcode(group, keepId);
       return { merged: toDelete.length };
     } catch (e) { return { merged: 0, error: (e as Error).message }; }
@@ -423,12 +484,8 @@ export default function Products() {
       if (error) errors.push(error);
       setDupProgress({ done: i + 1, total: groups.length });
     }
-    const all = await db.select<Product>('products', { columns: 'id,barcode,name,brand,size,category,image_url', fetchAll: true });
-    const newGroups = findDuplicates(all);
-    setDupGroups(newGroups);
-    const defaults: Record<string, string> = { ...dupKeep };
-    for (const g of newGroups) if (!defaults[g.key]) defaults[g.key] = g.products[0].id;
-    setDupKeep(defaults);
+    const done = new Set(groups.map((g) => g.key));
+    setDupGroups((prev) => (prev ?? []).filter((g) => !done.has(g.key)));
     setDupSelected(new Set());
     setDupMerging(false);
     setDupProgress(null);
@@ -680,22 +737,24 @@ export default function Products() {
                   <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', userSelect: 'none' }}>
                     <input
                       type="checkbox"
-                      checked={dupGroups.length > 0 && dupGroups.every((g) => dupSelected.has(g.key))}
-                      ref={(el) => { if (el) el.indeterminate = dupSelected.size > 0 && !dupGroups.every((g) => dupSelected.has(g.key)); }}
+                      checked={dupGroups.some((g) => g.kind !== 'similar') && dupGroups.filter((g) => g.kind !== 'similar').every((g) => dupSelected.has(g.key))}
+                      ref={(el) => { if (el) el.indeterminate = dupSelected.size > 0 && !dupGroups.filter((g) => g.kind !== 'similar').every((g) => dupSelected.has(g.key)); }}
                       onChange={() => {
-                        const allSel = dupGroups.every((g) => dupSelected.has(g.key));
-                        setDupSelected(allSel ? new Set() : new Set(dupGroups.map((g) => g.key)));
+                        const sure = dupGroups.filter((g) => g.kind !== 'similar');
+                        const allSel = sure.every((g) => dupSelected.has(g.key));
+                        setDupSelected(allSel ? new Set() : new Set(sure.map((g) => g.key)));
                       }}
                     />
-                    <span style={{ fontSize: 13 }}>Hamısını seç</span>
+                    <span style={{ fontSize: 13 }}>Dəqiqləri seç</span>
+                    <span className="muted" style={{ fontSize: 11 }}>({dupGroups.filter((g) => g.kind === 'barcode').length} barkod · {dupGroups.filter((g) => g.kind === 'name').length} eyni ad · {dupGroups.filter((g) => g.kind === 'similar').length} oxşar)</span>
                   </label>
                   {dupSelected.size > 0 && (
                     <button className="btn danger" disabled={dupMerging} onClick={() => mergeBulkDups(dupGroups.filter((g) => dupSelected.has(g.key)))}>
                       {dupMerging && dupProgress ? `Birləşdirilir… ${dupProgress.done}/${dupProgress.total}` : `Seçilənləri birləşdir (${dupSelected.size})`}
                     </button>
                   )}
-                  <button className="btn danger" disabled={dupMerging} style={{ marginLeft: 'auto' }} onClick={() => mergeBulkDups(dupGroups)}>
-                    {dupMerging && dupProgress && dupSelected.size === 0 ? `Birləşdirilir… ${dupProgress.done}/${dupProgress.total}` : `Hamısını birləşdir (${dupGroups.length})`}
+                  <button className="btn danger" disabled={dupMerging || !dupGroups.some((g) => g.kind !== 'similar')} style={{ marginLeft: 'auto' }} title="Barkod və eyni ad qrupları. Oxşar adlar tək-tək yoxlanıb birləşdirilir." onClick={() => mergeBulkDups(dupGroups.filter((g) => g.kind !== 'similar'))}>
+                    {dupMerging && dupProgress && dupSelected.size === 0 ? `Birləşdirilir… ${dupProgress.done}/${dupProgress.total}` : `Dəqiqləri birləşdir (${dupGroups.filter((g) => g.kind !== 'similar').length})`}
                   </button>
                 </div>
                 {dupProgress && (
@@ -712,8 +771,9 @@ export default function Products() {
                           checked={dupSelected.has(group.key)}
                           onChange={() => setDupSelected((prev) => { const next = new Set(prev); if (next.has(group.key)) next.delete(group.key); else next.add(group.key); return next; })}
                         />
+                        <span className={`pill ${group.kind === 'similar' ? 'amber' : 'gray'}`} style={{ fontSize: 11 }}>{DUP_KIND_LABEL[group.kind]}</span>
                         <b style={{ fontSize: 13 }}>{group.key}</b>
-                        <span className="muted" style={{ fontSize: 11 }}>{group.products.length - 1} dublikat</span>
+                        <span className="muted" style={{ fontSize: 11 }}>{group.products.length - 1} dublikat · birləşəndə {new Set(group.products.flatMap((p) => storesOf(p, prices))).size} marketdə qiymət</span>
                       </label>
                       <button className="btn danger" disabled={busy || dupMerging} onClick={() => mergeDupGroup(group)}>
                         Birləşdir
@@ -741,7 +801,14 @@ export default function Products() {
                             </td>
                             <td>
                               <b>{p.brand}</b> {p.name} <span className="muted">{p.size}</span>
-                              <div className="muted" style={{ fontSize: 11, fontFamily: 'monospace' }}>{p.id}</div>
+                              <div className="muted" style={{ fontSize: 11, fontFamily: 'monospace' }}>{p.id}{p.barcode ? ` · ${p.barcode}` : ''}</div>
+                              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+                                {storesOf(p, prices).length === 0 && <span className="muted" style={{ fontSize: 11 }}>qiymət yoxdur</span>}
+                                {storesOf(p, prices).map((sId) => {
+                                  const st = stores.find((x) => x.id === sId);
+                                  return <span key={sId} style={{ fontSize: 11, padding: '1px 7px', borderRadius: 999, background: st?.color ?? '#999', color: '#fff', fontWeight: 600 }}>{st?.name ?? sId} {prices[p.id]?.[sId]?.price} ₼</span>;
+                                })}
+                              </div>
                             </td>
                             <td className="muted">{p.category}</td>
                             <td>

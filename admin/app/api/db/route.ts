@@ -14,12 +14,23 @@ type Op =
   | { op: 'select'; table: string; columns?: string; order?: string; eq?: Record<string, unknown>; limit?: number; fetchAll?: boolean }
   | { op: 'count'; table: string; eq?: Record<string, unknown> }
   | { op: 'upsert'; table: string; rows: Record<string, unknown>[]; onConflict?: string }
-  | { op: 'delete'; table: string; eq: Record<string, unknown> };
+  | { op: 'delete'; table: string; eq: Record<string, unknown> }
+  | { op: 'rpc'; fn: string; args?: Record<string, unknown> };
+
+// Database functions the UI may call by name. Each one is service-role only
+// in SQL, so this list is the whole of what the admin cookie unlocks.
+const FUNCTIONS = new Set(['merge_products']);
 
 /** Tiny data gateway for the admin UI: cookie-protected, whitelisted tables, service role on the server. */
 export async function POST(req: Request) {
   if (!(await requireAdmin(req))) return NextResponse.json({ error: 'Giriş tələb olunur' }, { status: 401 });
   const body = (await req.json()) as Op;
+  if (body.op === 'rpc') {
+    if (!FUNCTIONS.has(body.fn)) return NextResponse.json({ error: 'Funksiya icazəli deyil' }, { status: 400 });
+    const { data, error } = await adminDb().rpc(body.fn, body.args ?? {});
+    if (error) return NextResponse.json({ error: errText(error) }, { status: 500 });
+    return NextResponse.json({ data });
+  }
   if (!TABLES.has(body.table)) return NextResponse.json({ error: 'Cədvəl icazəli deyil' }, { status: 400 });
   try {
     const db = adminDb();
