@@ -67,7 +67,7 @@ export interface AdminUser { id: string; email: string | null; created_at: strin
 
 /** Fallback list used until the `categories` table has rows. */
 export const CATEGORIES = ['Süd məhsulları', 'Yumurta', 'Qida', 'İçkilər', 'Ət', 'Meyvə-tərəvəz', 'Çörək', 'Şirniyyat', 'Ev və gigiyena'];
-export interface Category { id: string; name: string; emoji: string | null; sort: number }
+export interface Category { id: string; name: string; emoji: string | null; sort: number; names?: Partial<Record<'en' | 'tr' | 'ru', string>> | null }
 
 /** Category names from the admin-managed table (ordered), falling back to the built-in list. */
 export function useCategories(): { categories: Category[]; names: string[]; reload: () => Promise<void> } {

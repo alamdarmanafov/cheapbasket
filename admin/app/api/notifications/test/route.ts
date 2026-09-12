@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { adminDb, errText, requireAdmin } from '@/lib/server';
+import { PUSH_CHANNEL, PUSH_SOUND } from '@/lib/push';
 
 export const maxDuration = 60;
 
@@ -46,8 +47,8 @@ export async function POST(req: Request) {
         to,
         title: title?.trim() || 'Test bildirişi 🔔',
         body: body.trim(),
-        sound: 'default',
-        channelId: 'general',
+        sound: PUSH_SOUND,
+        channelId: PUSH_CHANNEL,
       }));
       const res = await fetch('https://exp.host/--/api/v2/push/send', {
         method: 'POST',

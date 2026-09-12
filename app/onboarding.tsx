@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, radius, space } from '@/theme';
 import { Row, Txt } from '@/components/ui';
-import { useT, type Key } from '@/lib/i18n';
+import { LANGS, useI18n, type Key } from '@/lib/i18n';
 import { LogoMark } from '@/components/Logo';
 import { useAuth } from '@/store/auth';
 
@@ -20,7 +20,7 @@ export default function Onboarding() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const auth = useAuth();
-  const t = useT();
+  const { t, lang, setLang } = useI18n();
   const { height } = useWindowDimensions();
   // Measure the real container (inside the web phone frame the window is much wider than the screen).
   const [w, setW] = useState(0);
@@ -63,6 +63,28 @@ export default function Onboarding() {
         ) : (
           <View />
         )}
+      </Row>
+
+      {/* The first thing on the first screen: the language. The device's
+          setting picks the default, but a Russian-speaking phone set to
+          English, or the other way round, is common here, and nobody should
+          have to find the profile tab to read the walkthrough. */}
+      <Row gap={8} style={{ justifyContent: 'center', paddingHorizontal: space.lg, marginTop: space.md }}>
+        {LANGS.map((l) => (
+          <Pressable
+            key={l.id}
+            onPress={() => setLang(l.id)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: l.id === lang }}
+            accessibilityLabel={l.label}
+            style={({ pressed }) => [styles.lang, l.id === lang && styles.langActive, pressed && { opacity: 0.8 }]}
+          >
+            <Txt style={{ fontSize: 15, lineHeight: 18 }}>{l.flag}</Txt>
+            <Txt v="captionStrong" color={l.id === lang ? colors.white : colors.dark} style={{ marginLeft: 5 }}>
+              {l.id.toUpperCase()}
+            </Txt>
+          </Pressable>
+        ))}
       </Row>
 
       <ScrollView ref={ref} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={onEnd} style={{ flex: 1 }} onLayout={onLayout}>
@@ -116,5 +138,7 @@ const styles = StyleSheet.create({
   note: { fontFamily: fonts.semibold, fontSize: 15, lineHeight: 20, color: colors.primary, textAlign: 'center', fontStyle: 'italic', transform: [{ rotate: '-4deg' }], marginBottom: space.md },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#E5C9C9' },
   dotActive: { width: 22, backgroundColor: colors.primary, borderRadius: radius.pill },
+  lang: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, height: 34, borderRadius: radius.pill, backgroundColor: colors.white, borderWidth: 1, borderColor: '#E5C9C9' },
+  langActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   btn: { height: 56, borderRadius: radius.md, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
 });

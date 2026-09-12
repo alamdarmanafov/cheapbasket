@@ -140,6 +140,8 @@ export interface Category {
   id: string;
   name: string;
   emoji: string | null;
+  /** Display names by language, set in the admin panel; missing keys fall back to the built-in table. */
+  names?: Partial<Record<'en' | 'tr' | 'ru', string>>;
 }
 
 export const catalog = {

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { adminDb, errText, requireAdmin } from '@/lib/server';
 import { copy, langOf } from '@/lib/pushCopy';
+import { PUSH_CHANNEL, PUSH_SOUND } from '@/lib/push';
 
 export const maxDuration = 30;
 
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
         await fetch('https://exp.host/--/api/v2/push/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify(to.map((token) => ({ to: token, title: c.receiptTitle(points), body: c.receiptBody(lines.length), sound: 'default', channelId: 'price-drops', data: { url: '/referral' } }))),
+          body: JSON.stringify(to.map((token) => ({ to: token, title: c.receiptTitle(points), body: c.receiptBody(lines.length), sound: PUSH_SOUND, channelId: PUSH_CHANNEL, data: { url: '/referral' } }))),
         }).catch(() => undefined);
       }
     }

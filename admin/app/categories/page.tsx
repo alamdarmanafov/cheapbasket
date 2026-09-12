@@ -37,7 +37,7 @@ export default function Categories() {
   const add = async () => {
     const name = draft.name.trim();
     if (!name) return;
-    await save({ id: slugify(name) || `cat-${Date.now()}`, name, emoji: draft.emoji.trim() || null, sort: rows.length });
+    await save({ id: slugify(name) || `cat-${Date.now()}`, name, emoji: draft.emoji.trim() || null, sort: rows.length, names: {} });
     setDraft({ name: '', emoji: '' });
   };
   const remove = async (c: Category) => {
@@ -63,7 +63,7 @@ export default function Categories() {
         <button className="btn" disabled={!draft.name.trim()} onClick={add}><Plus size={14} /> Əlavə et</button>
       </div>
       <table>
-        <thead><tr><th>Sıra</th><th>Emoji</th><th>Ad</th><th>Məhsul sayı</th><th></th></tr></thead>
+        <thead><tr><th>Sıra</th><th>Emoji</th><th>Ad</th><th>EN</th><th>TR</th><th>RU</th><th>Məhsul sayı</th><th></th></tr></thead>
         <tbody>
           {rows.map((c, i) => (
             <tr key={c.id}>
@@ -73,14 +73,29 @@ export default function Categories() {
               </td>
               <td><input value={c.emoji ?? ''} placeholder="🛒" style={{ width: 56, textAlign: 'center' }} onChange={(e) => setRows(rows.map((r) => (r.id === c.id ? { ...r, emoji: e.target.value } : r)))} onBlur={() => save(rows.find((r) => r.id === c.id) ?? c)} /></td>
               <td><input value={c.name} style={{ width: 260, textAlign: 'left' }} onChange={(e) => setRows(rows.map((r) => (r.id === c.id ? { ...r, name: e.target.value } : r)))} onBlur={(e) => { const cur = rows.find((r) => r.id === c.id) ?? c; if (cur.name.trim() && cur.name !== c.name) save({ ...cur, name: cur.name.trim() }, c.name); else if (cur.name.trim() !== e.target.value) save(cur); }} /></td>
+              {(['en', 'tr', 'ru'] as const).map((l) => (
+                <td key={l}>
+                  <input
+                    value={c.names?.[l] ?? ''}
+                    placeholder={l === 'en' ? 'Dairy' : l === 'tr' ? 'Süt ürünleri' : 'Молочные'}
+                    style={{ width: 130, textAlign: 'left' }}
+                    onChange={(e) => setRows(rows.map((r) => (r.id === c.id ? { ...r, names: { ...(r.names ?? {}), [l]: e.target.value } } : r)))}
+                    onBlur={() => {
+                      const cur = rows.find((r) => r.id === c.id) ?? c;
+                      const names = Object.fromEntries(Object.entries(cur.names ?? {}).map(([k, v]) => [k, (v ?? '').trim()]).filter(([, v]) => v));
+                      if (JSON.stringify(names) !== JSON.stringify(Object.fromEntries(Object.entries(c.names ?? {}).filter(([, v]) => v)))) save({ ...cur, names });
+                    }}
+                  />
+                </td>
+              ))}
               <td className="muted">{counts[c.name] ?? 0}</td>
               <td style={{ textAlign: 'right' }}><button className="btn ghost" onClick={() => remove(c)}><Trash2 size={14} /></button></td>
             </tr>
           ))}
-          {rows.length === 0 && <tr><td colSpan={5} className="muted" style={{ textAlign: 'center', padding: 30 }}>Kateqoriya yoxdur. Yuxarıdan əlavə et və ya "Wolt-dan import" səhifəsində "Kateqoriyaları götür" düyməsini bas.</td></tr>}
+          {rows.length === 0 && <tr><td colSpan={8} className="muted" style={{ textAlign: 'center', padding: 30 }}>Kateqoriya yoxdur. Yuxarıdan əlavə et və ya "Wolt-dan import" səhifəsində "Kateqoriyaları götür" düyməsini bas.</td></tr>}
         </tbody>
       </table>
-      <p className="note">Tətbiqdə ana səhifə və axtarışdakı kateqoriya çipləri bu sıra ilə göstərilir (yalnız məhsulu olan kateqoriyalar). Adı dəyişəndə həmin kateqoriyadakı məhsullar avtomatik yeni ada keçir.</p>
+      <p className="note">Tətbiqdə ana səhifə və axtarışdakı kateqoriya çipləri bu sıra ilə göstərilir (yalnız məhsulu olan kateqoriyalar). Adı dəyişəndə həmin kateqoriyadakı məhsullar avtomatik yeni ada keçir. EN/TR/RU sütunları tətbiqi o dildə oxuyana göstərilən addır; boş qalsa tətbiqdəki daxili cədvəl, o da yoxdursa Azərbaycan adı görünür.</p>
     </Shell>
   );
 }

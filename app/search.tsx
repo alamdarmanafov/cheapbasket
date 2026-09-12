@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { FlatList, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +8,7 @@ import { Chip, Divider, Row, Txt } from '@/components/ui';
 import { ProductRow } from '@/components/product';
 import { ProductRowSkeleton, StateView } from '@/components/states';
 import { SuggestProduct } from '@/components/SuggestProduct';
+import { useKeyboardHeight } from '@/lib/keyboard';
 import { clearRecents, pushRecent, readRecents, RECENT_SEARCHES } from '@/lib/recents';
 import { Product, catalogCategories, categoryEmoji, searchProducts } from '@/data/products';
 import { categoryLabel } from '@/data/categoryNames';
@@ -19,6 +20,8 @@ import { useBasket } from '@/store/basket';
 
 
 export default function Search() {
+  const kb = useKeyboardHeight();
+  const emptyRef = useRef<ScrollView>(null);
   const refresh = useRefresh();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -160,7 +163,10 @@ export default function Search() {
           keyboardShouldPersistTaps="handled"
         />
       ) : (
-        <View>
+        /* The suggest box sits under the empty state, low enough for the
+           keyboard to cover it: the list scrolls, keeps room for the keyboard
+           and brings the box up when its field is tapped. */
+        <ScrollView ref={emptyRef} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: kb + insets.bottom + 90 }}>
           <StateView
             emoji="🔍"
             title={t('home.notFound')}
@@ -169,13 +175,20 @@ export default function Search() {
             onCta={() => router.push('/scan')}
             secondary={t('search.clearSearch')}
             onSecondary={() => setQ('')}
+            compact
           />
           {/* A search that finds nothing is the other place someone holds a
               product we do not list. The query is the name, prefilled. */}
           <View style={{ paddingHorizontal: space.lg }}>
-            <SuggestProduct initialName={q} title={t('search.suggestTitle')} body={t('search.suggestBody', { points: 10 })} onDone={() => setQ('')} />
+            <SuggestProduct
+              initialName={q}
+              title={t('search.suggestTitle')}
+              body={t('search.suggestBody', { points: 10 })}
+              onDone={() => setQ('')}
+              onFocus={() => setTimeout(() => emptyRef.current?.scrollToEnd({ animated: true }), 250)}
+            />
           </View>
-        </View>
+        </ScrollView>
       )}
 
       {basket.count > 0 && (

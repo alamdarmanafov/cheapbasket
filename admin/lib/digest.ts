@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { adminDb } from './server';
 import { copy, langOf, type Lang } from './pushCopy';
+import { PUSH_CHANNEL, PUSH_SOUND } from '@/lib/push';
 
 export interface Drop { product_id: string; store_id: string; new_price: number; old_price: number; drop_amount: number; drop_percent: number; changed_at: string; name: string; brand: string; size: string; emoji: string | null; store_name: string }
 export interface DigestSettings { enabled: boolean; free_days: number[]; hour_baku: number; max_items: number; lookback_free_days: number; /** write the text with AI (costs tokens per user); off = free template */ use_ai: boolean; /** only Plus subscribers receive the digest */ plus_only: boolean }
@@ -75,7 +76,7 @@ async function expoSend(messages: Array<{ to: string; title: string; body: strin
   let sent = 0;
   let errors = 0;
   for (let i = 0; i < messages.length; i += 100) {
-    const chunk = messages.slice(i, i + 100).map((m) => ({ ...m, sound: 'default', channelId: 'price-drops' }));
+    const chunk = messages.slice(i, i + 100).map((m) => ({ ...m, sound: PUSH_SOUND, channelId: PUSH_CHANNEL }));
     const res = await fetch('https://exp.host/--/api/v2/push/send', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(chunk) });
     const j = (await res.json()) as { data?: Array<{ status: string }> };
     for (const t of j.data ?? []) t.status === 'ok' ? sent++ : errors++;

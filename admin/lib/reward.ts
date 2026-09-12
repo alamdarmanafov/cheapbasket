@@ -1,5 +1,6 @@
 import { adminDb } from './server';
 import { copy, langOf } from './pushCopy';
+import { PUSH_CHANNEL, PUSH_SOUND } from '@/lib/push';
 
 /**
  * Pays a user for a suggestion that just became a product, and tells them.
@@ -28,8 +29,8 @@ export async function rewardSuggester(userId: string | null | undefined, barcode
       to: token,
       title: c.rewardTitle(points),
       body: c.rewardBody(productName),
-      sound: 'default',
-      channelId: 'price-drops',
+      sound: PUSH_SOUND,
+      channelId: PUSH_CHANNEL,
       data: { url: '/referral' },
     }));
     await fetch('https://exp.host/--/api/v2/push/send', {

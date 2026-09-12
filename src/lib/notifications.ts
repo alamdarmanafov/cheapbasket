@@ -12,10 +12,14 @@ Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
     shouldShowList: true,
-    shouldPlaySound: false,
+    shouldPlaySound: true,
     shouldSetBadge: false,
   }),
 });
+
+/** Same names as admin/lib/push.ts; the file itself is bundled by the expo-notifications plugin. */
+export const PUSH_SOUND = 'appsound.wav';
+export const PUSH_CHANNEL = 'alerts-v2';
 
 export type PushStatus = 'granted' | 'denied' | 'unsupported';
 
@@ -27,10 +31,14 @@ export async function registerForPush(userId: string | null): Promise<{ status: 
   if (Platform.OS === 'web' || !Device.isDevice) return { status: 'unsupported' };
   try {
     if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('price-drops', {
+      // A channel keeps the sound it was created with, so the one that
+      // carries the app's own bell has a new id; the admin side sends to
+      // the same id (admin/lib/push.ts).
+      await Notifications.setNotificationChannelAsync(PUSH_CHANNEL, {
         name: tr('notif.channel'),
         importance: Notifications.AndroidImportance.DEFAULT,
         lightColor: '#E53935',
+        sound: PUSH_SOUND,
       });
     }
     const existing = await Notifications.getPermissionsAsync();
