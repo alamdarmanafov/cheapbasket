@@ -1,11 +1,12 @@
 'use client';
 import { normalizeGtin } from '@/lib/gtin';
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { Camera, Copy, Download, Plus, Search, Trash2, X } from 'lucide-react';
+import { Camera, Copy, Download, Plus, Search, Store as StoreIcon, Trash2, X } from 'lucide-react';
 
 import * as XLSX from 'xlsx';
 import { Shell } from '@/components/Shell';
 import { Pager, usePager } from '@/components/Pager';
+import { FindInStores } from '@/components/FindInStores';
 import { CATEGORIES, PriceRow, Product, Store, db, slugify, useCategories } from '@/lib/supabase';
 
 type Cell = { price: string; discount: string };
@@ -158,6 +159,8 @@ export default function Products() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const { names: catNames } = useCategories();
+
+  const [findId, setFindId] = useState<string | null>(null);
 
   // Bulk edit state
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -690,6 +693,7 @@ export default function Products() {
                 </td>
                 <td>{best ? <span><span className="avatar" style={{ background: best.store.color }}>{best.store.initial}</span><b>{best.value.toFixed(2)} ₼</b></span> : <span className="muted">—</span>}</td>
                 <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                  <button className="btn ghost" onClick={() => setFindId(p.id)} title="Digər marketlərin mənbələrində bu məhsulu tap"><StoreIcon size={14} /></button>
                   <button className="btn ghost" onClick={() => open(p)}>Düzəlt</button>
                   <button className="btn ghost" onClick={() => removeProduct(p)} title="Sil"><Trash2 size={14} /></button>
                 </td>
@@ -827,6 +831,8 @@ export default function Products() {
           </div>
         </div>
       )}
+
+      {findId && <FindInStores productId={findId} storeColors={Object.fromEntries(stores.map((s) => [s.id, s.color]))} onClose={() => setFindId(null)} onLinked={load} />}
 
       {/* ── Edit / new product modal ── */}
       {edit && (
