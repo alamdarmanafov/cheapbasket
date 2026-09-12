@@ -4,42 +4,75 @@ import { Link2, X } from 'lucide-react';
 
 interface Candidate { ext_id: string; name: string; price: number; regular_price: number | null; barcode: string | null; image_url: string | null; score: number; exactBarcode: boolean }
 interface StoreResult { store_id: string; store_name: string; have: number | null; sources: number; candidates: Candidate[]; linked: string | null; error?: string }
-interface Found { product: { id: string; brand: string; name: string; size: string; barcode: string | null }; results: StoreResult[] }
+interface ProductInfo { id: string; brand: string; name: string; size: string; barcode: string | null }
+
+/** A reply that is not JSON is the platform's own error page: say so in words. */
+async function readJson<T>(r: Response): Promise<T> {
+  const text = await r.text();
+  try {
+    const j = JSON.parse(text) as T & { error?: string };
+    if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
+    return j;
+  } catch (e) {
+    if (e instanceof SyntaxError) throw new Error(`Server cavab vermədi (HTTP ${r.status}): ${text.slice(0, 80)}`);
+    throw e;
+  }
+}
 
 /**
  * One product against every store's feed. Each store shows its closest items
  * with the price; "Bu odur" writes the price and remembers the link, so the
  * nightly sync recognises the item from then on.
+ *
+ * Stores are asked one at a time: a feed is a large download, and one request
+ * for all of them exceeded what a serverless function may take.
  */
-export function FindInStores({ productId, storeColors, onClose, onLinked }: { productId: string; storeColors: Record<string, string>; onClose: () => void; onLinked?: () => void }) {
-  const [data, setData] = useState<Found | null>(null);
+export function FindInStores({ productId, stores, onClose, onLinked }: { productId: string; stores: Array<{ id: string; name: string; color: string }>; onClose: () => void; onLinked?: () => void }) {
+  const [product, setProduct] = useState<ProductInfo | null>(null);
+  const [results, setResults] = useState<StoreResult[]>([]);
+  const [pending, setPending] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [done, setDone] = useState<Record<string, string>>({}); // store_id → ext_id just linked
 
   useEffect(() => {
     let alive = true;
-    setData(null); setErr(null);
-    fetch('/api/products/find', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ product_id: productId }) })
-      .then(async (r) => { const j = await r.json(); if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`); return j as Found; })
-      .then((j) => { if (alive) setData(j); })
-      .catch((e: Error) => { if (alive) setErr(e.message); });
+    setProduct(null); setResults([]); setErr(null);
+    (async () => {
+      for (const s of stores) {
+        if (!alive) return;
+        setPending(s.id);
+        try {
+          const r = await fetch('/api/products/find', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ product_id: productId, store_id: s.id }) });
+          const j = await readJson<{ product: ProductInfo; result: StoreResult }>(r);
+          if (!alive) return;
+          setProduct((p) => p ?? j.product);
+          setResults((rs) => [...rs, j.result]);
+        } catch (e) {
+          if (!alive) return;
+          setResults((rs) => [...rs, { store_id: s.id, store_name: s.name, have: null, sources: 0, candidates: [], linked: null, error: (e as Error).message }]);
+        }
+      }
+      if (alive) setPending(null);
+    })();
     return () => { alive = false; };
-  }, [productId]);
+    // The parent reloads its store list after a link; the same ids are the same job.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productId, stores.map((s) => s.id).join(',')]);
 
   const link = async (s: StoreResult, c: Candidate) => {
     setBusy(`${s.store_id}:${c.ext_id}`);
     try {
       const r = await fetch('/api/products/find', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ product_id: productId, store_id: s.store_id, ext_id: c.ext_id, price: c.price, regular_price: c.regular_price, barcode: c.barcode }) });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
+      await readJson<{ ok: true }>(r);
       setDone((d) => ({ ...d, [s.store_id]: c.ext_id }));
       onLinked?.();
     } catch (e) { setErr((e as Error).message); }
     finally { setBusy(null); }
   };
 
-  const p = data?.product;
+  const p = product;
+  const storeColors = Object.fromEntries(stores.map((s) => [s.id, s.color]));
   return (
     <div className="modal-bg" onClick={onClose}>
       <div className="modal" style={{ width: 'min(820px,100%)' }} onClick={(e) => e.stopPropagation()}>
@@ -49,10 +82,9 @@ export function FindInStores({ productId, storeColors, onClose, onLinked }: { pr
         </div>
         <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>Hər marketin mənbəyində (Wolt filialı / sayt) bu məhsula ən oxşar sətirlər. "Bu odur" qiyməti yazır və linki yadda saxlayır: sinxron bundan sonra o sətri həmişə bu məhsul kimi tanıyır.</p>
         {err && <div className="alert err">{err}</div>}
-        {!data && !err && <p className="muted" style={{ padding: 20, textAlign: 'center' }}>Mənbələr çəkilir… (ilk dəfə 10–30 saniyə, sonra keşdən)</p>}
-        {data && (
+        {(results.length > 0 || pending) && (
           <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
-            {data.results.map((s) => {
+            {results.map((s) => {
               const linkedNow = done[s.store_id] ?? s.linked;
               return (
                 <div key={s.store_id} className="card" style={{ padding: 12 }}>
@@ -91,6 +123,7 @@ export function FindInStores({ productId, storeColors, onClose, onLinked }: { pr
                 </div>
               );
             })}
+            {pending && <p className="muted" style={{ fontSize: 12, margin: 0 }}>{stores.find((x) => x.id === pending)?.name ?? pending} mənbəsi çəkilir… (ilk dəfə 10–30 saniyə)</p>}
           </div>
         )}
         <div className="actions"><button className="btn secondary" onClick={onClose}>Bağla</button></div>

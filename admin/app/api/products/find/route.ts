@@ -3,43 +3,46 @@ import { adminDb, errText, requireAdmin } from '@/lib/server';
 import { Candidate, feedItems, rank } from '@/lib/find';
 import { normalizeGtin } from '@/lib/gtin';
 
-export const maxDuration = 120;
+export const maxDuration = 60;
 
 interface StoreResult { store_id: string; store_name: string; have: number | null; sources: number; candidates: Candidate[]; linked: string | null; error?: string }
 
-/** POST { product_id } → for every store with a feed, the closest items and their prices. */
+/**
+ * POST { product_id, store_id } → that store's closest feed items and prices.
+ *
+ * One store per request, its sources one after another: a whole feed is a
+ * large JSON, and fetching every store's at once in a single function call
+ * was how the call died at the platform's time and memory limits with an
+ * HTML error page instead of an answer. The page asks store by store.
+ */
 export async function POST(req: Request) {
   if (!(await requireAdmin(req))) return NextResponse.json({ error: 'Giriş tələb olunur' }, { status: 401 });
   try {
-    const { product_id } = (await req.json()) as { product_id: string };
+    const { product_id, store_id } = (await req.json()) as { product_id: string; store_id: string };
+    if (!product_id || !store_id) return NextResponse.json({ error: 'product_id və store_id lazımdır' }, { status: 400 });
     const db = adminDb();
-    const [{ data: product }, { data: stores }, { data: sources }, { data: prices }, { data: links }] = await Promise.all([
+    const [{ data: product }, { data: store }, { data: sources }, { data: price }, { data: link }] = await Promise.all([
       db.from('products').select('id, brand, name, size, barcode').eq('id', product_id).maybeSingle(),
-      db.from('stores').select('id, name').order('name'),
-      db.from('import_sources').select('store_id, url').eq('enabled', true),
-      db.from('prices').select('store_id, price').eq('product_id', product_id),
-      db.from('product_links').select('store_id, ext_id').eq('product_id', product_id),
+      db.from('stores').select('id, name').eq('id', store_id).maybeSingle(),
+      db.from('import_sources').select('url').eq('store_id', store_id).eq('enabled', true),
+      db.from('prices').select('price').eq('product_id', product_id).eq('store_id', store_id).maybeSingle(),
+      db.from('product_links').select('ext_id').eq('product_id', product_id).eq('store_id', store_id).maybeSingle(),
     ]);
     if (!product) return NextResponse.json({ error: 'Məhsul tapılmadı' }, { status: 404 });
-    const have = new Map((prices ?? []).map((p) => [p.store_id as string, Number(p.price)]));
-    const linked = new Map((links ?? []).map((l) => [l.store_id as string, l.ext_id as string]));
-    const results: StoreResult[] = await Promise.all(
-      (stores ?? []).map(async (s): Promise<StoreResult> => {
-        const urls = (sources ?? []).filter((x) => x.store_id === s.id).map((x) => x.url as string);
-        const base: StoreResult = { store_id: s.id, store_name: s.name, have: have.get(s.id) ?? null, sources: urls.length, candidates: [], linked: linked.get(s.id) ?? null };
-        if (!urls.length) return base;
-        const seen = new Map<string, Candidate>();
-        const errors: string[] = [];
-        await Promise.all(urls.map(async (u) => {
-          try {
-            const { items } = await feedItems(u);
-            for (const c of rank(product, items, 5)) if (!seen.has(c.ext_id) || (seen.get(c.ext_id)?.score ?? 0) < c.score) seen.set(c.ext_id, c);
-          } catch (e) { errors.push(errText(e)); }
-        }));
-        return { ...base, candidates: [...seen.values()].sort((a, b) => b.score - a.score).slice(0, 3), error: errors.length && !seen.size ? errors[0] : undefined };
-      }),
-    );
-    return NextResponse.json({ product, results });
+    if (!store) return NextResponse.json({ error: 'Market tapılmadı' }, { status: 404 });
+    const urls = (sources ?? []).map((x) => x.url as string);
+    const result: StoreResult = { store_id: store.id, store_name: store.name, have: price ? Number(price.price) : null, sources: urls.length, candidates: [], linked: link?.ext_id ?? null };
+    const seen = new Map<string, Candidate>();
+    const errors: string[] = [];
+    for (const u of urls) {
+      try {
+        const { items } = await feedItems(u);
+        for (const c of rank(product, items, 5)) if (!seen.has(c.ext_id) || (seen.get(c.ext_id)?.score ?? 0) < c.score) seen.set(c.ext_id, c);
+      } catch (e) { errors.push(errText(e)); }
+    }
+    result.candidates = [...seen.values()].sort((a, b) => b.score - a.score).slice(0, 3);
+    if (errors.length && !seen.size) result.error = errors[0];
+    return NextResponse.json({ product, result });
   } catch (e) {
     return NextResponse.json({ error: errText(e) }, { status: 500 });
   }
