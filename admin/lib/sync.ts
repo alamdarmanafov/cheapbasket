@@ -27,7 +27,7 @@ export async function syncSource(src: { id: string; store_id: string; url: strin
   const at = new Date().toISOString();
   try {
     const venue = await fetchAnySource(src.url);
-    const [products, prices, pendingData] = await Promise.all([
+    const [products, prices, pendingData, linkRows] = await Promise.all([
       fetchAll<{ id: string; barcode: string | null; brand: string; name: string; size: string; image_url: string | null }>(
         (from, to) => db.from('products').select('id, barcode, brand, name, size, image_url').range(from, to)
       ),
@@ -37,7 +37,12 @@ export async function syncSource(src: { id: string; store_id: string; url: strin
       fetchAll<{ id: string }>(
         (from, to) => db.from('pending_products').select('id').range(from, to)
       ),
+      fetchAll<{ ext_id: string; product_id: string }>(
+        (from, to) => db.from('product_links').select('ext_id, product_id').eq('store_id', src.store_id).range(from, to)
+      ),
     ]);
+    // A link the admin made by hand outranks any guess (0037).
+    const links = new Map(linkRows.map((l) => [l.ext_id, l.product_id]));
     const productList: MatchableProduct[] = products;
     const match = buildMatcher(productList);
     // Which of the matches the barcode made: the count that says whether a
@@ -58,7 +63,7 @@ export async function syncSource(src: { id: string; store_id: string; url: strin
 
     for (const it of venue.items) {
       if (it.price == null) continue;
-      const matchedId = match(it);
+      const matchedId = links.get(it.ext_id) ?? match(it);
       if (!matchedId) {
         // Queue unmatched items for admin review (AI matching runs separately via /api/ai/match-pending)
         if (!wantProducts) continue;

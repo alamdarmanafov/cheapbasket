@@ -2,9 +2,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Shell } from '@/components/Shell';
 import { Pager, usePager } from '@/components/Pager';
+import { FindInStores } from '@/components/FindInStores';
 import { db, Store, Product, PriceRow } from '@/lib/supabase';
 
-interface WoltVenue { slug: string; name: string; address: string | null; url: string }
 
 type PriceMap = Map<string, Map<string, { price: number | null; discount_price: number | null }>>;
 
@@ -65,11 +65,7 @@ export default function PricesPage() {
   // Missing prices panel
   const [activeTab, setActiveTab] = useState<'table' | 'missing'>('table');
 
-  // Wolt search modal
-  const [woltProduct, setWoltProduct] = useState<Product | null>(null);
-  const [woltResults, setWoltResults] = useState<WoltVenue[] | null>(null);
-  const [woltLoading, setWoltLoading] = useState(false);
-  const [woltErr, setWoltErr] = useState<string | null>(null);
+  // "Marketlərdə tap" modal
 
   const load = async () => {
     setLoading(true);
@@ -173,23 +169,7 @@ export default function PricesPage() {
   };
   const [fillMsg, setFillMsg] = useState<string | null>(null);
 
-  // Wolt search
-  const searchWolt = async (p: Product) => {
-    setWoltProduct(p);
-    setWoltResults(null);
-    setWoltErr(null);
-    setWoltLoading(true);
-    try {
-      const r = await fetch(`/api/import/wolt/venues?q=${encodeURIComponent(p.name)}`);
-      const j = await r.json() as { venues?: WoltVenue[]; error?: string };
-      if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
-      setWoltResults(j.venues ?? []);
-    } catch (e) {
-      setWoltErr((e as Error).message);
-    } finally {
-      setWoltLoading(false);
-    }
-  };
+  const [findId, setFindId] = useState<string | null>(null);
 
   return (
     <Shell title="Qiymət müqayisə cədvəli">
@@ -247,7 +227,7 @@ export default function PricesPage() {
                         </span>
                       </th>
                     ))}
-                    <th style={{ minWidth: 80 }}>Wolt</th>
+                    <th style={{ minWidth: 80 }}>Tap</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -295,7 +275,7 @@ export default function PricesPage() {
                           );
                         })}
                         <td>
-                          <button className="btn ghost" style={{ fontSize: 12, padding: '4px 8px' }} onClick={() => searchWolt(p)}>Wolt-da tap</button>
+                          <button className="btn ghost" style={{ fontSize: 12, padding: '4px 8px' }} onClick={() => setFindId(p.id)}>Marketlərdə tap</button>
                         </td>
                       </tr>
                     );
@@ -383,7 +363,7 @@ export default function PricesPage() {
                       <tr>
                         <th style={{ minWidth: 220 }}>Məhsul</th>
                         <th style={{ minWidth: 110 }}>Barkod</th>
-                        <th>Wolt</th>
+                        <th>Tap</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -395,7 +375,7 @@ export default function PricesPage() {
                           </td>
                           <td className="muted" style={{ fontSize: 12 }}>{p.barcode ?? '—'}</td>
                           <td>
-                            <button className="btn ghost" style={{ fontSize: 12, padding: '4px 8px' }} onClick={() => searchWolt(p)}>Wolt-da tap</button>
+                            <button className="btn ghost" style={{ fontSize: 12, padding: '4px 8px' }} onClick={() => setFindId(p.id)}>Marketlərdə tap</button>
                           </td>
                         </tr>
                       ))}
@@ -411,33 +391,7 @@ export default function PricesPage() {
         </>
       )}
 
-      {/* ═══════════════════════ WOLT MODAL ═══════════════════════ */}
-      {woltProduct && (
-        <div className="modal-bg" onClick={() => setWoltProduct(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2 style={{ marginTop: 0 }}>Wolt axtarışı · {woltProduct.name}</h2>
-            {woltLoading && <p className="muted">Axtarılır…</p>}
-            {woltErr && <div className="alert err">{woltErr}</div>}
-            {woltResults && woltResults.length === 0 && <p className="muted">Nəticə tapılmadı</p>}
-            {woltResults && woltResults.length > 0 && (
-              <div style={{ display: 'grid', gap: 8 }}>
-                {woltResults.map((v) => (
-                  <div key={v.slug} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#F7F7F7', borderRadius: 10 }}>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: 13 }}>{v.name}</div>
-                      {v.address && <div className="muted" style={{ fontSize: 12 }}>{v.address}</div>}
-                    </div>
-                    <a href={v.url} target="_blank" rel="noreferrer" className="btn secondary" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>Wolt-da aç ↗</a>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="actions">
-              <button className="btn secondary" onClick={() => setWoltProduct(null)}>Bağla</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {findId && <FindInStores productId={findId} storeColors={Object.fromEntries(stores.map((s) => [s.id, s.color]))} onClose={() => setFindId(null)} onLinked={load} />}
     </Shell>
   );
 }
