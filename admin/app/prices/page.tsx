@@ -391,7 +391,7 @@ export default function PricesPage() {
         </>
       )}
 
-      {findId && <FindInStores productId={findId} storeColors={Object.fromEntries(stores.map((s) => [s.id, s.color]))} onClose={() => setFindId(null)} onLinked={load} />}
+      {findId && <FindInStores productId={findId} stores={stores} onClose={() => setFindId(null)} onLinked={load} />}
     </Shell>
   );
 }
