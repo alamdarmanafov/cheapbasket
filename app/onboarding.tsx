@@ -65,11 +65,42 @@ export default function Onboarding() {
         )}
       </Row>
 
-      {/* The first thing on the first screen: the language. The device's
-          setting picks the default, but a Russian-speaking phone set to
-          English, or the other way round, is common here, and nobody should
-          have to find the profile tab to read the walkthrough. */}
-      <Row gap={8} style={{ justifyContent: 'center', paddingHorizontal: space.lg, marginTop: space.md }}>
+      <ScrollView ref={ref} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={onEnd} style={{ flex: 1 }} onLayout={onLayout}>
+        {w > 0 && SLIDES.map((s) => (
+          <View key={s.key} style={{ width: w, paddingHorizontal: space.xl, alignItems: 'center' }}>
+            <Txt style={styles.h1} center>
+              {t(s.line1)}
+            </Txt>
+            <Txt style={[styles.h1, { color: colors.primary, marginTop: 0 }]} center>
+              {t(s.line2)}
+            </Txt>
+            <Txt v="body" color={colors.gray} center style={{ marginTop: space.md, maxWidth: 300 }}>
+              {t(s.body)}
+            </Txt>
+            {/* Bottom-aligned so the picture and its caption sit right above the
+                language row, whatever the screen height leaves spare. */}
+            <View style={{ flex: 1, justifyContent: 'flex-end', alignItems: 'center', width: '100%' }}>
+              {/* The illustrations are cropped straight from the design, so they
+                  carry their own background — rounded so a photographic one
+                  reads as a card rather than a rectangle stuck on the page. */}
+              <Image
+                source={s.img}
+                style={{ width: Math.min(w - 72, imgH * s.ratio), height: Math.min(imgH, (w - 72) / s.ratio), borderRadius: 22 }}
+                resizeMode="contain"
+                accessibilityIgnoresInvertColors
+              />
+            </View>
+            <Txt style={styles.note}>{t(s.note)}</Txt>
+          </View>
+        ))}
+      </ScrollView>
+
+      {/* The language, under the picture like a filter row and above the
+          dots, so it stays put while the slides move. The device's setting
+          picks the default, but a Russian-speaking phone set to English, or
+          the other way round, is common here, and nobody should have to find
+          the profile tab to read the walkthrough. */}
+      <Row gap={8} style={{ justifyContent: 'center', paddingHorizontal: space.lg, marginBottom: space.lg }}>
         {LANGS.map((l) => (
           <Pressable
             key={l.id}
@@ -86,34 +117,6 @@ export default function Onboarding() {
           </Pressable>
         ))}
       </Row>
-
-      <ScrollView ref={ref} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={onEnd} style={{ flex: 1 }} onLayout={onLayout}>
-        {w > 0 && SLIDES.map((s) => (
-          <View key={s.key} style={{ width: w, paddingHorizontal: space.xl, alignItems: 'center' }}>
-            <Txt style={styles.h1} center>
-              {t(s.line1)}
-            </Txt>
-            <Txt style={[styles.h1, { color: colors.primary, marginTop: 0 }]} center>
-              {t(s.line2)}
-            </Txt>
-            <Txt v="body" color={colors.gray} center style={{ marginTop: space.md, maxWidth: 300 }}>
-              {t(s.body)}
-            </Txt>
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%' }}>
-              {/* The illustrations are cropped straight from the design, so they
-                  carry their own background — rounded so a photographic one
-                  reads as a card rather than a rectangle stuck on the page. */}
-              <Image
-                source={s.img}
-                style={{ width: Math.min(w - 72, imgH * s.ratio), height: Math.min(imgH, (w - 72) / s.ratio), borderRadius: 22 }}
-                resizeMode="contain"
-                accessibilityIgnoresInvertColors
-              />
-            </View>
-            <Txt style={styles.note}>{t(s.note)}</Txt>
-          </View>
-        ))}
-      </ScrollView>
 
       <View style={{ paddingHorizontal: space.lg }}>
         <Row gap={6} style={{ justifyContent: 'center', marginBottom: space.lg }}>
