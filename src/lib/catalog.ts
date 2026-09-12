@@ -197,7 +197,18 @@ export async function fetchBanners(): Promise<Banner[]> {
 }
 
 export async function fetchCategories(): Promise<Category[]> {
-  const { data, error } = await need().from('categories').select('id, name, emoji').order('sort');
+  const { data, error } = await need().from('categories').select('id, name, emoji, names').order('sort');
   if (error) throw error;
-  return (data ?? []).map((c) => ({ id: c.id, name: c.name, emoji: c.emoji ?? null }));
+  return (data ?? []).map((c) => ({ id: c.id, name: c.name, emoji: c.emoji ?? null, names: cleanNames(c.names) }));
+}
+
+/** Only the three languages, only non-empty strings — whatever shape the column arrived in. */
+function cleanNames(raw: unknown): Category['names'] {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const out: NonNullable<Category['names']> = {};
+  for (const k of ['en', 'tr', 'ru'] as const) {
+    const v = (raw as Record<string, unknown>)[k];
+    if (typeof v === 'string' && v.trim()) out[k] = v.trim();
+  }
+  return Object.keys(out).length ? out : undefined;
 }

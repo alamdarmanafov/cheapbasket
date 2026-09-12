@@ -3,9 +3,9 @@ import { Image, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, Pres
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, radius, space } from '@/theme';
+import { colors, fonts, radius, shadow, space } from '@/theme';
 import { Row, Txt } from '@/components/ui';
-import { useT, type Key } from '@/lib/i18n';
+import { LANGS, useI18n, type Key } from '@/lib/i18n';
 import { LogoMark } from '@/components/Logo';
 import { useAuth } from '@/store/auth';
 
@@ -20,13 +20,18 @@ export default function Onboarding() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const auth = useAuth();
-  const t = useT();
+  const { t, lang, setLang } = useI18n();
   const { height } = useWindowDimensions();
   // Measure the real container (inside the web phone frame the window is much wider than the screen).
   const [w, setW] = useState(0);
+  const [h, setH] = useState(0);
   const onLayout = (e: LayoutChangeEvent) => {
     const next = Math.round(e.nativeEvent.layout.width);
     if (next && next !== w) setW(next);
+    // A slide in a horizontal pager is only as tall as its content on web, so
+    // the picture could not sink to the bottom; the measured height makes it.
+    const nextH = Math.round(e.nativeEvent.layout.height);
+    if (nextH && nextH !== h) setH(nextH);
   };
   const ref = useRef<ScrollView>(null);
   const [index, setIndex] = useState(0);
@@ -67,7 +72,7 @@ export default function Onboarding() {
 
       <ScrollView ref={ref} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={onEnd} style={{ flex: 1 }} onLayout={onLayout}>
         {w > 0 && SLIDES.map((s) => (
-          <View key={s.key} style={{ width: w, paddingHorizontal: space.xl, alignItems: 'center' }}>
+          <View key={s.key} style={{ width: w, height: h || undefined, paddingHorizontal: space.xl, alignItems: 'center' }}>
             <Txt style={styles.h1} center>
               {t(s.line1)}
             </Txt>
@@ -87,11 +92,39 @@ export default function Onboarding() {
                 resizeMode="contain"
                 accessibilityIgnoresInvertColors
               />
+              <Txt style={styles.note}>{t(s.note)}</Txt>
             </View>
-            <Txt style={styles.note}>{t(s.note)}</Txt>
           </View>
         ))}
       </ScrollView>
+
+      {/* The language, under the picture like a filter row and above the
+          dots, so it stays put while the slides move. The device's setting
+          picks the default, but a Russian-speaking phone set to English, or
+          the other way round, is common here, and nobody should have to find
+          the profile tab to read the walkthrough. */}
+      <View style={{ paddingHorizontal: space.lg, marginBottom: space.lg }}>
+        <Row gap={0} style={styles.seg}>
+          {LANGS.map((l) => {
+            const on = l.id === lang;
+            return (
+              <Pressable
+                key={l.id}
+                onPress={() => setLang(l.id)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: on }}
+                accessibilityLabel={l.label}
+                style={[styles.segBtn, on && styles.segBtnActive]}
+              >
+                <Txt style={{ fontSize: 14, lineHeight: 17 }}>{l.flag}</Txt>
+                <Txt v="captionStrong" color={on ? colors.dark : colors.gray} style={{ marginLeft: 5 }}>
+                  {l.id.toUpperCase()}
+                </Txt>
+              </Pressable>
+            );
+          })}
+        </Row>
+      </View>
 
       <View style={{ paddingHorizontal: space.lg }}>
         <Row gap={6} style={{ justifyContent: 'center', marginBottom: space.lg }}>
@@ -113,8 +146,11 @@ export default function Onboarding() {
 
 const styles = StyleSheet.create({
   h1: { fontFamily: fonts.extrabold, fontSize: 34, lineHeight: 38, letterSpacing: -1, color: colors.dark, marginTop: 12 },
-  note: { fontFamily: fonts.semibold, fontSize: 15, lineHeight: 20, color: colors.primary, textAlign: 'center', fontStyle: 'italic', transform: [{ rotate: '-4deg' }], marginBottom: space.md },
+  note: { fontFamily: fonts.semibold, fontSize: 15, lineHeight: 20, color: colors.primary, textAlign: 'center', fontStyle: 'italic', transform: [{ rotate: '-4deg' }], marginTop: space.md },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#E5C9C9' },
   dotActive: { width: 22, backgroundColor: colors.primary, borderRadius: radius.pill },
+  seg: { backgroundColor: '#F3E3E3', borderRadius: radius.pill, padding: 4 },
+  segBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 9, borderRadius: radius.pill },
+  segBtnActive: { backgroundColor: colors.white, ...shadow.card },
   btn: { height: 56, borderRadius: radius.md, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
 });

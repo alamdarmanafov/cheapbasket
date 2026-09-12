@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { NativeModules, Platform } from 'react-native';
+import { getLocales } from 'expo-localization';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { dict, type Lang, type Key } from './translations';
 
@@ -44,23 +44,10 @@ function lookup(lang: Lang, key: Key, vars?: Record<string, string | number>): s
   return s;
 }
 
-/**
- * The device language, read without pulling in a native module: React Native
- * already exposes the locale on both platforms, and expo-localization would
- * cost a pod install for the same answer.
- */
+/** The device language, when it is one the app speaks; Azerbaijani otherwise. */
 function deviceLang(): Lang {
   try {
-    const raw =
-      Platform.OS === 'ios'
-        ? NativeModules.SettingsManager?.settings?.AppleLocale ??
-          NativeModules.SettingsManager?.settings?.AppleLanguages?.[0]
-        : Platform.OS === 'android'
-          ? NativeModules.I18nManager?.localeIdentifier
-          : typeof navigator !== 'undefined'
-            ? navigator.language
-            : null;
-    const code = String(raw ?? '').slice(0, 2).toLowerCase();
+    const code = (getLocales()[0]?.languageCode ?? '').toLowerCase();
     return LANGS.some((l) => l.id === code) ? (code as Lang) : FALLBACK;
   } catch {
     return FALLBACK;

@@ -14,7 +14,7 @@ export async function GET(req: Request) {
   return NextResponse.json({ sources: sources ?? [], alerts, cron: !!process.env.CRON_SECRET });
 }
 
-type Body = { op: 'add'; store_id: string; url: string } | { op: 'delete'; id: string } | { op: 'toggle'; id: string; enabled: boolean } | { op: 'run'; id?: string } | { op: 'alerts'; value: unknown } | { op: 'test'; id: string } | { op: 'scope'; id: string; sync_products?: boolean; sync_prices?: boolean };
+type Body = { op: 'add'; store_id: string; url: string } | { op: 'delete'; id: string } | { op: 'toggle'; id: string; enabled: boolean } | { op: 'run'; id?: string; store_id?: string } | { op: 'alerts'; value: unknown } | { op: 'test'; id: string } | { op: 'scope'; id: string; sync_products?: boolean; sync_prices?: boolean };
 
 export async function POST(req: Request) {
   if (!(await requireAdmin(req))) return NextResponse.json({ error: 'Giriş tələb olunur' }, { status: 401 });
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
       if (error) throw error;
       return NextResponse.json({ ok: true });
     }
-    if (body.op === 'run') return NextResponse.json(await runSync({ onlyId: body.id }));
+    if (body.op === 'run') return NextResponse.json(await runSync({ onlyId: body.id, storeId: body.store_id }));
     if (body.op === 'test') {
       const { data: src, error: srcErr } = await db.from('import_sources').select('id, store_id, url').eq('id', body.id).single();
       if (srcErr || !src) return NextResponse.json({ ok: false, error: 'Mənbə tapılmadı' });

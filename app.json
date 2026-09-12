@@ -88,7 +88,8 @@
         {
           "icon": "./assets/notification-icon.png",
           "color": "#E53935",
-          "defaultChannel": "price-drops"
+          "defaultChannel": "alerts-v2",
+          "sounds": ["./assets/sounds/appsound.wav"]
         }
       ],
       "expo-web-browser",

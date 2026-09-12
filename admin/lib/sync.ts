@@ -1,10 +1,11 @@
 import { adminDb, fetchAll } from './server';
+import { normalizeGtin } from './gtin';
 import { buildMatcher, fetchAnySource, WoltItem, MatchableProduct } from './wolt';
 import { notifyRecentDrops } from './alerts';
 import { slugify } from './supabase';
 
 export interface SyncSource { id: string; store_id: string; url: string; name: string | null; enabled: boolean; sync_products: boolean; sync_prices: boolean; last_run_at: string | null; last_result: SyncResult | null }
-export interface SyncResult { ok: boolean; venue?: string; found: number; matched: number; created: number; updated: number; unchanged: number; removed: number; pending: number; photos?: number; error?: string; at: string }
+export interface SyncResult { ok: boolean; venue?: string; found: number; matched: number; byBarcode?: number; created: number; updated: number; unchanged: number; removed: number; pending: number; photos?: number; error?: string; at: string }
 
 function itemToProduct(it: WoltItem, brand: string) {
   const base = slugify(it.name);
@@ -39,6 +40,10 @@ export async function syncSource(src: { id: string; store_id: string; url: strin
     ]);
     const productList: MatchableProduct[] = products;
     const match = buildMatcher(productList);
+    // Which of the matches the barcode made: the count that says whether a
+    // store's feed is worth anything for filling gaps.
+    const knownBarcodes = new Set(products.map((p) => normalizeGtin(p.barcode)).filter((b): b is string => !!b));
+    let byBarcode = 0;
     const current = new Map(prices.map((p) => [p.product_id, { price: Number(p.price), discount: p.discount_price == null ? null : Number(p.discount_price) }]));
     const next = new Map<string, { price: number; discount: number | null }>();
     const noPhoto = new Set(products.filter((p) => !p.image_url).map((p) => p.id));
@@ -69,6 +74,8 @@ export async function syncSource(src: { id: string; store_id: string; url: strin
         continue;
       }
       matched++;
+      const bc = normalizeGtin(it.barcode);
+      if (bc && knownBarcodes.has(bc)) byBarcode++;
       if (it.image_url && noPhoto.has(matchedId) && !photos.has(matchedId)) photos.set(matchedId, it.image_url);
       const cand = { price: it.regular_price ?? it.price, discount: it.regular_price != null ? it.price : null };
       const prev = next.get(matchedId);
@@ -107,7 +114,7 @@ export async function syncSource(src: { id: string; store_id: string; url: strin
 
     // Fill photos for existing products that had none
     if (wantProducts) for (const [id, image_url] of photos) await db.from('products').update({ image_url }).eq('id', id).is('image_url', null);
-    const result: SyncResult = { ok: true, venue: venue.venue, found: venue.items.length, matched, created: 0, updated: rows.length, unchanged, removed: 0, pending, photos: wantProducts ? photos.size : 0, at };
+    const result: SyncResult = { ok: true, venue: venue.venue, found: venue.items.length, matched, byBarcode, created: 0, updated: rows.length, unchanged, removed: 0, pending, photos: wantProducts ? photos.size : 0, at };
     await db.from('import_sources').update({ last_run_at: at, last_result: result, name: venue.venue || null }).eq('id', src.id);
     return result;
   } catch (e) {
@@ -118,11 +125,12 @@ export async function syncSource(src: { id: string; store_id: string; url: strin
 }
 
 /** Run every enabled source (or one), then push instant alerts for the drops this run produced. */
-export async function runSync(opts: { onlyId?: string; notify?: boolean } = {}) {
+export async function runSync(opts: { onlyId?: string; storeId?: string; notify?: boolean } = {}) {
   const db = adminDb();
   const started = new Date(Date.now() - 60_000).toISOString();
   let q = db.from('import_sources').select('id, store_id, url, enabled, sync_products, sync_prices');
   if (opts.onlyId) q = q.eq('id', opts.onlyId);
+  else if (opts.storeId) q = q.eq('store_id', opts.storeId).eq('enabled', true);
   else q = q.eq('enabled', true);
   const { data: sources } = await q;
   const results: Array<{ id: string; store_id: string } & SyncResult> = [];

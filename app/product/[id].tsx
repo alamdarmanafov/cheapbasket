@@ -10,6 +10,7 @@ import { Freshness, OldPrice, PriceLine, ProductArt, StoreAvatar } from '@/compo
 import { UnitPrice } from '@/components/UnitPrice';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { StateView } from '@/components/states';
+import { PriceReportModal } from '@/components/PriceReportModal';
 import { PlusLock, PlusTag } from '@/components/PlusLock';
 import { cheapest, getProduct, maxSaving, sortedPrices } from '@/data/products';
 import { categoryLabel } from '@/data/categoryNames';
@@ -92,24 +93,6 @@ export default function ProductScreen() {
   };
 
   const [reportOpen, setReportOpen] = useState(false);
-  const [reportStore, setReportStore] = useState<string | null>(null);
-  const [reportReason, setReportReason] = useState<'outdated' | 'wrong' | 'missing'>('outdated');
-  const [reportBusy, setReportBusy] = useState(false);
-  const sendReport = async () => {
-    if (!supabase || !product || !reportStore) return;
-    if (!auth.user) {
-      setReportOpen(false);
-      router.push('/auth');
-      return;
-    }
-    setReportBusy(true);
-    const { error } = await supabase.from('price_reports').insert({ user_id: auth.user.id, product_id: product.id, store_id: reportStore, reason: reportReason });
-    setReportBusy(false);
-    setReportOpen(false);
-    if (error) return notify(t('common.error'), error.message);
-    track('price_report', { product_id: product.id, store_id: reportStore, reason: reportReason });
-    notify(t('prod.reportThanks'), t('prod.reportThanksBody'));
-  };
 
   /** System share sheet: cheapest price + link to the web version of this product. */
   const share = async () => {
@@ -222,29 +205,7 @@ export default function ProductScreen() {
             {t('prod.reportPrice')}
           </Txt>
         </Pressable>
-        <Modal visible={reportOpen} transparent animationType="fade" onRequestClose={() => setReportOpen(false)}>
-          <Pressable style={styles.reportBackdrop} onPress={() => setReportOpen(false)} accessibilityLabel={t('common.close')} />
-          <View style={styles.reportSheet}>
-            <Txt v="bodyStrong">{t('prod.reportTitle')}</Txt>
-            <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>
-              {t('prod.reportStore')}
-            </Txt>
-            <Row gap={8} style={{ flexWrap: 'wrap', marginTop: space.sm }}>
-              {sortedPrices(product).map((sp) => (
-                <Chip key={sp.store.id} text={sp.store.name} active={reportStore === sp.store.id} onPress={() => setReportStore(sp.store.id)} />
-              ))}
-            </Row>
-            <Txt v="caption" color={colors.gray} style={{ marginTop: space.md }}>
-              {t('prod.reportReason')}
-            </Txt>
-            <Row gap={8} style={{ flexWrap: 'wrap', marginTop: space.sm }}>
-              {(['outdated', 'wrong', 'missing'] as const).map((r) => (
-                <Chip key={r} text={t(`prod.reason_${r}` as never)} active={reportReason === r} onPress={() => setReportReason(r)} />
-              ))}
-            </Row>
-            <Btn title={t('prod.reportSend')} size="md" loading={reportBusy} disabled={!reportStore} onPress={sendReport} style={{ marginTop: space.lg }} />
-          </View>
-        </Modal>
+        <PriceReportModal product={product} visible={reportOpen} onClose={() => setReportOpen(false)} initialStore={c.price == null ? null : c.store.id} initialReason="wrong" />
 
         <View style={{ paddingHorizontal: space.lg, marginTop: space.xl }}>
           <Row gap={8} style={{ marginBottom: space.sm }}>
@@ -350,8 +311,6 @@ function PriceChart({ data }: { data: number[] }) {
 }
 
 const styles = StyleSheet.create({
-  reportBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
-  reportSheet: { backgroundColor: colors.white, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: space.lg, paddingBottom: space.xxl },
   savingNote: { marginTop: space.md, backgroundColor: colors.successSoft, padding: space.md, borderRadius: radius.md },
   aiRow: {
     marginHorizontal: space.lg,

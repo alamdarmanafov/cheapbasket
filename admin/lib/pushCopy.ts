@@ -25,6 +25,8 @@ const C = {
     digestGeneral: (n: number) => `Bu gün ${n} məhsul ucuzlaşdı 🔻`,
     rewardTitle: (pts: number) => `Təklifin qəbul edildi 🎉 +${pts} xal`,
     rewardBody: (name: string) => `"${name}" bazaya əlavə olundu. Xallar hesabındadır.`,
+    priceTitle: (pts: number) => pts > 0 ? `Qiymətin qəbul edildi 🎉 +${pts} xal` : 'Qiymətin qəbul edildi 🎉',
+    priceBody: (name: string, store: string, price: string) => `${name}: ${store}-da ${price} ₼ kimi yazıldı. Təşəkkürlər!`,
     aiLang: 'Azərbaycan dilində',
   },
   en: {
@@ -39,6 +41,8 @@ const C = {
     digestGeneral: (n: number) => `${n} products got cheaper today 🔻`,
     rewardTitle: (pts: number) => `Your suggestion was approved 🎉 +${pts} points`,
     rewardBody: (name: string) => `"${name}" is in the catalogue now. The points are in your account.`,
+    priceTitle: (pts: number) => pts > 0 ? `Your price was accepted 🎉 +${pts} points` : 'Your price was accepted 🎉',
+    priceBody: (name: string, store: string, price: string) => `${name} is now ${price} ₼ at ${store}. Thank you!`,
     aiLang: 'in English',
   },
   tr: {
@@ -53,6 +57,8 @@ const C = {
     digestGeneral: (n: number) => `Bugün ${n} ürün ucuzladı 🔻`,
     rewardTitle: (pts: number) => `Önerin kabul edildi 🎉 +${pts} puan`,
     rewardBody: (name: string) => `"${name}" kataloğa eklendi. Puanlar hesabında.`,
+    priceTitle: (pts: number) => pts > 0 ? `Fiyatın kabul edildi 🎉 +${pts} puan` : 'Fiyatın kabul edildi 🎉',
+    priceBody: (name: string, store: string, price: string) => `${name}: ${store} için ${price} ₼ olarak yazıldı. Teşekkürler!`,
     aiLang: 'Türkçe',
   },
   ru: {
@@ -67,6 +73,8 @@ const C = {
     digestGeneral: (n: number) => `Сегодня подешевело товаров: ${n} 🔻`,
     rewardTitle: (pts: number) => `Ваше предложение принято 🎉 +${pts} баллов`,
     rewardBody: (name: string) => `«${name}» добавлен в каталог. Баллы уже на счету.`,
+    priceTitle: (pts: number) => pts > 0 ? `Ваша цена принята 🎉 +${pts} баллов` : 'Ваша цена принята 🎉',
+    priceBody: (name: string, store: string, price: string) => `${name}: в ${store} записано ${price} ₼. Спасибо!`,
     aiLang: 'на русском языке',
   },
 } as const;

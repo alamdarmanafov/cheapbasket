@@ -4,7 +4,7 @@ import { AlertTriangle, BarChart2, Bell, BrainCircuit, MapPin, Play, Plus, Refre
 import { Shell } from '@/components/Shell';
 import { Store, db, slugify } from '@/lib/supabase';
 
-interface Result { ok: boolean; venue?: string; found: number; matched: number; created: number; updated: number; unchanged: number; pending?: number; photos?: number; error?: string; at: string }
+interface Result { ok: boolean; venue?: string; found: number; matched: number; byBarcode?: number; created: number; updated: number; unchanged: number; pending?: number; photos?: number; error?: string; at: string }
 interface Source { id: string; store_id: string; url: string; name: string | null; enabled: boolean; sync_products?: boolean; sync_prices?: boolean; last_run_at: string | null; last_result: Result | null }
 interface Alerts { enabled: boolean; plus_only: boolean; min_percent: number }
 interface PriceSnap { product_id: string; store_id: string; price: number | null; discount_price: number | null }
@@ -445,7 +445,7 @@ export default function SyncPage() {
                 <td className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{s.last_run_at ? new Date(s.last_run_at).toLocaleString('az-AZ') : '—'}</td>
                 <td style={{ fontSize: 12 }}>
                   {!s.last_result ? <span className="muted">hələ işləməyib</span> : s.last_result.ok
-                    ? <span>{s.last_result.found} məhsul · {s.last_result.matched} uyğun{s.last_result.pending ? <> · <b style={{ color: '#D97706' }}>{s.last_result.pending} növbədə</b></> : null}{s.last_result.created ? <> · <b style={{ color: '#2563EB' }}>{s.last_result.created} yaradıldı</b></> : null} · <b style={{ color: s.last_result.updated ? '#16A34A' : undefined }}>{s.last_result.updated} dəyişdi</b>{s.last_result.photos ? ` · ${s.last_result.photos} şəkil` : ''}</span>
+                    ? <span>{s.last_result.found} məhsul · {s.last_result.matched} uyğun{s.last_result.byBarcode != null ? <span className="muted"> ({s.last_result.byBarcode} barkodla)</span> : null}{s.last_result.pending ? <> · <b style={{ color: '#D97706' }}>{s.last_result.pending} növbədə</b></> : null}{s.last_result.created ? <> · <b style={{ color: '#2563EB' }}>{s.last_result.created} yaradıldı</b></> : null} · <b style={{ color: s.last_result.updated ? '#16A34A' : undefined }}>{s.last_result.updated} dəyişdi</b>{s.last_result.photos ? ` · ${s.last_result.photos} şəkil` : ''}</span>
                     : <span className="pill red" title={s.last_result.error}>xəta: {s.last_result.error?.slice(0, 60)}</span>}
                 </td>
                 <td><input type="checkbox" checked={s.enabled} onChange={() => toggle(s)} /></td>

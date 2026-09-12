@@ -15,6 +15,8 @@ export const db = {
   count: (table: string, eq?: Record<string, unknown>) => call<{ count: number }>({ op: 'count', table, eq }).then((r) => r.count),
   upsert: (table: string, rows: Record<string, unknown>[], onConflict?: string) => call<{ ok: true }>({ op: 'upsert', table, rows, onConflict }),
   delete: (table: string, eq: Record<string, unknown>) => call<{ ok: true }>({ op: 'delete', table, eq }),
+  /** A database function from the gateway's allowlist. */
+  rpc: <T = unknown>(fn: string, args?: Record<string, unknown>) => call<{ data: T }>({ op: 'rpc', fn, args }).then((r) => r.data),
 };
 
 export interface Store {
@@ -67,7 +69,7 @@ export interface AdminUser { id: string; email: string | null; created_at: strin
 
 /** Fallback list used until the `categories` table has rows. */
 export const CATEGORIES = ['Süd məhsulları', 'Yumurta', 'Qida', 'İçkilər', 'Ət', 'Meyvə-tərəvəz', 'Çörək', 'Şirniyyat', 'Ev və gigiyena'];
-export interface Category { id: string; name: string; emoji: string | null; sort: number }
+export interface Category { id: string; name: string; emoji: string | null; sort: number; names?: Partial<Record<'en' | 'tr' | 'ru', string>> | null }
 
 /** Category names from the admin-managed table (ordered), falling back to the built-in list. */
 export function useCategories(): { categories: Category[]; names: string[]; reload: () => Promise<void> } {

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { adminDb, errText, requireAdmin } from '@/lib/server';
 import { copy, langOf } from '@/lib/pushCopy';
+import { EXPO_PUSH_URL, PUSH_CHANNEL, PUSH_SOUND } from '@/lib/push';
 
 export const maxDuration = 30;
 
@@ -19,7 +20,8 @@ export async function GET(req: Request) {
 type Body =
   | { op: 'approve'; id: string; store_id: string; items: Array<{ product_id: string | null; name: string; price: number; qty: number }> }
   | { op: 'reject'; id: string; note?: string }
-  | { op: 'resolve_report'; id: string };
+  | { op: 'resolve_report'; id: string }
+  | { op: 'apply_report'; id: string };
 
 /**
  * Approve: the confirmed lines become that store's prices, the shopper is
@@ -30,8 +32,36 @@ export async function POST(req: Request) {
   const body = (await req.json()) as Body;
   const db = adminDb();
   try {
+    if (body.op === 'apply_report') {
+      // The price goes in, the reporter is paid, and hears about it in their language.
+      const { data: rep, error: e0 } = await db.from('price_reports').select('*, products(name, brand, size), stores(name)').eq('id', body.id).maybeSingle();
+      if (e0) throw e0;
+      if (!rep) return NextResponse.json({ error: 'Bildiriş tapılmadı' }, { status: 404 });
+      if (rep.resolved) return NextResponse.json({ error: 'Bu bildirişə artıq baxılıb' }, { status: 409 });
+      if (rep.price == null || !rep.store_id) return NextResponse.json({ error: 'Bu bildirişdə qiymət yoxdur' }, { status: 400 });
+      const { data: pts, error: e1 } = await db.rpc('apply_price_report', { p_report: body.id });
+      if (e1) throw e1;
+      const points = Number(pts ?? 0);
+      const [{ data: tokens }, { data: profile }] = await Promise.all([
+        db.from('push_tokens').select('token').eq('user_id', rep.user_id),
+        db.from('profiles').select('lang').eq('user_id', rep.user_id).maybeSingle(),
+      ]);
+      const c = copy(langOf(profile));
+      const to = (tokens ?? []).map((t) => t.token as string).filter(Boolean);
+      const prod = rep.products as { name: string; brand: string; size: string } | null;
+      const name = prod ? `${prod.brand} ${prod.name}`.trim() : rep.product_id;
+      const storeName = (rep.stores as { name: string } | null)?.name ?? rep.store_id;
+      if (to.length) {
+        await fetch(EXPO_PUSH_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(to.map((token) => ({ to: token, title: c.priceTitle(points), body: c.priceBody(name, storeName, Number(rep.price).toFixed(2)), sound: PUSH_SOUND, channelId: PUSH_CHANNEL, data: { url: `/product/${rep.product_id}` } }))),
+        }).catch(() => undefined);
+      }
+      return NextResponse.json({ ok: true, points });
+    }
     if (body.op === 'resolve_report') {
-      const { error } = await db.from('price_reports').update({ resolved: true }).eq('id', body.id);
+      const { error } = await db.from('price_reports').update({ resolved: true, outcome: 'dismissed' }).eq('id', body.id);
       if (error) throw error;
       return NextResponse.json({ ok: true });
     }
@@ -64,7 +94,7 @@ export async function POST(req: Request) {
         await fetch('https://exp.host/--/api/v2/push/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify(to.map((token) => ({ to: token, title: c.receiptTitle(points), body: c.receiptBody(lines.length), sound: 'default', channelId: 'price-drops', data: { url: '/referral' } }))),
+          body: JSON.stringify(to.map((token) => ({ to: token, title: c.receiptTitle(points), body: c.receiptBody(lines.length), sound: PUSH_SOUND, channelId: PUSH_CHANNEL, data: { url: '/referral' } }))),
         }).catch(() => undefined);
       }
     }

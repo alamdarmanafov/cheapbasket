@@ -1,4 +1,5 @@
 import { activeLang, type Lang } from '@/lib/i18n';
+import { catalog } from './products';
 
 /**
  * Display names for categories in the app's other languages.
@@ -38,8 +39,24 @@ const NAMES: Record<string, { en: string; tr: string; ru: string }> = {
   'ev heyvanları': { en: 'Pets', tr: 'Evcil hayvan', ru: 'Питомцы' },
 };
 
-/** What to show for a stored category name in the reader's language. */
+/**
+ * Lower-case for matching, the Azerbaijani way. JavaScript folds "İ" to "i"
+ * plus a combining dot, so "İçkilər" never equalled "içkilər" and the drinks
+ * chip stayed Azerbaijani in every other language.
+ */
+export function foldCategory(name: string): string {
+  return name.trim().replace(/İ/g, 'i').replace(/I/g, 'ı').toLowerCase();
+}
+
+/**
+ * What to show for a stored category name in the reader's language.
+ *
+ * The admin panel's translation wins, so a category added after this file was
+ * written gets its name from the database; the built-in table covers the rest.
+ */
 export function categoryLabel(name: string, lang: Lang = activeLang()): string {
   if (lang === 'az') return name;
-  return NAMES[name.trim().toLowerCase()]?.[lang] ?? name;
+  const key = foldCategory(name);
+  const fromAdmin = catalog.categories.find((c) => foldCategory(c.name) === key)?.names?.[lang];
+  return fromAdmin || NAMES[key]?.[lang] || name;
 }

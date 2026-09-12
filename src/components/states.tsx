@@ -12,6 +12,7 @@ export function StateView({
   onCta,
   secondary,
   onSecondary,
+  compact = false,
 }: {
   emoji: string;
   title: string;
@@ -20,13 +21,15 @@ export function StateView({
   onCta?: () => void;
   secondary?: string;
   onSecondary?: () => void;
+  /** Tighter spacing for a state that shares a sheet with something below it. */
+  compact?: boolean;
 }) {
   return (
-    <View style={styles.state}>
+    <View style={[styles.state, compact && { paddingVertical: space.md }]}>
       <View style={styles.emojiWrap}>
         <Txt style={{ fontSize: 40, lineHeight: 48 }}>{emoji}</Txt>
       </View>
-      <Txt v="title" center style={{ marginTop: space.xl }}>
+      <Txt v="title" center style={{ marginTop: compact ? space.md : space.xl }}>
         {title}
       </Txt>
       {body && (
@@ -34,7 +37,7 @@ export function StateView({
           {body}
         </Txt>
       )}
-      {cta && <Btn title={cta} onPress={onCta} style={{ marginTop: space.xl, minWidth: 220 }} full={false} />}
+      {cta && <Btn title={cta} onPress={onCta} style={{ marginTop: compact ? space.md : space.xl, minWidth: 220 }} full={false} />}
       {secondary && <Btn title={secondary} variant="ghost" size="md" onPress={onSecondary} style={{ marginTop: space.sm }} full={false} />}
     </View>
   );

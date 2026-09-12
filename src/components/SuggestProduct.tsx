@@ -16,7 +16,7 @@ import { useAuth } from '@/store/auth';
  * with only a name from the other. Approval in the admin panel pays the
  * suggester points, so the reward is named on the button.
  */
-export function SuggestProduct({ barcode, initialName = '', storeId, title, body, onDone }: { barcode?: string; initialName?: string; storeId?: string | null; title: string; body?: string; onDone?: () => void }) {
+export function SuggestProduct({ barcode, initialName = '', storeId, title, body, onDone, onFocus }: { barcode?: string; initialName?: string; storeId?: string | null; title: string; body?: string; onDone?: () => void; onFocus?: () => void }) {
   const t = useT();
   const router = useRouter();
   const auth = useAuth();
@@ -84,6 +84,7 @@ export function SuggestProduct({ barcode, initialName = '', storeId, title, body
         placeholderTextColor={colors.grayLight}
         returnKeyType="send"
         onSubmitEditing={submit}
+        onFocus={onFocus}
         style={styles.input}
         maxLength={120}
       />

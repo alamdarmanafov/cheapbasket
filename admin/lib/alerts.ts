@@ -1,5 +1,6 @@
 import { adminDb } from './server';
 import { copy, langOf } from './pushCopy';
+import { PUSH_CHANNEL, PUSH_SOUND } from '@/lib/push';
 
 export interface AlertSettings { enabled: boolean; plus_only: boolean; min_percent: number }
 const DEFAULTS: AlertSettings = { enabled: true, plus_only: true, min_percent: 3 };
@@ -74,7 +75,7 @@ export async function notifyRecentDrops(sinceIso: string, opts: { dryRun?: boole
     const url = fresh.length === 1 ? `/product/${fresh[0].product_id}` : '/deals';
     preview.push({ user_id: uid, body: `${title}\n${body}` });
     for (const d of fresh) logs.push({ user_id: uid, product_id: d.product_id, store_id: d.store_id, new_price: Number(d.new_price) });
-    for (const to of tokensBy.get(uid) ?? []) messages.push({ to, title, body, sound: 'default', channelId: 'price-drops', data: { url } });
+    for (const to of tokensBy.get(uid) ?? []) messages.push({ to, title, body, sound: PUSH_SOUND, channelId: PUSH_CHANNEL, data: { url } });
   }
   if (opts.dryRun) return { users: preview.length, sent: 0, preview };
 
