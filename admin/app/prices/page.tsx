@@ -149,6 +149,30 @@ export default function PricesPage() {
     URL.revokeObjectURL(a.href);
   };
 
+  // Run the store's sync sources now: every product whose barcode the feed
+  // carries gets this store's price. The answer says how much the barcode did.
+  const [filling, setFilling] = useState<string | null>(null);
+  const fillFromSources = async (s: Store) => {
+    setFilling(s.id);
+    setErr(null);
+    try {
+      const r = await fetch('/api/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'run', store_id: s.id }) });
+      const j = (await r.json()) as { results?: Array<{ ok: boolean; found: number; matched: number; byBarcode?: number; updated: number; pending: number; error?: string }>; error?: string };
+      if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
+      const rs = j.results ?? [];
+      if (!rs.length) throw new Error(`${s.name} üçün aktiv mənbə yoxdur. "Sinxronizasiya" səhifəsində Wolt filialını və ya saytı əlavə et.`);
+      const sum = rs.reduce((a, x) => ({ found: a.found + x.found, matched: a.matched + x.matched, byBarcode: a.byBarcode + (x.byBarcode ?? 0), updated: a.updated + x.updated }), { found: 0, matched: 0, byBarcode: 0, updated: 0 });
+      const failed = rs.filter((x) => !x.ok).map((x) => x.error).filter(Boolean);
+      setFillMsg(`${s.name}: ${rs.length} mənbə · ${sum.found} məhsul tapıldı · ${sum.matched} bizimkilərlə uyğun (${sum.byBarcode} barkodla) · ${sum.updated} qiymət yazıldı${failed.length ? ` · xəta: ${failed.join(' | ')}` : ''}`);
+      await load();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setFilling(null);
+    }
+  };
+  const [fillMsg, setFillMsg] = useState<string | null>(null);
+
   // Wolt search
   const searchWolt = async (p: Product) => {
     setWoltProduct(p);
@@ -287,6 +311,7 @@ export default function PricesPage() {
       {/* ═══════════════════════ MISSING PRICES TAB ═══════════════════════ */}
       {activeTab === 'missing' && (
         <>
+          {fillMsg && <div className="alert ok" style={{ marginBottom: 12 }}>{fillMsg}</div>}
           {/* Coverage: the number that decides whether a comparison is possible at all. */}
           <div className="card" style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
@@ -325,10 +350,17 @@ export default function PricesPage() {
                   </div>
                 </div>
                 {count > 0 && (
-                  <button className="btn secondary" style={{ marginTop: 10, width: '100%', fontSize: 12, justifyContent: 'center' }}
-                    onClick={(e) => { e.stopPropagation(); setMissingFilterStore(s.id); setActiveTab('table'); }}>
-                    Cədvəldə göstər →
-                  </button>
+                  <>
+                    <button className="btn" style={{ marginTop: 10, width: '100%', fontSize: 12, justifyContent: 'center' }} disabled={!!filling}
+                      title="Bu marketin mənbələrini (Wolt filialı / sayt) indi çək; barkodu uyğun gələn hər məhsula qiymət yazılır"
+                      onClick={(e) => { e.stopPropagation(); fillFromSources(s); }}>
+                      {filling === s.id ? 'Çəkilir…' : 'Barkodla doldur'}
+                    </button>
+                    <button className="btn secondary" style={{ marginTop: 6, width: '100%', fontSize: 12, justifyContent: 'center' }}
+                      onClick={(e) => { e.stopPropagation(); setMissingFilterStore(s.id); setActiveTab('table'); }}>
+                      Cədvəldə göstər →
+                    </button>
+                  </>
                 )}
               </div>
             ))}
