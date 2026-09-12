@@ -3,7 +3,7 @@ import { Image, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, Pres
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, radius, space } from '@/theme';
+import { colors, fonts, radius, shadow, space } from '@/theme';
 import { Row, Txt } from '@/components/ui';
 import { LANGS, useI18n, type Key } from '@/lib/i18n';
 import { LogoMark } from '@/components/Logo';
@@ -92,8 +92,8 @@ export default function Onboarding() {
                 resizeMode="contain"
                 accessibilityIgnoresInvertColors
               />
+              <Txt style={styles.note}>{t(s.note)}</Txt>
             </View>
-            <Txt style={styles.note}>{t(s.note)}</Txt>
           </View>
         ))}
       </ScrollView>
@@ -103,23 +103,28 @@ export default function Onboarding() {
           picks the default, but a Russian-speaking phone set to English, or
           the other way round, is common here, and nobody should have to find
           the profile tab to read the walkthrough. */}
-      <Row gap={8} style={{ justifyContent: 'center', paddingHorizontal: space.lg, marginBottom: space.lg }}>
-        {LANGS.map((l) => (
-          <Pressable
-            key={l.id}
-            onPress={() => setLang(l.id)}
-            accessibilityRole="button"
-            accessibilityState={{ selected: l.id === lang }}
-            accessibilityLabel={l.label}
-            style={({ pressed }) => [styles.lang, l.id === lang && styles.langActive, pressed && { opacity: 0.8 }]}
-          >
-            <Txt style={{ fontSize: 15, lineHeight: 18 }}>{l.flag}</Txt>
-            <Txt v="captionStrong" color={l.id === lang ? colors.white : colors.dark} style={{ marginLeft: 5 }}>
-              {l.id.toUpperCase()}
-            </Txt>
-          </Pressable>
-        ))}
-      </Row>
+      <View style={{ paddingHorizontal: space.lg, marginBottom: space.lg }}>
+        <Row gap={0} style={styles.seg}>
+          {LANGS.map((l) => {
+            const on = l.id === lang;
+            return (
+              <Pressable
+                key={l.id}
+                onPress={() => setLang(l.id)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: on }}
+                accessibilityLabel={l.label}
+                style={[styles.segBtn, on && styles.segBtnActive]}
+              >
+                <Txt style={{ fontSize: 14, lineHeight: 17 }}>{l.flag}</Txt>
+                <Txt v="captionStrong" color={on ? colors.dark : colors.gray} style={{ marginLeft: 5 }}>
+                  {l.id.toUpperCase()}
+                </Txt>
+              </Pressable>
+            );
+          })}
+        </Row>
+      </View>
 
       <View style={{ paddingHorizontal: space.lg }}>
         <Row gap={6} style={{ justifyContent: 'center', marginBottom: space.lg }}>
@@ -141,10 +146,11 @@ export default function Onboarding() {
 
 const styles = StyleSheet.create({
   h1: { fontFamily: fonts.extrabold, fontSize: 34, lineHeight: 38, letterSpacing: -1, color: colors.dark, marginTop: 12 },
-  note: { fontFamily: fonts.semibold, fontSize: 15, lineHeight: 20, color: colors.primary, textAlign: 'center', fontStyle: 'italic', transform: [{ rotate: '-4deg' }], marginBottom: space.md },
+  note: { fontFamily: fonts.semibold, fontSize: 15, lineHeight: 20, color: colors.primary, textAlign: 'center', fontStyle: 'italic', transform: [{ rotate: '-4deg' }], marginTop: space.md },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#E5C9C9' },
   dotActive: { width: 22, backgroundColor: colors.primary, borderRadius: radius.pill },
-  lang: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, height: 34, borderRadius: radius.pill, backgroundColor: colors.white, borderWidth: 1, borderColor: '#E5C9C9' },
-  langActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  seg: { backgroundColor: '#F3E3E3', borderRadius: radius.pill, padding: 4 },
+  segBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 9, borderRadius: radius.pill },
+  segBtnActive: { backgroundColor: colors.white, ...shadow.card },
   btn: { height: 56, borderRadius: radius.md, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
 });
