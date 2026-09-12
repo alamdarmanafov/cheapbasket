@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { adminDb } from './server';
+import { copy, langOf, type Lang } from './pushCopy';
 
 export interface Drop { product_id: string; store_id: string; new_price: number; old_price: number; drop_amount: number; drop_percent: number; changed_at: string; name: string; brand: string; size: string; emoji: string | null; store_name: string }
 export interface DigestSettings { enabled: boolean; free_days: number[]; hour_baku: number; max_items: number; lookback_free_days: number; /** write the text with AI (costs tokens per user); off = free template */ use_ai: boolean; /** only Plus subscribers receive the digest */ plus_only: boolean }
@@ -50,13 +51,14 @@ async function composeWithOpenAI(user: string, fallback: { title: string; body: 
 export const aiProvider = () => (process.env.OPENAI_API_KEY ? 'openai' : process.env.ANTHROPIC_API_KEY ? 'claude' : 'template');
 
 /** Write the message with the configured AI provider; a plain template otherwise. */
-export async function composeMessage(drops: Drop[], plus: boolean, personal: boolean, useAi = false): Promise<{ title: string; body: string }> {
-  const lines = drops.map((d) => `${d.emoji ?? ''} ${d.brand} ${d.name} ${d.size}: ${d.store_name}-da ${d.old_price.toFixed(2)} → ${d.new_price.toFixed(2)} ₼ (−${d.drop_percent}%)`);
+export async function composeMessage(drops: Drop[], plus: boolean, personal: boolean, useAi = false, lang: Lang = 'az'): Promise<{ title: string; body: string }> {
+  const c = copy(lang);
+  const lines = drops.map((d) => `${d.emoji ?? ''} ${c.line(`${d.brand} ${d.name} ${d.size}`.trim(), d.store_name, d.old_price.toFixed(2), d.new_price.toFixed(2))} (−${d.drop_percent}%)`);
   const fallback = {
-    title: personal ? `Səbətindəki ${drops.length} məhsul ucuzlaşdı 🔻` : `Bu gün ${drops.length} məhsul ucuzlaşdı 🔻`,
-    body: lines.slice(0, 3).join('\n') + (drops.length > 3 ? `\n+${drops.length - 3} məhsul daha` : ''),
+    title: personal ? c.digestPersonal(drops.length) : c.digestGeneral(drops.length),
+    body: lines.slice(0, 3).join('\n') + (drops.length > 3 ? `\n${c.more(drops.length - 3)}` : ''),
   };
-  const user = `${plus ? 'Plus istifadəçi (gündəlik xəbər)' : 'Free istifadəçi (aylıq xəbər)'}${personal ? ', səbətindəki məhsullar' : ', ümumi endirimlər'}:\n${lines.join('\n')}`;
+  const user = `Bildirişi ${c.aiLang} yaz. ${plus ? 'Plus istifadəçi (gündəlik xəbər)' : 'Free istifadəçi (aylıq xəbər)'}${personal ? ', səbətindəki məhsullar' : ', ümumi endirimlər'}:\n${lines.join('\n')}`;
   const provider = useAi ? aiProvider() : 'template';
   if (provider === 'template') return fallback;
   try {
@@ -97,7 +99,7 @@ export async function runDigest(opts: { force?: boolean; dryRun?: boolean; onlyU
   if (!userIds.length) return { sent: 0, users: 0, errors: 0, preview: [] };
 
   const [{ data: profiles }, { data: drops }, { data: baskets }, { data: sentToday }] = await Promise.all([
-    db.from('profiles').select('user_id, plan, plan_expires_at, digest_enabled, blocked').in('user_id', userIds),
+    db.from('profiles').select('user_id, plan, plan_expires_at, digest_enabled, blocked, lang').in('user_id', userIds),
     db.from('price_drops').select('*').order('drop_percent', { ascending: false }).limit(200),
     db.from('baskets').select('id, user_id, basket_items(product_id)').in('user_id', userIds),
     db.from('digest_log').select('user_id').gte('sent_at', new Date(Date.now() - 20 * 3600000).toISOString()),
@@ -125,10 +127,11 @@ export async function runDigest(opts: { force?: boolean; dryRun?: boolean; onlyU
     const pick = (personal.length ? [...personal, ...recent.filter((d) => !mine?.has(d.product_id))] : recent).slice(0, settings.max_items);
     if (!pick.length) continue;
 
-    const msg = await composeMessage(pick, plus, personal.length > 0, settings.use_ai);
+    const msg = await composeMessage(pick, plus, personal.length > 0, settings.use_ai, langOf(p as { lang?: string | null }));
+    const url = pick.length === 1 ? `/product/${pick[0].product_id}` : '/deals';
     preview.push({ user_id: uid, ...msg });
     logs.push({ user_id: uid, ...msg });
-    for (const to of byUser.get(uid) ?? []) messages.push({ to, ...msg, data: { url: '/deals' } });
+    for (const to of byUser.get(uid) ?? []) messages.push({ to, ...msg, data: { url } });
   }
 
   if (opts.dryRun) return { sent: 0, users: preview.length, errors: 0, preview };

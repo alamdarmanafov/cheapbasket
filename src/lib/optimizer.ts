@@ -31,8 +31,7 @@ const lineCost = (l: BasketLine, store: StoreId) => {
   return p == null ? null : p * l.qty;
 };
 
-export function optimize(lines: BasketLine[]): Optimization {
-  const stores = catalog.stores;
+export function optimize(lines: BasketLine[], stores: Store[] = catalog.stores): Optimization {
   if (lines.length === 0 || stores.length === 0) return { ranked: [], best: null, worst: null, saving: 0, cheapestSplitTotal: 0 };
 
   const ranked: StoreTotal[] = stores

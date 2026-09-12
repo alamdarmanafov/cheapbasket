@@ -8,8 +8,9 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, hasSupabase } from '@/lib/supabase';
 import { PlanId } from '@/data/plans';
-import { tr } from '@/lib/i18n';
-import { checkRewards } from '@/lib/rewards';
+import { tr, useI18n } from '@/lib/i18n';
+import { checkRewards, REWARDS_SEEN_KEY } from '@/lib/rewards';
+import { unregisterPush } from '@/lib/notifications';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -65,6 +66,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const d = p.get('error_description') || p.get('error');
     return d ? decodeURIComponent(d.replace(/\+/g, ' ')) : null;
   });
+
+  // The reader's language rides on the profile so a push arrives in it. The
+  // provider sits inside I18nProvider, so the value is the one on screen.
+  const { lang } = useI18n();
+  useEffect(() => {
+    const uid = session?.user.id;
+    if (!supabase || !uid) return;
+    supabase.from('profiles').upsert({ user_id: uid, lang }).then(() => undefined, () => undefined);
+  }, [lang, session?.user.id]);
 
   const loadProfile = useCallback(async (userId: string | undefined, opts: { rewards?: boolean } = {}) => {
     if (!supabase || !userId) {
@@ -210,6 +220,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return error ? { error: error.message } : {};
       },
       async signOut() {
+        // The push token stays with the device, and a token filed under this
+        // user would keep delivering their basket alerts to whoever signs in
+        // next on the same phone. It is unfiled first, while the session can
+        // still authorise the delete. The rewards marker goes too, so the
+        // next account does not inherit "already shown".
+        const uid = session?.user.id ?? null;
+        await unregisterPush(uid).catch(() => undefined);
+        await AsyncStorage.removeItem(REWARDS_SEEN_KEY).catch(() => undefined);
         await supabase?.auth.signOut();
         setProfile(null);
       },

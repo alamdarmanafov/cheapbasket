@@ -57,7 +57,7 @@ export default function Onboarding() {
         {!last ? (
           <Pressable onPress={finish} hitSlop={8} accessibilityRole="button">
             <Txt v="body" color={colors.gray}>
-              Keç
+              {t('onboarding.skip')}
             </Txt>
           </Pressable>
         ) : (

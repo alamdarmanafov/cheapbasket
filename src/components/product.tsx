@@ -1,5 +1,6 @@
 import React from 'react';
-import { Pressable, StyleSheet, View, Image } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Product, Store, cheapest, StorePrice } from '@/data/products';
@@ -8,6 +9,8 @@ import { useT } from '@/lib/i18n';
 import { Price, Row, Txt } from './ui';
 import { useBasket } from '@/store/basket';
 import { freshness, freshnessLevel } from '@/lib/format';
+import { UnitPrice } from './UnitPrice';
+import { daysLeft } from '@/lib/discount';
 
 /** Product visual on a soft tinted background — stands in for photography. */
 export function ProductArt({ product, size = 56, emojiScale = 0.5 }: { product: Product; size?: number; emojiScale?: number }) {
@@ -23,7 +26,7 @@ export function ProductArt({ product, size = 56, emojiScale = 0.5 }: { product: 
       }}
     >
       {product.imageUrl ? (
-        <Image source={{ uri: product.imageUrl }} style={{ width: size, height: size, borderRadius: size >= 120 ? radius.xl : radius.md }} resizeMode="cover" accessibilityIgnoresInvertColors />
+        <Image source={{ uri: product.imageUrl }} style={{ width: size, height: size, borderRadius: size >= 120 ? radius.xl : radius.md }} contentFit="cover" transition={150} cachePolicy="disk" accessibilityIgnoresInvertColors />
       ) : (
         <Txt style={{ fontSize: size * emojiScale, lineHeight: size * emojiScale * 1.25 }}>{product.emoji}</Txt>
       )}
@@ -53,7 +56,9 @@ export function StoreAvatar({ store, size = 32 }: { store: Store; size?: number 
         <Image
           source={{ uri: store.logo_url }}
           style={{ width: size * 0.78, height: size * 0.78 }}
-          resizeMode="contain"
+          contentFit="contain"
+          transition={150}
+          cachePolicy="disk"
           accessibilityIgnoresInvertColors
         />
       </View>
@@ -110,6 +115,13 @@ export function ProductRow({ product, showStore = true }: { product: Product; sh
       <View style={{ alignItems: 'flex-end', marginLeft: space.sm }}>
         {c.regular != null && <OldPrice value={c.regular} />}
         {c.price != null ? <Price value={c.price} size="sm" color={c.regular != null ? colors.primary : colors.dark} /> : <Txt v="caption" color={colors.gray}>—</Txt>}
+        <UnitPrice price={c.price} size={product.size} />
+        {/* A discount about to end is worth a word: the price on the row will
+            not be there next week. */}
+        {c.regular != null && (() => {
+          const d = daysLeft(product.discountEnds?.[c.store.id]);
+          return d != null && d <= 3 ? <Txt v="caption" color={colors.warning} style={{ fontSize: 10 }}>{d === 0 ? t('deal.endsToday') : t('deal.endsIn', { n: d })}</Txt> : null;
+        })()}
       </View>
       <Pressable
         onPress={(e) => {
@@ -132,6 +144,7 @@ export function ProductRow({ product, showStore = true }: { product: Product; sh
 
 /** One line in a price comparison list. */
 export function PriceLine({ item, rank, best }: { item: StorePrice; rank: number; best: number }) {
+  const t = useT();
   const unavailable = item.price == null;
   const diff = item.price != null ? item.price - best : 0;
   return (
@@ -152,7 +165,7 @@ export function PriceLine({ item, rank, best }: { item: StorePrice; rank: number
         </Txt>
         {unavailable ? (
           <Txt v="caption" color={colors.grayLight}>
-            Hazırda mövcud deyil
+            {t('prod.unavailableNow')}
           </Txt>
         ) : rank === 0 ? (
           <Txt v="caption" color={colors.success}>

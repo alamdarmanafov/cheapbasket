@@ -44,7 +44,7 @@ export default function Feedback() {
       <ScreenHeader title={t('fb.title')} />
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: insets.bottom + space.xxl }} keyboardShouldPersistTaps="handled">
         <Txt v="body" color={colors.gray}>
-          Sualın, şikayətin və ya təklifin var? Yaz, oxuyuruq.
+          {t('feedback.intro')}
         </Txt>
         <Row gap={8} style={{ marginTop: space.md, flexWrap: 'wrap' }}>
           {KINDS.map((k) => (

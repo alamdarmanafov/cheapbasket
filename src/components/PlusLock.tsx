@@ -6,6 +6,7 @@ import { colors, radius, space } from '@/theme';
 import { useT } from '@/lib/i18n';
 import { Btn, Txt } from './ui';
 import { useBasket } from '@/store/basket';
+import { useKnownPlusPrices } from '@/lib/plusStore';
 
 /** Small "PLUS" tag for rows and titles. */
 export function PlusTag() {
@@ -22,6 +23,7 @@ export function PlusTag() {
  */
 export function PlusLock({ feature, children, minHeight = 160, fill = false }: { feature: string; children: React.ReactNode; minHeight?: number; fill?: boolean }) {
   const t = useT();
+  const prices = useKnownPlusPrices();
   const { isPlus } = useBasket();
   const router = useRouter();
   if (isPlus) return <>{children}</>;
@@ -37,8 +39,12 @@ export function PlusLock({ feature, children, minHeight = 160, fill = false }: {
         <Txt v="bodyStrong" center style={{ marginTop: space.sm }}>
           {feature}
         </Txt>
+        {/* The price used to be typed in here and drifted from the store's.
+            It is the store's own figure now, or nothing until the store has
+            answered once on this device. */}
         <Txt v="caption" color={colors.gray} center style={{ marginTop: 2 }}>
-          Cheap Market AI Plus ilə açılır · 1.99 $ / ay
+          {t('plusLock.unlockWith')}
+          {prices.monthly ? ` · ${t('plusLock.perMonth', { price: prices.monthly })}` : ''}
         </Txt>
         <Btn title={t('plusLock.goPlus')} size="md" full={false} icon="star" onPress={() => router.push('/plus')} style={{ marginTop: space.md, minWidth: 160 }} />
       </Pressable>

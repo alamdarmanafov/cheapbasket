@@ -11,6 +11,11 @@ export type EventKind =
   | 'map_open'
   | 'promo'
   | 'suggest'
+  | 'share'
+  | 'watch'
+  | 'trip'
+  | 'receipt'
+  | 'price_report'
   // The subscription funnel: the paywall opened, a plan tapped, the store
   // sheet confirmed by our server, or the attempt lost along the way. Without
   // the last three "how many of the people who saw Plus bought it" is a

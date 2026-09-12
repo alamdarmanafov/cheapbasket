@@ -50,7 +50,7 @@ update price_alerts a set product_id = d.keep_id from dup_pairs d where a.produc
 update price_alert_log l set product_id = d.keep_id from dup_pairs d where l.product_id = d.drop_id;
 
 -- saved lists carry product ids inside a jsonb array.
-update lists l
+update saved_baskets l
    set items = (
      select coalesce(jsonb_agg(case when it->>'id' = d.drop_id then jsonb_set(it, '{id}', to_jsonb(d.keep_id)) else it end), '[]'::jsonb)
        from jsonb_array_elements(l.items) it

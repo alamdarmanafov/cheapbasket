@@ -1,4 +1,7 @@
 import { track } from '@/lib/track';
+import { applyStorePrefs, useStorePrefs } from '@/lib/storePrefs';
+import * as Haptics from 'expo-haptics';
+import { Platform } from 'react-native';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from './auth';
@@ -21,6 +24,8 @@ interface BasketState {
   /** Replace the whole basket (loading a saved list). */
   replace: (entries: Array<{ id: string; qty: number }>) => void;
   optimization: Optimization;
+  /** Stores the comparison set aside because of the user's store preferences. */
+  hiddenStores: number;
   /** Store the user picked on the result screen (defaults to the AI's best). */
   chosenStore: StoreId | null;
   setChosenStore: (s: StoreId | null) => void;
@@ -96,8 +101,16 @@ export function BasketProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
     };
   }, [entries, userId, hydrated]);
+  // Signing out empties the local basket. It is already in the cloud under
+  // the account that just left, and it comes back on the next sign-in; kept
+  // here, it would be merged into whoever signs in next on this phone.
+  const prevUser = useRef<string | null>(null);
   useEffect(() => {
-    if (!userId) syncedFor.current = null;
+    if (!userId) {
+      syncedFor.current = null;
+      if (prevUser.current) setEntries([]);
+    }
+    prevUser.current = userId;
   }, [userId]);
 
   // 3. Lines always carry the live product (prices refresh with the catalogue); unknown ids are kept until the catalogue loads.
@@ -108,6 +121,8 @@ export function BasketProvider({ children }: { children: React.ReactNode }) {
 
   const add = useCallback((p: Product, qty = 1) => {
     track('basket_add', { product_id: p.id });
+    // A small tap under the thumb says "added" faster than the icon change.
+    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
     setEntries((es) => {
       const i = es.findIndex((e) => e.id === p.id);
       if (i >= 0) {
@@ -127,7 +142,12 @@ export function BasketProvider({ children }: { children: React.ReactNode }) {
 
   const clear = useCallback(() => setEntries([]), []);
 
-  const optimization = useMemo(() => optimize(lines), [lines]);
+  // The comparison runs over the stores the user wants considered — their
+  // chosen set, or only the ones with a branch nearby.
+  const prefs = useStorePrefs();
+  const considered = useMemo(() => applyStorePrefs(cat.stores, cat.branches, prefs, cat.locationGranted === true), [cat.stores, cat.branches, cat.locationGranted, prefs]);
+  const optimization = useMemo(() => optimize(lines, considered.stores), [lines, considered.stores]);
+  const hiddenStores = considered.hidden;
 
   const value = useMemo<BasketState>(
     () => ({
@@ -141,13 +161,14 @@ export function BasketProvider({ children }: { children: React.ReactNode }) {
       entries,
       replace: (next) => setEntries(next.map((e) => ({ id: e.id, qty: Math.max(1, e.qty) }))),
       optimization,
+      hiddenStores,
       chosenStore,
       setChosenStore,
       plan,
       isPlus: plan === 'plus',
       setPlan,
     }),
-    [lines, entries, add, remove, setQty, clear, optimization, chosenStore, plan],
+    [lines, entries, add, remove, setQty, clear, optimization, hiddenStores, chosenStore, plan],
   );
 
   return <BasketCtx.Provider value={value}>{children}</BasketCtx.Provider>;

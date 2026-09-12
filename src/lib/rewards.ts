@@ -14,12 +14,28 @@ import { tr, activeLang } from './i18n';
  * purchase, because to the person holding the phone it is the same news.
  */
 
-const SEEN_KEY = 'cb_rewards_seen';
+export const REWARDS_SEEN_KEY = 'cb_rewards_seen';
+const SEEN_KEY = REWARDS_SEEN_KEY;
 
 interface Redeemed { days: number; cost: number; expires_at: string }
 
+let inflight: { userId: string; p: Promise<boolean> } | null = null;
+
 /** Returns true when the profile changed on the server and should be re-read. */
-export async function checkRewards(userId: string): Promise<boolean> {
+export function checkRewards(userId: string): Promise<boolean> {
+  // At launch the profile loads twice — once from getSession, once from the
+  // INITIAL_SESSION event — and two concurrent checks both read the marker
+  // before either writes it, so the same credit threw confetti twice. A
+  // second call while one is running gets the first one's answer.
+  if (inflight && inflight.userId === userId) return inflight.p;
+  const p = runCheck(userId).finally(() => {
+    if (inflight?.p === p) inflight = null;
+  });
+  inflight = { userId, p };
+  return p;
+}
+
+async function runCheck(userId: string): Promise<boolean> {
   if (!supabase) return false;
   const db = supabase;
 

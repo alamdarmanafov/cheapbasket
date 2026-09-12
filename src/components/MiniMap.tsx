@@ -2,12 +2,14 @@ import React from 'react';
 import Svg, { Circle, Line, Path, Rect, Text as SvgText } from 'react-native-svg';
 import { Branch, catalog, getStore } from '@/data/products';
 import { colors } from '@/theme';
+import { useT } from '@/lib/i18n';
 
 /**
  * Stylised street map drawn with SVG — no API key, works on web and native.
  * Production swaps this for react-native-maps and keeps the same pins/labels.
  */
 export function MiniMap({ width, height, branch, showOthers = true, labels = true }: { width: number; height: number; branch: Branch; showOthers?: boolean; labels?: boolean }) {
+  const t = useT();
   const me = catalog.location;
   // Scale the viewport so the selected branch always fits.
   const span = Math.max(0.03, Math.abs(branch.lng - me.lng) * 2.6, Math.abs(branch.lat - me.lat) * 3.4);
@@ -47,7 +49,7 @@ export function MiniMap({ width, height, branch, showOthers = true, labels = tru
       <Circle cx={user.x} cy={user.y} r={8} fill="#2587FF" stroke="#FFFFFF" strokeWidth={3} />
       {labels && (
         <SvgText x={user.x} y={user.y + 26} fontSize={11} fontWeight="700" fill="#2587FF" textAnchor="middle" fontFamily="Inter_700Bold">
-          Sən
+          {t('map.you')}
         </SvgText>
       )}
       <Path

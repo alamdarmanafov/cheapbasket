@@ -21,7 +21,10 @@
         "NSCameraUsageDescription": "Barkodu skan etmək və məhsulun şəklini çəkmək üçün kameraya icazə lazımdır.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "usesAppleSignIn": true
+      "usesAppleSignIn": true,
+      "associatedDomains": [
+        "applinks:cheapmarket.app"
+      ]
     },
     "android": {
       "package": "az.cheapbasket.app",
@@ -33,7 +36,29 @@
       "permissions": [
         "CAMERA"
       ],
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "cheapmarket.app",
+              "pathPrefix": "/p"
+            },
+            {
+              "scheme": "https",
+              "host": "cheapmarket.app",
+              "pathPrefix": "/r"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -67,7 +92,14 @@
         }
       ],
       "expo-web-browser",
-      "expo-iap"
+      "expo-iap",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Çekin şəklini çəkmək üçün kameraya icazə lazımdır.",
+          "photosPermission": "Çekin şəklini seçmək üçün foto kitabxanasına icazə lazımdır."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": false

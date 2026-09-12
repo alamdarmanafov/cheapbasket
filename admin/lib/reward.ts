@@ -1,4 +1,5 @@
 import { adminDb } from './server';
+import { copy, langOf } from './pushCopy';
 
 /**
  * Pays a user for a suggestion that just became a product, and tells them.
@@ -16,13 +17,17 @@ export async function rewardSuggester(userId: string | null | undefined, barcode
   const points = Number(data ?? 0);
   if (points <= 0) return 0;
 
-  const { data: tokens } = await db.from('push_tokens').select('token').eq('user_id', userId);
+  const [{ data: tokens }, { data: profile }] = await Promise.all([
+    db.from('push_tokens').select('token').eq('user_id', userId),
+    db.from('profiles').select('lang').eq('user_id', userId).maybeSingle(),
+  ]);
+  const c = copy(langOf(profile));
   const to = (tokens ?? []).map((t) => t.token as string).filter(Boolean);
   if (to.length) {
     const messages = to.map((token) => ({
       to: token,
-      title: `Təklifin qəbul edildi 🎉 +${points} xal`,
-      body: `"${productName}" bazaya əlavə olundu. Xallar hesabındadır.`,
+      title: c.rewardTitle(points),
+      body: c.rewardBody(productName),
       sound: 'default',
       channelId: 'price-drops',
       data: { url: '/referral' },

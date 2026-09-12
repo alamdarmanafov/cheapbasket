@@ -72,11 +72,11 @@ export default function Account() {
           </Txt>
           <TextInput value={name} onChangeText={setName} placeholder={t('account.namePh')} placeholderTextColor={colors.grayLight} style={styles.input} autoCapitalize="words" />
           <Txt v="caption" color={colors.gray} style={{ marginTop: space.md }}>
-            Şəhər
+            {t('account.city')}
           </Txt>
           <TextInput value={city} onChangeText={setCity} placeholder={t('account.cityPh')} placeholderTextColor={colors.grayLight} style={styles.input} />
           <Txt v="caption" color={colors.gray} style={{ marginTop: space.md }}>
-            E-poçt
+            {t('account.email')}
           </Txt>
           <Row gap={8} style={{ marginTop: 6 }}>
             <Txt v="body">{auth.user.email ?? '—'}</Txt>
@@ -89,7 +89,7 @@ export default function Account() {
           </Row>
           {provider === 'apple' && auth.user.email?.endsWith('privaterelay.appleid.com') && (
             <Txt v="caption" color={colors.gray} style={{ marginTop: 6, fontSize: 11 }}>
-              Apple e-poçtunu gizlədib; bildirişlər bu ünvana yönləndirilir.
+              {t('account.appleRelay')}
             </Txt>
           )}
           {msg && (
@@ -106,7 +106,7 @@ export default function Account() {
           <Row style={{ justifyContent: 'space-between' }}>
             <View style={{ flex: 1, marginRight: space.md }}>
               <Row gap={6}>
-                <Txt v="bodyStrong">AI endirim xəbəri</Txt>
+                <Txt v="bodyStrong">{t('digest.title')}</Txt>
                 {auth.profile?.plan !== 'plus' && <PlusTag />}
               </Row>
               <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>

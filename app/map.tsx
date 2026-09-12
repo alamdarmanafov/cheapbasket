@@ -82,7 +82,7 @@ export default function MapScreen() {
         </Row>
         <View style={{ flex: 1, justifyContent: 'center', padding: space.xl }}>
           <Txt v="title" center>
-            Filial tapılmadı
+            {t('map.noBranch')}
           </Txt>
           <Txt v="caption" color={colors.gray} center style={{ marginTop: space.sm }}>
             {getStore(storeId).name} üçün admin paneldən filial (ad, ünvan, lat, lng) əlavə et.
@@ -145,10 +145,10 @@ export default function MapScreen() {
           {lines.length === 0 ? (
             <Pressable onPress={() => router.push('/search')} style={{ flex: 1 }}>
               <Txt v="caption" color={colors.gray}>
-                Səbətin boşdur
+                {t('map.basketEmpty')}
               </Txt>
               <Txt v="captionStrong" color={colors.primary}>
-                Məhsul əlavə et, ən sərfəli marketi göstərək →
+                {t('map.basketEmptyCta')}
               </Txt>
             </Pressable>
           ) : (
@@ -165,7 +165,7 @@ export default function MapScreen() {
                 </Txt>
               ) : storeId === bestStore ? (
                 <Txt v="captionStrong" color={colors.success}>
-                  Ən sərfəli ✓
+                  {t('map.bestHere')}
                 </Txt>
               ) : (
                 <Txt v="caption" color={colors.gray}>
@@ -184,7 +184,7 @@ export default function MapScreen() {
         </Row>
         <Pressable onPress={() => router.push('/nearby')} accessibilityRole="button" style={{ alignSelf: 'center', marginTop: space.sm, padding: 4 }}>
           <Txt v="captionStrong" color={colors.primary} center style={{ fontSize: 12 }}>
-            {storeBranches.length > 1 ? t('map.branchCount', { store: getStore(storeId).name, n: storeBranches.length }) : ''}Yaxınlıqdakı bütün marketlər →
+            {storeBranches.length > 1 ? t('map.branchCount', { store: getStore(storeId).name, n: storeBranches.length }) : ''}{t('map.allNearby')}
           </Txt>
         </Pressable>
       </View>

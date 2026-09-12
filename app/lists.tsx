@@ -8,7 +8,8 @@ import { Btn, Card, Divider, Pill, Row, Txt } from '@/components/ui';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { StateView } from '@/components/states';
 import { PlusTag } from '@/components/PlusLock';
-import { getProduct } from '@/data/products';
+import { getProduct, searchProducts } from '@/data/products';
+import { TEMPLATES } from '@/data/templates';
 import { optimize } from '@/lib/optimizer';
 import { supabase } from '@/lib/supabase';
 import { confirmAsync, notify } from '@/lib/confirm';
@@ -83,7 +84,7 @@ export default function Lists() {
             {!basket.isPlus && <PlusTag />}
           </Row>
           <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>
-            {basket.count} məhsul · {basket.isPlus ? t('lists.unlimited') : t('lists.freeLimit', { limit: FREE_LIMIT })}
+            {t('lists.itemCount', { count: basket.count })} · {basket.isPlus ? t('lists.unlimited') : t('lists.freeLimit', { limit: FREE_LIMIT })}
           </Txt>
           <Row gap={space.sm} style={{ marginTop: space.md }}>
             <TextInput value={name} onChangeText={setName} placeholder={t('lists.namePlaceholder')} placeholderTextColor={colors.grayLight} style={styles.input} returnKeyType="done" onSubmitEditing={save} />
@@ -91,12 +92,44 @@ export default function Lists() {
           </Row>
         </Card>
 
+        {/* Starter lists: the weekly shop in one tap. Terms are searched
+            against the live catalogue, so nothing here goes stale. */}
         <Txt v="bodyStrong" style={{ marginTop: space.xl, marginBottom: space.sm }}>
-          Yadda saxlanan siyahılar
+          {t('lists.templates')}
+        </Txt>
+        <Row gap={space.sm} style={{ flexWrap: 'wrap' }}>
+          {TEMPLATES.map((tp) => {
+            const found = tp.terms.map((term) => searchProducts(term)[0]).filter((p): p is NonNullable<typeof p> => !!p);
+            return (
+              <Pressable
+                key={tp.id}
+                onPress={() => {
+                  if (!found.length) return notify(t('lists.templates'), t('home.catalogEmpty'));
+                  basket.replace(found.map((p) => ({ id: p.id, qty: 1 })));
+                  notify(t('lists.loaded'), t('lists.loadedBody', { n: found.length }));
+                  router.push('/basket');
+                }}
+                style={({ pressed }) => [styles.template, pressed && { opacity: 0.85 }]}
+                accessibilityRole="button"
+              >
+                <Txt style={{ fontSize: 22, lineHeight: 26 }}>{tp.emoji}</Txt>
+                <Txt v="captionStrong" style={{ fontSize: 12, marginTop: 4 }}>
+                  {t(`lists.tpl_${tp.id}` as never)}
+                </Txt>
+                <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>
+                  {t('lists.itemCount', { count: found.length })}
+                </Txt>
+              </Pressable>
+            );
+          })}
+        </Row>
+
+        <Txt v="bodyStrong" style={{ marginTop: space.xl, marginBottom: space.sm }}>
+          {t('lists.savedTitle')}
         </Txt>
         {lists == null ? (
           <Txt v="caption" color={colors.gray}>
-            Yüklənir…
+            {t('common.loading')}
           </Txt>
         ) : lists.length === 0 ? (
           <StateView emoji="📋" title={t('lists.none')} body={t('lists.noneBody', { name: t('lists.namePlaceholder') })} />
@@ -119,7 +152,7 @@ export default function Lists() {
                   </View>
                   <Pressable onPress={() => loadInto(l)} accessibilityRole="button" style={styles.loadBtn}>
                     <Txt v="captionStrong" color={colors.white}>
-                      Səbətə yüklə
+                      {t('lists.loadToBasket')}
                     </Txt>
                   </Pressable>
                   <Pressable onPress={() => remove(l)} hitSlop={8} accessibilityLabel="Sil" accessibilityRole="button">
@@ -134,7 +167,7 @@ export default function Lists() {
           <Row gap={8} style={{ marginTop: space.md, alignItems: 'center' }}>
             <Pill tone="primary" text="PLUS" />
             <Txt v="caption" color={colors.gray} style={{ flex: 1 }}>
-              Limitsiz siyahı üçün Plus-a keç.
+              {t('lists.plusForUnlimited')}
             </Txt>
           </Row>
         )}
@@ -144,6 +177,7 @@ export default function Lists() {
 }
 
 const styles = StyleSheet.create({
+  template: { width: '31%', backgroundColor: colors.white, borderRadius: radius.lg, padding: 10, borderWidth: 1, borderColor: colors.line },
   input: { flex: 1, backgroundColor: colors.fill, borderRadius: radius.md, paddingHorizontal: 14, height: 44, fontFamily: fonts.regular, fontSize: 15, color: colors.dark },
   icon: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   loadBtn: { backgroundColor: colors.dark, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 8 },

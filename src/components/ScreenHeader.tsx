@@ -39,7 +39,7 @@ export function ScreenHeader({
       ) : (
         <View style={{ flex: 1 }} />
       )}
-      <View style={{ width: 40, alignItems: 'flex-end' }}>{right}</View>
+      <View style={{ minWidth: 40, alignItems: 'flex-end' }}>{right}</View>
     </Row>
   );
 }

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, space } from '@/theme';
 import { Btn, Divider, Pill, Price, Row, Txt } from './ui';
 import { Freshness, StoreAvatar } from './product';
+import { PriceAlertCard } from './PriceAlertCard';
 import { useBasket } from '@/store/basket';
 import { stalestMinutes, storeLabel, storeProductCount } from '@/data/products';
 import { useT } from '@/lib/i18n';
@@ -13,7 +14,7 @@ import { useT } from '@/lib/i18n';
  * Market comparison bottom sheet.
  * Shows all stores ranked by basket total, best store highlighted.
  */
-export function ResultSheet({ visible, onClose, onShowMap, onGoToStore }: { visible: boolean; onClose: () => void; onShowMap: () => void; onGoToStore?: (storeId: string) => void }) {
+export function ResultSheet({ visible, onClose, onShowMap, onGoToStore, onShop }: { visible: boolean; onClose: () => void; onShowMap: () => void; onGoToStore?: (storeId: string) => void; onShop?: (storeId: string) => void }) {
   const insets = useSafeAreaInsets();
   const { optimization: o, count, lines } = useBasket();
   const t = useT();
@@ -92,6 +93,9 @@ export function ResultSheet({ visible, onClose, onShowMap, onGoToStore }: { visi
                   <Freshness minutes={stalestMinutes(lines.map((l) => l.product))} label={t('result.checked')} />
                 </View>
               )}
+              {onShop && (
+                <Btn title={t('shop.start')} icon="cart" size="md" onPress={() => onShop(best.store.id)} style={{ marginTop: space.md }} />
+              )}
               {onGoToStore && (
                 <Pressable
                   onPress={() => onGoToStore(best.store.id)}
@@ -100,7 +104,7 @@ export function ResultSheet({ visible, onClose, onShowMap, onGoToStore }: { visi
                 >
                   <Ionicons name="location" size={15} color={colors.white} />
                   <Txt v="captionStrong" color={colors.white} style={{ marginLeft: 6 }}>
-                    Filiallara bax
+                    {t('result.seeBranchesShort')}
                   </Txt>
                 </Pressable>
               )}
@@ -169,6 +173,9 @@ export function ResultSheet({ visible, onClose, onShowMap, onGoToStore }: { visi
               </View>
             )}
 
+            {/* The moment someone has just seen what their basket costs is the
+                moment "tell me when it gets cheaper" makes sense. */}
+            <PriceAlertCard lines={lines.length} />
             <Btn title={t('common.close')} variant="ghost" size="md" onPress={onClose} style={{ marginTop: space.lg }} />
           </ScrollView>
         )}

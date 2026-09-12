@@ -7,6 +7,8 @@ import { colors, radius, space } from '@/theme';
 import { Chip, Divider, Row, Txt } from '@/components/ui';
 import { ProductRow } from '@/components/product';
 import { ProductRowSkeleton, StateView } from '@/components/states';
+import { SuggestProduct } from '@/components/SuggestProduct';
+import { clearRecents, pushRecent, readRecents, RECENT_SEARCHES } from '@/lib/recents';
 import { Product, catalogCategories, categoryEmoji, searchProducts } from '@/data/products';
 import { categoryLabel } from '@/data/categoryNames';
 import { useCatalog } from '@/store/catalog';
@@ -24,6 +26,10 @@ export default function Search() {
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Product[] | null>(null);
+  const [recent, setRecent] = useState<string[]>([]);
+  useEffect(() => {
+    readRecents(RECENT_SEARCHES).then(setRecent);
+  }, []);
   const inputRef = useRef<TextInput>(null);
   const t = useT();
 
@@ -40,6 +46,8 @@ export default function Search() {
       setResults(r);
       setLoading(false);
       if (q.trim().length >= 3) track('search', { q: q.trim().slice(0, 40), results: r.length });
+      // Only a search that found something is worth offering again.
+      if (q.trim().length >= 2 && r.length > 0) pushRecent(RECENT_SEARCHES, q).then(setRecent);
     }, 350);
     return () => clearTimeout(timer);
   }, [q]);
@@ -87,6 +95,25 @@ export default function Search() {
           keyExtractor={(p) => p.id}
           ListHeaderComponent={
             <View style={{ paddingHorizontal: space.lg }}>
+              {recent.length > 0 && (
+                <>
+                  <Row style={{ justifyContent: 'space-between', marginBottom: space.sm }}>
+                    <Txt v="captionStrong" color={colors.gray}>
+                      {t('search.recent')}
+                    </Txt>
+                    <Pressable onPress={() => clearRecents(RECENT_SEARCHES).then(() => setRecent([]))} hitSlop={8} accessibilityRole="button">
+                      <Txt v="caption" color={colors.grayLight}>
+                        {t('common.clear')}
+                      </Txt>
+                    </Pressable>
+                  </Row>
+                  <Row gap={8} style={{ flexWrap: 'wrap', marginBottom: space.lg }}>
+                    {recent.map((r) => (
+                      <Chip key={r} text={`🕘 ${r}`} onPress={() => setQ(r)} />
+                    ))}
+                  </Row>
+                </>
+              )}
               {catalogCategories().length > 0 && (
                 <>
                   <Txt v="captionStrong" color={colors.gray} style={{ marginBottom: space.sm }}>
@@ -133,15 +160,22 @@ export default function Search() {
           keyboardShouldPersistTaps="handled"
         />
       ) : (
-        <StateView
-          emoji="🔍"
-          title={t('home.notFound')}
-          body={t('search.noResultBody', { q })}
-          cta={t('home.scanBarcode')}
-          onCta={() => router.push('/scan')}
-          secondary={t('search.clearSearch')}
-          onSecondary={() => setQ('')}
-        />
+        <View>
+          <StateView
+            emoji="🔍"
+            title={t('home.notFound')}
+            body={t('search.noResultBody', { q })}
+            cta={t('home.scanBarcode')}
+            onCta={() => router.push('/scan')}
+            secondary={t('search.clearSearch')}
+            onSecondary={() => setQ('')}
+          />
+          {/* A search that finds nothing is the other place someone holds a
+              product we do not list. The query is the name, prefilled. */}
+          <View style={{ paddingHorizontal: space.lg }}>
+            <SuggestProduct initialName={q} title={t('search.suggestTitle')} body={t('search.suggestBody', { points: 10 })} onDone={() => setQ('')} />
+          </View>
+        </View>
       )}
 
       {basket.count > 0 && (

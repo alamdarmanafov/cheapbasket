@@ -1,4 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { notify } from '@/lib/confirm';
+import { recordTrip } from '@/lib/trips';
+import { useAuth } from '@/store/auth';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -27,7 +30,7 @@ export default function Markets() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ view?: string; store?: string }>();
-  const { lines, count, optimization: o, chosenStore, setChosenStore, isPlus, add, remove } = useBasket();
+  const { lines, count, optimization: o, chosenStore, setChosenStore, isPlus, add, remove, hiddenStores } = useBasket();
   const { branches, stores, locationGranted, requestLocation } = useCatalog();
   const t = useT();
 
@@ -103,7 +106,7 @@ export default function Markets() {
         <BranchList filter={branchFilter} onFilterChange={setBranchFilter} />
       ) : (
         <BestStoreView
-          {...{ lines, o, chosenStore, setChosenStore, isPlus, add, remove, router, refresh }}
+          {...{ lines, o, chosenStore, setChosenStore, isPlus, add, remove, router, refresh, hiddenStores }}
           onSeeBranches={(storeId) => {
             setBranchFilter(storeId);
             setView('branches');
@@ -125,6 +128,7 @@ function BestStoreView({
   remove,
   router,
   refresh,
+  hiddenStores,
   onSeeBranches,
 }: {
   lines: ReturnType<typeof useBasket>['lines'];
@@ -136,6 +140,7 @@ function BestStoreView({
   remove: ReturnType<typeof useBasket>['remove'];
   router: ReturnType<typeof useRouter>;
   refresh: ReturnType<typeof useRefresh>;
+  hiddenStores: number;
   onSeeBranches: (storeId: string) => void;
 }) {
   const t = useT();
@@ -148,8 +153,28 @@ function BestStoreView({
     );
   }
 
+  const auth = useAuth();
+  const [logging, setLogging] = useState(false);
   const best = o.best;
   const chosen = o.ranked.find((r) => r.store.id === chosenStore) ?? best;
+  const tripArgs = () => ({
+    storeId: chosen.store.id,
+    branchId: nearestBranch(chosen.store.id)?.id ?? null,
+    total: chosen.total,
+    saving: chosen.store.id === best.store.id ? o.saving : Math.max(0, (o.worst?.total ?? chosen.total) - chosen.total),
+    items: lines.length,
+  });
+  const logTrip = async () => {
+    if (!auth.user) {
+      router.push('/auth');
+      return;
+    }
+    setLogging(true);
+    const r = await recordTrip(tripArgs());
+    setLogging(false);
+    if (r.error) return notify(t('common.error'), r.error);
+    notify(t('markets.boughtThanks'), r.earned > 0 ? t('markets.boughtBodyPoints', { n: r.earned }) : t('markets.boughtBody'));
+  };
   const isBest = chosen.store.id === best.store.id;
   const branch = nearestBranch(chosen.store.id);
   const worst = o.worst;
@@ -192,6 +217,23 @@ function BestStoreView({
                 : t('markets.catalogNote', { count: storeProductCount(chosen.store.id) })}
             </Txt>
           </>
+        )}
+
+        {/* Purchases made through the app get written down: the trip goes to
+            the savings history and earns points, and the month's board counts
+            it. One tap, after the shopping, on the store you actually used. */}
+        <Row gap={space.sm} style={{ marginTop: space.md }}>
+          {/* The shopping screen: the basket as a checklist to walk the aisles
+              with, the trip written down at the end. */}
+          <Btn title={t('shop.start')} size="md" full={false} icon="cart" onPress={() => router.push({ pathname: '/shop', params: { store: chosen.store.id } } as never)} />
+          <Btn title={t('markets.boughtShort')} variant="ghost" size="md" full={false} icon="checkmark-done" loading={logging} onPress={logTrip} />
+        </Row>
+        {hiddenStores > 0 && (
+          <Pressable onPress={() => router.push('/stores' as never)} style={{ marginTop: space.sm }} accessibilityRole="button">
+            <Txt v="caption" color={colors.gray} center>
+              {t('markets.hiddenStores', { n: hiddenStores })} · <Txt v="captionStrong" color={colors.primary} style={{ fontSize: 12 }}>{t('profile.rowStores')}</Txt>
+            </Txt>
+          </Pressable>
         )}
 
         {/*

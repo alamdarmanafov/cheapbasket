@@ -66,9 +66,9 @@ export default function Notifications() {
         <Card>
           <Row style={{ justifyContent: 'space-between' }}>
             <View style={{ flex: 1, marginRight: space.md }}>
-              <Txt v="bodyStrong">Push bildirişlər</Txt>
+              <Txt v="bodyStrong">{t('notif.pushTitle')}</Txt>
               <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>
-                AI endirim xəbəri və səbətindəki qiymət düşüşləri{isPlus ? t('notif.everyDay') : t('notif.plusFeature')}
+                {t('notif.pushBody')}{isPlus ? t('notif.everyDay') : t('notif.plusFeature')}
               </Txt>
             </View>
             <Switch value={push} disabled={busy} onValueChange={togglePush} trackColor={{ true: colors.primary, false: colors.line }} thumbColor={colors.white} />
@@ -79,14 +79,14 @@ export default function Notifications() {
           <Pressable onPress={() => router.push(auth.user ? '/account' : '/auth')} style={styles.row}>
             <Ionicons name="mail-unread-outline" size={20} color={colors.dark} />
             <Txt v="body" style={{ flex: 1, marginLeft: 12, fontSize: 14 }}>
-              Endirim xəbəri tənzimləmələri
+              {t('notif.digestSettings')}
             </Txt>
             <Ionicons name="chevron-forward" size={18} color={colors.grayLight} />
           </Pressable>
           <Pressable onPress={() => router.push(isPlus ? '/deals' : '/plus')} style={styles.row}>
             <Ionicons name="trending-down-outline" size={20} color={colors.dark} />
             <Txt v="body" style={{ flex: 1, marginLeft: 12, fontSize: 14 }}>
-              Səbətimdəki məhsullar ucuzlaşanda xəbər ver
+              {t('notif.basketDrops')}
             </Txt>
             {!isPlus && <PlusTag />}
             <Ionicons name="chevron-forward" size={18} color={colors.grayLight} style={{ marginLeft: 6 }} />
@@ -94,11 +94,11 @@ export default function Notifications() {
         </Card>
 
         <Txt v="bodyStrong" style={{ marginTop: space.xl, marginBottom: space.sm }}>
-          Son qiymət düşüşləri
+          {t('notif.recentDrops')}
         </Txt>
         {drops == null ? (
           <Txt v="caption" color={colors.gray}>
-            Yüklənir…
+            {t('common.loading')}
           </Txt>
         ) : drops.length === 0 ? (
           <StateView emoji="🔕" title={t('notif.none')} body={t('notif.noneBody')} />

@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Platform, Pressable, ScrollView, Share, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, Share, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import { colors, radius, shadow, space } from '@/theme';
-import { Btn, Card, Divider, Pill, Price, Row, Txt } from '@/components/ui';
+import { Btn, Card, Chip, Divider, Pill, Price, Row, Txt } from '@/components/ui';
 import { Freshness, OldPrice, PriceLine, ProductArt, StoreAvatar } from '@/components/product';
+import { UnitPrice } from '@/components/UnitPrice';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { StateView } from '@/components/states';
 import { PlusLock, PlusTag } from '@/components/PlusLock';
@@ -18,12 +19,16 @@ import { useBasket } from '@/store/basket';
 import { useT } from '@/lib/i18n';
 import { useRefresh } from '@/lib/useRefresh';
 import { notify } from '@/lib/confirm';
-import { SITE_URL } from '@/lib/links';
+import { productUrl } from '@/lib/links';
+import { track } from '@/lib/track';
+import { useAuth } from '@/store/auth';
+import { supabase } from '@/lib/supabase';
 
 /** Product comparison + detail: one screen, price first. */
 export default function ProductScreen() {
   const t = useT();
   const router = useRouter();
+  const auth = useAuth();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const basket = useBasket();
@@ -62,9 +67,53 @@ export default function ProductScreen() {
   const best = basket.optimization.best;
   const atBest = best ? product.prices[best.store.id] : null;
 
+  const [watching, setWatching] = useState(false);
+  const [watchBusy, setWatchBusy] = useState(false);
+  useEffect(() => {
+    if (!supabase || !auth.user || !product) return;
+    supabase.from('price_alerts').select('product_id').eq('user_id', auth.user.id).eq('product_id', product.id).maybeSingle().then(({ data }) => setWatching(!!data));
+  }, [auth.user, product?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const toggleWatch = async () => {
+    if (!supabase || !product) return;
+    if (!auth.user) {
+      router.push('/auth');
+      return;
+    }
+    setWatchBusy(true);
+    const next = !watching;
+    const { error } = next
+      ? await supabase.from('price_alerts').upsert({ user_id: auth.user.id, product_id: product.id })
+      : await supabase.from('price_alerts').delete().eq('user_id', auth.user.id).eq('product_id', product.id);
+    setWatchBusy(false);
+    if (error) return notify(t('common.error'), error.message);
+    setWatching(next);
+    track('watch', { product_id: product.id, on: next });
+    notify(t(next ? 'prod.watchOn' : 'prod.watchOff'), t(next ? 'prod.watchOnBody' : 'prod.watchOffBody', { name: `${product.brand} ${product.name}`.trim() }));
+  };
+
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportStore, setReportStore] = useState<string | null>(null);
+  const [reportReason, setReportReason] = useState<'outdated' | 'wrong' | 'missing'>('outdated');
+  const [reportBusy, setReportBusy] = useState(false);
+  const sendReport = async () => {
+    if (!supabase || !product || !reportStore) return;
+    if (!auth.user) {
+      setReportOpen(false);
+      router.push('/auth');
+      return;
+    }
+    setReportBusy(true);
+    const { error } = await supabase.from('price_reports').insert({ user_id: auth.user.id, product_id: product.id, store_id: reportStore, reason: reportReason });
+    setReportBusy(false);
+    setReportOpen(false);
+    if (error) return notify(t('common.error'), error.message);
+    track('price_report', { product_id: product.id, store_id: reportStore, reason: reportReason });
+    notify(t('prod.reportThanks'), t('prod.reportThanksBody'));
+  };
+
   /** System share sheet: cheapest price + link to the web version of this product. */
   const share = async () => {
-    const url = SITE_URL;
+    const url = productUrl(product.id);
     const message = c.price != null ? t('prod.shareText', { product: `${product.brand} ${product.name} ${product.size}`, store: c.store.name, price: c.price.toFixed(2), url }) : t('prod.shareNoPrice', { product: `${product.brand} ${product.name} ${product.size}`, url });
     try {
       if (Platform.OS === 'web' && typeof navigator !== 'undefined' && (navigator as Navigator & { share?: (d: { title: string; text: string; url: string }) => Promise<void> }).share) {
@@ -84,7 +133,17 @@ export default function ProductScreen() {
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScreenHeader
         title={`${product.brand} ${product.name} ${product.size}`}
-        right={<Pressable hitSlop={8} accessibilityLabel={t('prod.share')} accessibilityRole="button" onPress={share}><Ionicons name="share-outline" size={22} color={colors.dark} /></Pressable>}
+        right={
+          <Row gap={14}>
+            {/* Watch a product without putting it in the basket: the bell files
+                a price_alerts row, and the alert sweep reads it alongside the
+                basket. */}
+            <Pressable hitSlop={8} accessibilityLabel={t(watching ? 'prod.watching' : 'prod.watch')} accessibilityRole="button" onPress={toggleWatch} disabled={watchBusy}>
+              <Ionicons name={watching ? 'notifications' : 'notifications-outline'} size={22} color={watching ? colors.primary : colors.dark} />
+            </Pressable>
+            <Pressable hitSlop={8} accessibilityLabel={t('prod.share')} accessibilityRole="button" onPress={share}><Ionicons name="share-outline" size={22} color={colors.dark} /></Pressable>
+          </Row>
+        }
       />
       <ScrollView contentContainerStyle={{ paddingBottom: 140 }} refreshControl={refresh.control}>
         {/* Hero */}
@@ -110,7 +169,7 @@ export default function ProductScreen() {
           ) : (
             <>
               <Txt v="caption" color={colors.gray}>
-                Ən ucuz qiymət
+                {t('prod.cheapestLabel')}
               </Txt>
               {c.regular != null && (
                 <Row gap={6} style={{ marginBottom: 2 }}>
@@ -119,6 +178,7 @@ export default function ProductScreen() {
                 </Row>
               )}
               <Price value={c.price ?? 0} size="xl" color={colors.primary} />
+              <UnitPrice price={c.price} size={product.size} fontSize={12} />
               <Row gap={6} style={{ marginTop: 4 }}>
                 <StoreAvatar store={c.store} size={22} />
                 <Txt v="bodyStrong">{c.store.name}</Txt>
@@ -130,7 +190,7 @@ export default function ProductScreen() {
         {/* Comparison */}
         <View style={{ paddingHorizontal: space.lg, marginTop: space.xl }}>
           <Row style={{ justifyContent: 'space-between', marginBottom: space.sm }}>
-            <Txt v="bodyStrong">Qiymət müqayisəsi</Txt>
+            <Txt v="bodyStrong">{t('prod.compareTitle')}</Txt>
             <Freshness minutes={product.updatedMinutesAgo} />
           </Row>
           <Card style={{ padding: space.xs }}>
@@ -154,15 +214,47 @@ export default function ProductScreen() {
         </View>
 
         {/* History */}
+        {/* A wrong price seen once loses the reader; this turns it into a
+            report instead. Store + reason, two taps, lands next to the
+            receipts in the admin panel. */}
+        <Pressable onPress={() => setReportOpen(true)} style={{ alignSelf: 'center', marginTop: space.sm, padding: 6 }} accessibilityRole="button">
+          <Txt v="caption" color={colors.gray} style={{ textDecorationLine: 'underline' }}>
+            {t('prod.reportPrice')}
+          </Txt>
+        </Pressable>
+        <Modal visible={reportOpen} transparent animationType="fade" onRequestClose={() => setReportOpen(false)}>
+          <Pressable style={styles.reportBackdrop} onPress={() => setReportOpen(false)} accessibilityLabel={t('common.close')} />
+          <View style={styles.reportSheet}>
+            <Txt v="bodyStrong">{t('prod.reportTitle')}</Txt>
+            <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>
+              {t('prod.reportStore')}
+            </Txt>
+            <Row gap={8} style={{ flexWrap: 'wrap', marginTop: space.sm }}>
+              {sortedPrices(product).map((sp) => (
+                <Chip key={sp.store.id} text={sp.store.name} active={reportStore === sp.store.id} onPress={() => setReportStore(sp.store.id)} />
+              ))}
+            </Row>
+            <Txt v="caption" color={colors.gray} style={{ marginTop: space.md }}>
+              {t('prod.reportReason')}
+            </Txt>
+            <Row gap={8} style={{ flexWrap: 'wrap', marginTop: space.sm }}>
+              {(['outdated', 'wrong', 'missing'] as const).map((r) => (
+                <Chip key={r} text={t(`prod.reason_${r}` as never)} active={reportReason === r} onPress={() => setReportReason(r)} />
+              ))}
+            </Row>
+            <Btn title={t('prod.reportSend')} size="md" loading={reportBusy} disabled={!reportStore} onPress={sendReport} style={{ marginTop: space.lg }} />
+          </View>
+        </Modal>
+
         <View style={{ paddingHorizontal: space.lg, marginTop: space.xl }}>
           <Row gap={8} style={{ marginBottom: space.sm }}>
-            <Txt v="bodyStrong">Qiymət tarixçəsi</Txt>
+            <Txt v="bodyStrong">{t('prod.historyTitle')}</Txt>
             <PlusTag />
           </Row>
           {!hasHistory ? (
             <Card>
               <Txt v="caption" color={colors.gray}>
-                Hələ tarixçə yoxdur — qiymət hər dəyişəndə burada qrafik yığılacaq.
+                {t('prod.noHistory')}
               </Txt>
             </Card>
           ) : (
@@ -192,7 +284,7 @@ export default function ProductScreen() {
               <PlusTag />
             </Row>
             <Txt v="caption" color={colors.gray}>
-              AI eyni kateqoriyada 3 variant təklif edəcək
+              {t('prod.aiAlternatives')}
             </Txt>
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.grayLight} />
@@ -258,6 +350,8 @@ function PriceChart({ data }: { data: number[] }) {
 }
 
 const styles = StyleSheet.create({
+  reportBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
+  reportSheet: { backgroundColor: colors.white, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: space.lg, paddingBottom: space.xxl },
   savingNote: { marginTop: space.md, backgroundColor: colors.successSoft, padding: space.md, borderRadius: radius.md },
   aiRow: {
     marginHorizontal: space.lg,

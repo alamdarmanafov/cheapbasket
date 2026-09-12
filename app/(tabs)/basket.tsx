@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,8 +11,11 @@ import { StateView } from '@/components/states';
 import { ResultSheet } from '@/components/ResultSheet';
 import { PriceAlertCard } from '@/components/PriceAlertCard';
 import { cheapest, stalestMinutes } from '@/data/products';
+import { suggestSubstitute } from '@/lib/substitute';
 import { useBasket } from '@/store/basket';
 import { track } from '@/lib/track';
+import { confirmAsync, notify } from '@/lib/confirm';
+import { SITE_URL } from '@/lib/links';
 import { useT } from '@/lib/i18n';
 
 export default function Basket() {
@@ -21,7 +24,7 @@ export default function Basket() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ compare?: string }>();
-  const { lines, count, setQty, remove, clear, optimization: o, setChosenStore } = useBasket();
+  const { lines, count, setQty, remove, add, clear, optimization: o, setChosenStore } = useBasket();
   const [showResult, setShowResult] = useState(false);
   const best = o.best;
 
@@ -29,6 +32,21 @@ export default function Basket() {
   useEffect(() => {
     if (params.compare && lines.length) setShowResult(true);
   }, [params.compare, lines.length]);
+
+  /** The list as a message — the "buy these" a household sends itself. */
+  const shareBasket = async () => {
+    const items = lines.map((l) => `• ${l.qty > 1 ? `${l.qty}× ` : ''}${l.product.brand} ${l.product.name} ${l.product.size}`.trim()).join('\n');
+    const message = t('basket.shareText', { items, store: best?.store.name ?? '—', total: (best?.total ?? 0).toFixed(2), url: SITE_URL });
+    track('share', { what: 'basket', items: lines.length });
+    try {
+      if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(message);
+        notify(t('prod.copied'), t('prod.copiedBody'));
+      } else await Share.share({ message });
+    } catch {
+      /* dismissed */
+    }
+  };
 
   const compare = () => {
     track('compare', { store_id: o.best?.store.id ?? null, items: lines.length, total: o.best?.total ?? null, saving: o.saving });
@@ -63,8 +81,17 @@ export default function Basket() {
         <Row style={{ justifyContent: 'space-between' }}>
           <Txt v="title">{t('basket.title')}</Txt>
           <Row gap={8}>
+            <IconBtn name="share-outline" bg={colors.white} onPress={shareBasket} label={t('basket.share')} />
             <IconBtn name="bookmark-outline" bg={colors.white} onPress={() => router.push('/lists')} label={t('basket.myLists')} />
-            <IconBtn name="trash-outline" bg={colors.white} onPress={clear} label={t('basket.clear')} />
+            <IconBtn
+              name="trash-outline"
+              bg={colors.white}
+              label={t('basket.clear')}
+              // One tap on a trash icon wiped a fifteen-line basket. It asks now.
+              onPress={async () => {
+                if (await confirmAsync(t('basket.clear'), t('basket.clearAsk', { count }), t('common.delete'), true)) clear();
+              }}
+            />
           </Row>
         </Row>
         <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>
@@ -99,6 +126,18 @@ export default function Basket() {
                     ) : (
                       <View style={{ marginTop: 4 }}>
                         <Pill tone="warning" text={t('basket.missingAt', { store: best?.store.name ?? '' })} />
+                        {/* Missing at the best store → the closest thing it does
+                            sell, one tap to swap. */}
+                        {best && (() => {
+                          const alt = suggestSubstitute(l.product, best.store.id);
+                          return alt ? (
+                            <Pressable onPress={() => { remove(l.product.id); add(alt.product, l.qty); }} style={{ marginTop: 4 }} accessibilityRole="button">
+                              <Txt v="caption" color={colors.primary} numberOfLines={1} style={{ fontSize: 11 }}>
+                                {t('basket.substitute', { name: `${alt.product.brand} ${alt.product.name}`.trim(), price: alt.price.toFixed(2) })}
+                              </Txt>
+                            </Pressable>
+                          ) : null;
+                        })()}
                       </View>
                     )}
                   </View>
@@ -149,6 +188,10 @@ export default function Basket() {
         onGoToStore={(storeId) => {
           setShowResult(false);
           router.push({ pathname: '/(tabs)/markets', params: { view: 'branches', store: storeId } });
+        }}
+        onShop={(storeId) => {
+          setShowResult(false);
+          router.push({ pathname: '/shop', params: { store: storeId } } as never);
         }}
       />
     </View>

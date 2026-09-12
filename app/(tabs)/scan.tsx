@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Animated, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,6 +14,13 @@ import { colors, fonts, radius, shadow, space } from '@/theme';
 import { Btn, Divider, IconBtn, Pill, Price, Row, Txt } from '@/components/ui';
 import { Freshness, ProductArt, StoreAvatar } from '@/components/product';
 import { StateView } from '@/components/states';
+import { SuggestProduct } from '@/components/SuggestProduct';
+import { UnitPrice } from '@/components/UnitPrice';
+import { suggestSubstitute } from '@/lib/substitute';
+import { pushRecent, readRecents, RECENT_SCANS } from '@/lib/recents';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const FAST_KEY = 'cb_scan_fast';
 import { Product, StoreId, catalog, cheapest, findByBarcode, getStore, sortedPrices } from '@/data/products';
 import { categoryLabel } from '@/data/categoryNames';
 import { normalizeGtin } from '@/lib/gtin';
@@ -45,44 +52,66 @@ export default function Scan() {
   // ever saw the product lookup's result; the code itself used to be gone by
   // the time the sheet came up.
   const [code, setCode] = useState('');
-  const [suggestName, setSuggestName] = useState('');
-  const [suggesting, setSuggesting] = useState(false);
-  const [reward, setReward] = useState(10);
+  const [recentIds, setRecentIds] = useState<string[]>([]);
+  useEffect(() => {
+    readRecents(RECENT_SCANS).then(setRecentIds);
+  }, []);
+  const recentProducts = recentIds.map((id) => cat.products.find((p) => p.id === id)).filter((p): p is Product => !!p);
   const lockRef = useRef(false);
   const camRef = useRef<CameraView>(null);
 
-  // Which store is the user standing in? Defaults to the AI's best store for their basket.
-  const hereId = ((params.store as StoreId) || basket.optimization.best?.store.id || cat.stores[0]?.id || '') as StoreId;
-  const here = getStore(hereId);
+  // Which store is the user standing in? The route can say, the user can say,
+  // and the nearest branch is a fair guess when the location is known. It
+  // used to fall back to the first store alphabetically, and then judge
+  // "good to buy here" against it — advice about Araz for someone standing
+  // in Bravo. With nothing to go on the chip asks instead of asserting.
+  const [picked, setPicked] = useState<StoreId | null>(null);
+  const [pickOpen, setPickOpen] = useState(false);
+  const nearest = cat.locationGranted === true ? cat.branches[0]?.storeId : undefined;
+  const hereId = ((params.store as StoreId) || picked || nearest || '') as StoreId;
+  const here = hereId ? getStore(hereId) : null;
 
   useEffect(() => {
     if (Platform.OS !== 'web' && permission && !permission.granted && permission.canAskAgain) requestPermission();
   }, [permission, requestPermission]);
 
-  // What a suggestion is worth is an admin setting, not a constant in the app.
+  // Fast mode: every recognised product goes straight into the basket and the
+  // viewfinder comes back on its own. Twenty products in an aisle is twenty
+  // sheets to dismiss otherwise. Remembered across launches; not-found still
+  // stops, since that needs a decision.
+  const [fast, setFast] = useState(false);
+  const [flash, setFlash] = useState<Product | null>(null);
   useEffect(() => {
-    if (!supabase) return;
-    supabase
-      .from('app_settings')
-      .select('value')
-      .eq('key', 'points')
-      .maybeSingle()
-      .then(({ data }) => {
-        const v = Number((data?.value as { suggestion?: number } | null)?.suggestion);
-        if (Number.isFinite(v) && v > 0) setReward(v);
-      });
+    AsyncStorage.getItem(FAST_KEY).then((v) => setFast(v === '1')).catch(() => undefined);
   }, []);
+  const toggleFast = () => {
+    setFast((f) => {
+      AsyncStorage.setItem(FAST_KEY, f ? '0' : '1').catch(() => undefined);
+      return !f;
+    });
+  };
 
   const resolve = (scanned: string, p: Product | undefined) => {
     if (lockRef.current) return;
     lockRef.current = true;
     setCode(normalizeGtin(scanned) ?? '');
-    track('scan', { product_id: p?.id ?? null, found: !!p, store_id: hereId });
+    track('scan', { product_id: p?.id ?? null, found: !!p, store_id: hereId, fast });
+    if (fast && p) {
+      basket.add(p);
+      pushRecent(RECENT_SCANS, p.id).then(setRecentIds);
+      setFlash(p);
+      setTimeout(() => {
+        setFlash(null);
+        lockRef.current = false;
+      }, 1100);
+      return;
+    }
     setPhase('searching');
     setTimeout(() => {
       if (p) {
         setProduct(p);
         setPhase('found');
+        pushRecent(RECENT_SCANS, p.id).then(setRecentIds);
       } else {
         setPhase('notfound');
       }
@@ -94,30 +123,7 @@ export default function Scan() {
     setProduct(null);
     setAdded(false);
     setHint(null);
-    setSuggestName('');
     setPhase('scanning');
-  };
-
-  /** Queues the unknown barcode for the admin; the reward lands when it is approved. */
-  const suggest = async () => {
-    if (!supabase) return;
-    if (!auth.user) {
-      router.push('/auth');
-      return;
-    }
-    setSuggesting(true);
-    const { data, error } = await supabase.rpc('suggest_product', { p_barcode: code, p_name: suggestName.trim(), p_store_id: hereId || null });
-    setSuggesting(false);
-    if (error) {
-      notify(t('common.error'), error.message.replace(/^.*?: /, ''));
-      return;
-    }
-    const status = (data as { status?: string } | null)?.status;
-    track('suggest', { barcode: code, status: status ?? 'unknown', store_id: hereId });
-    if (status === 'exists') notify(t('scan.notFound'), t('scan.suggestExists'));
-    else if (status === 'pending') notify(t('scan.suggestThanks'), t('scan.suggestPending'));
-    else notify(t('scan.suggestThanks'), t('scan.suggestThanksBody', { points: reward }));
-    reset();
   };
 
   const canUseCamera = Platform.OS !== 'web' && permission?.granted;
@@ -151,23 +157,60 @@ export default function Scan() {
       {/* Top bar */}
       <Row style={{ position: 'absolute', top: insets.top + space.sm, left: space.lg, right: space.lg, justifyContent: 'space-between' }}>
         <IconBtn name="close" bg="rgba(255,255,255,0.15)" color={colors.white} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} label={t('common.close')} />
-        <View style={styles.hereChip}>
-          <StoreAvatar store={here} size={20} />
-          <Txt v="captionStrong" color={colors.white} style={{ marginLeft: 6 }}>
-            {here.name}-dasan
+        <Pressable onPress={() => setPickOpen(true)} style={styles.hereChip} accessibilityRole="button" accessibilityLabel={t('scan.pickStoreTitle')}>
+          {here && <StoreAvatar store={here} size={20} />}
+          <Txt v="captionStrong" color={colors.white} style={{ marginLeft: here ? 6 : 0 }} numberOfLines={1}>
+            {here ? t('scan.youAreAt', { store: here.name }) : t('scan.pickStore')}
           </Txt>
-        </View>
-        <IconBtn name={torch ? 'flashlight' : 'flashlight-outline'} bg={torch ? colors.primary : 'rgba(255,255,255,0.15)'} color={colors.white} label={t('scan.torch')} onPress={() => (canUseCamera ? setTorch((t) => !t) : notify(t('scan.torch'), t('scan.torchOnlyApp')))} />
+          <Ionicons name="chevron-down" size={14} color="rgba(255,255,255,0.8)" style={{ marginLeft: 4 }} />
+        </Pressable>
+        <Row gap={8}>
+          <IconBtn name={fast ? 'flash' : 'flash-outline'} bg={fast ? colors.success : 'rgba(255,255,255,0.15)'} color={colors.white} label={t('scan.fastMode')} onPress={toggleFast} />
+          <IconBtn name={torch ? 'flashlight' : 'flashlight-outline'} bg={torch ? colors.primary : 'rgba(255,255,255,0.15)'} color={colors.white} label={t('scan.torch')} onPress={() => (canUseCamera ? setTorch((t) => !t) : notify(t('scan.torch'), t('scan.torchOnlyApp')))} />
+        </Row>
       </Row>
+
+      {/* Fast mode: what just went in, and where the basket stands. */}
+      {fast && phase === 'scanning' && (
+        <View style={[styles.fastBar, { top: insets.top + space.sm + 48 }]} pointerEvents="box-none">
+          <View style={styles.fastPill}>
+            <Ionicons name="flash" size={14} color={colors.white} />
+            <Txt v="captionStrong" color={colors.white} style={{ marginLeft: 6 }}>
+              {t('scan.fastOn')}
+            </Txt>
+          </View>
+          {flash && (
+            <View style={[styles.fastPill, { backgroundColor: colors.success, marginTop: 8 }]}>
+              <Ionicons name="checkmark" size={14} color={colors.white} />
+              <Txt v="captionStrong" color={colors.white} numberOfLines={1} style={{ marginLeft: 6, maxWidth: 240 }}>
+                {t('scan.fastAdded', { name: `${flash.brand} ${flash.name}`.trim() })}
+              </Txt>
+            </View>
+          )}
+        </View>
+      )}
+      {fast && phase === 'scanning' && basket.count > 0 && (
+        <Pressable onPress={() => router.replace('/basket')} style={[styles.fastFooter, { bottom: insets.bottom + 24 }]} accessibilityRole="button">
+          <Ionicons name="basket" size={18} color={colors.white} />
+          <Txt v="bodyStrong" color={colors.white} style={{ flex: 1, marginLeft: 8 }}>
+            {t('scan.fastBasket', { count: basket.count })}
+          </Txt>
+          {basket.optimization.best && (
+            <Txt v="bodyStrong" color={colors.white} num>
+              {basket.optimization.best.total.toFixed(2)} ₼
+            </Txt>
+          )}
+        </Pressable>
+      )}
 
       {phase === 'scanning' && (
         <View style={styles.center} pointerEvents="box-none">
           <Frame />
           <Txt v="bodyStrong" color={colors.white} center style={{ marginTop: space.xl }}>
-            Barkodu çərçivəyə gətir
+            {t('scan.frameHint')}
           </Txt>
           <Txt v="caption" color="rgba(255,255,255,0.7)" center style={{ marginTop: 4 }}>
-            Məhsul tanındıqdan sonra qiymətləri avtomatik müqayisə edəcəyik.
+            {t('scan.frameBody')}
           </Txt>
           <View style={{ marginTop: space.xxl, alignItems: 'center', gap: space.sm }}>
             {!canUseCamera && (
@@ -195,14 +238,32 @@ export default function Scan() {
         </View>
       )}
 
+      {phase === 'scanning' && recentProducts.length > 0 && (
+        <View style={[styles.recentRow, { bottom: insets.bottom + (fast && basket.count > 0 ? 150 : 92) }]} pointerEvents="box-none">
+          <Txt v="caption" color="rgba(255,255,255,0.7)" style={{ marginLeft: space.lg, marginBottom: 6 }}>
+            {t('scan.recent')}
+          </Txt>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: space.lg, gap: 8 }}>
+            {recentProducts.map((p) => (
+              <Pressable key={p.id} onPress={() => router.push(`/product/${p.id}`)} style={styles.recentChip} accessibilityRole="button">
+                <ProductArt product={p} size={24} emojiScale={0.6} />
+                <Txt v="captionStrong" color={colors.white} numberOfLines={1} style={{ marginLeft: 6, maxWidth: 140 }}>
+                  {p.brand} {p.name}
+                </Txt>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
       {phase === 'searching' && (
         <View style={styles.center}>
           <Frame active />
           <Txt v="bodyStrong" color={colors.white} center style={{ marginTop: space.xl }}>
-            Məhsul axtarılır…
+            {t('scan.searching')}
           </Txt>
           <Txt v="caption" color="rgba(255,255,255,0.7)" center style={{ marginTop: 4 }}>
-            {cat.stores.length} marketdə qiymətlər yoxlanılır
+            {t('scan.searchingBody', { n: cat.stores.length })}
           </Txt>
         </View>
       )}
@@ -221,43 +282,45 @@ export default function Scan() {
           {/* "Not found" was a dead end: the person is holding a product we do
               not list and had no way to tell us. Now the code goes to the
               admin's queue with a name, and approval pays them back in points. */}
-          {code.length >= 8 && (
-            <View style={styles.suggestBox}>
-              <Row gap={space.sm}>
-                <Ionicons name="add-circle" size={20} color={colors.primary} />
-                <Txt v="bodyStrong" style={{ flex: 1 }}>
-                  {t('scan.suggest')}
-                </Txt>
-                <Txt v="caption" color={colors.gray} style={{ fontFamily: fonts.semibold }}>
-                  {code}
-                </Txt>
-              </Row>
-              <Txt v="caption" color={colors.gray} style={{ marginTop: 4 }}>
-                {t('scan.suggestBody', { points: reward })}
-              </Txt>
-              <TextInput
-                value={suggestName}
-                onChangeText={setSuggestName}
-                placeholder={t('scan.suggestName')}
-                placeholderTextColor={colors.grayLight}
-                returnKeyType="send"
-                onSubmitEditing={suggest}
-                style={styles.suggestInput}
-                maxLength={120}
-              />
-              <Btn
-                title={auth.user ? t('scan.suggestSend', { points: reward }) : t('scan.suggestSignIn')}
-                size="md"
-                loading={suggesting}
-                disabled={!!auth.user && suggestName.trim().length < 2}
-                onPress={suggest}
-                style={{ marginTop: space.sm }}
-              />
-            </View>
-          )}
+          {code.length >= 8 && <SuggestProduct barcode={code} storeId={hereId} title={t('scan.suggest')} onDone={reset} />}
         </View>
       )}
 
+
+      <Modal visible={pickOpen} transparent animationType="fade" onRequestClose={() => setPickOpen(false)}>
+        <Pressable style={styles.pickBackdrop} onPress={() => setPickOpen(false)} accessibilityLabel={t('common.close')} />
+        <View style={[styles.pickSheet, { paddingBottom: insets.bottom + space.lg }]}>
+          <Txt v="bodyStrong">{t('scan.pickStoreTitle')}</Txt>
+          <Txt v="caption" color={colors.gray} style={{ marginTop: 2, marginBottom: space.sm }}>
+            {t('scan.pickStoreBody')}
+          </Txt>
+          <ScrollView style={{ maxHeight: 360 }}>
+            {cat.stores.map((s) => (
+              <Pressable
+                key={s.id}
+                onPress={() => {
+                  setPicked(s.id);
+                  setPickOpen(false);
+                }}
+                style={({ pressed }) => [styles.pickRow, pressed && { backgroundColor: colors.fill }]}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: s.id === hereId }}
+              >
+                <StoreAvatar store={s} size={28} />
+                <Txt v="body" style={{ flex: 1, marginLeft: 10, fontSize: 14 }}>
+                  {s.name}
+                </Txt>
+                {s.id === nearest && (
+                  <Txt v="caption" color={colors.gray} style={{ marginRight: 8, fontSize: 11 }}>
+                    {t('scan.nearestHint')}
+                  </Txt>
+                )}
+                {s.id === hereId && <Ionicons name="checkmark-circle" size={20} color={colors.success} />}
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      </Modal>
 
       {phase === 'found' && product && (
         <FoundSheet
@@ -300,11 +363,14 @@ function FoundSheet({
   const t = useT();
   const prices = sortedPrices(product);
   const c = cheapest(product);
-  const herePrice = product.prices[here];
+  const herePrice = here ? product.prices[here] : undefined;
   const hereStore = getStore(here);
   const diff = herePrice != null && c.price != null ? herePrice - c.price : null;
-  const verdict: { tone: 'success' | 'warning' | 'neutral'; title: string; body: string } =
-    herePrice == null
+  // No store known → no verdict. A cheapest price is still a fact; "good to
+  // buy here" without a "here" is not.
+  const verdict: { tone: 'success' | 'warning' | 'neutral'; title: string; body: string } | null = !here
+    ? null
+    : herePrice == null
       ? { tone: 'neutral', title: t('scan.notSoldHere', { store: hereStore.name }), body: t('scan.cheapestAt', { store: c.store.name, price: c.price?.toFixed(2) ?? '' }) }
       : diff != null && diff <= 0.05
         ? { tone: 'success', title: t('scan.goodBuy'), body: t('scan.goodBuyBody', { store: hereStore.name }) }
@@ -333,22 +399,33 @@ function FoundSheet({
         </Row>
 
         {/* Verdict for this store */}
-        <View style={[styles.verdict, verdict.tone === 'success' ? { backgroundColor: colors.successSoft } : verdict.tone === 'warning' ? { backgroundColor: colors.warningSoft } : { backgroundColor: colors.fill }]}>
-          <Txt v="bodyStrong" color={verdict.tone === 'success' ? colors.success : verdict.tone === 'warning' ? colors.warning : colors.gray}>
-            {verdict.title}
-          </Txt>
-          <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>
-            {verdict.body}
-          </Txt>
-        </View>
+        {verdict && (
+          <View style={[styles.verdict, verdict.tone === 'success' ? { backgroundColor: colors.successSoft } : verdict.tone === 'warning' ? { backgroundColor: colors.warningSoft } : { backgroundColor: colors.fill }]}>
+            <Txt v="bodyStrong" color={verdict.tone === 'success' ? colors.success : verdict.tone === 'warning' ? colors.warning : colors.gray}>
+              {verdict.title}
+            </Txt>
+            <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>
+              {verdict.body}
+            </Txt>
+            {here && herePrice == null && (() => {
+              const alt = suggestSubstitute(product, here);
+              return alt ? (
+                <Txt v="caption" color={colors.primary} style={{ marginTop: 4 }}>
+                  {t('basket.substitute', { name: `${alt.product.brand} ${alt.product.name}`.trim(), price: alt.price.toFixed(2) })}
+                </Txt>
+              ) : null;
+            })()}
+          </View>
+        )}
 
         {/* Cheapest + list */}
         <Row style={{ marginTop: space.lg, justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <View>
             <Txt v="caption" color={colors.gray}>
-              Ən ucuz qiymət
+              {t('scan.cheapestLabel')}
             </Txt>
             {c.price != null && <Price value={c.price} size="lg" color={colors.primary} />}
+            <UnitPrice price={c.price} size={product.size} />
             <Row gap={6} style={{ marginTop: 4 }}>
               <StoreAvatar store={c.store} size={20} />
               <Txt v="captionStrong">{c.store.name}</Txt>
@@ -371,7 +448,7 @@ function FoundSheet({
                   </Txt>
                 ) : (
                   <Txt v="caption" color={colors.grayLight}>
-                    mövcud deyil
+                    {t('scan.unavailable')}
                   </Txt>
                 )}
               </Row>
@@ -432,27 +509,17 @@ const styles = StyleSheet.create({
   manualInput: { flex: 1, backgroundColor: 'rgba(255,255,255,0.12)', color: colors.white, borderRadius: 12, paddingHorizontal: 14, height: 44, fontFamily: fonts.semibold, fontSize: 16, letterSpacing: 1 },
   fakeCam: { backgroundColor: '#161616', alignItems: 'center', justifyContent: 'center' },
   center: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.xl },
-  hereChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 12, height: 36, borderRadius: radius.pill },
+  hereChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 12, height: 36, borderRadius: radius.pill, maxWidth: 200 },
+  recentRow: { position: 'absolute', left: 0, right: 0 },
+  fastBar: { position: 'absolute', left: space.lg, right: space.lg, alignItems: 'center' },
+  fastPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: radius.pill, paddingHorizontal: 12, height: 32 },
+  fastFooter: { position: 'absolute', left: space.lg, right: space.lg, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.dark, borderRadius: radius.pill, paddingHorizontal: 16, height: 52 },
+  recentChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: radius.pill, paddingHorizontal: 10, height: 36 },
+  pickBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
+  pickSheet: { backgroundColor: colors.white, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: space.lg },
+  pickRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4, borderRadius: radius.md },
   corner: { position: 'absolute', width: 36, height: 36 },
   laser: { position: 'absolute', left: 12, right: 12, height: 2, borderRadius: 1, opacity: 0.9 },
-  suggestBox: {
-    marginTop: space.md,
-    backgroundColor: colors.fill,
-    borderRadius: radius.lg,
-    padding: space.md,
-  },
-  suggestInput: {
-    marginTop: space.sm,
-    backgroundColor: colors.white,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.line,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    fontFamily: fonts.regular,
-    color: colors.dark,
-  },
   sheet: {
     position: 'absolute',
     left: 0,

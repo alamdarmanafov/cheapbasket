@@ -116,7 +116,7 @@ export default function Plus() {
             </Txt>
           </Txt>
           <Txt v="body" color={colors.gray} center style={{ marginTop: space.sm, maxWidth: 320 }}>
-            Hər gün endirim xəbəri, qiymət düşüşü bildirişləri və AI tövsiyələri ilə daha çox qənaət et.
+            {t('plus.tagline')}
           </Txt>
           {isPlus && (
             <View style={{ marginTop: space.md }}>
@@ -177,12 +177,12 @@ export default function Plus() {
               </Txt>
             )}
             <Txt v="caption" color={colors.grayLight} center style={{ marginTop: space.md, fontSize: 11 }}>
-              İstənilən vaxt ləğv edə bilərsən. Ödəniş App Store / Google Play hesabından çıxılır və avtomatik yenilənir.
+              {t('plus.cancelNote')}
             </Txt>
             <Row gap={space.lg} style={{ justifyContent: 'center', marginTop: space.sm }}>
               <Pressable onPress={store.restore} disabled={store.busy} accessibilityRole="button" style={{ padding: 6 }}>
                 <Txt v="captionStrong" color={colors.gray}>
-                  Alışları bərpa et
+                  {t('plus.restore')}
                 </Txt>
               </Pressable>
               <Pressable onPress={() => setPromoOpen((v) => !v)} accessibilityRole="button" style={{ padding: 6 }}>

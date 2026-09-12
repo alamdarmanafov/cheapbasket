@@ -87,7 +87,7 @@ export default function Deals() {
         <View style={styles.banner}>
           <Txt style={{ fontSize: 26, lineHeight: 32 }}>🔻</Txt>
           <View style={{ flex: 1, marginLeft: space.md }}>
-            <Txt v="bodyStrong">AI endirim xəbəri</Txt>
+            <Txt v="bodyStrong">{t('digest.title')}</Txt>
             <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>
               {isPlus ? t('deals.plusBody') : t('deals.freeBody')}
               {auth.user ? '' : t('deals.signInHint')}
@@ -101,7 +101,7 @@ export default function Deals() {
         )}
         {drops === null ? (
           <Txt v="caption" color={colors.gray} style={{ marginTop: space.lg }}>
-            Yüklənir…
+            {t('common.loading')}
           </Txt>
         ) : drops.length === 0 ? (
           <StateView emoji="🏷️" title={t('deals.none')} body={t('deals.noneBody')} cta={t('deals.addProduct')} onCta={() => router.push('/search')} />
