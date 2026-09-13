@@ -220,10 +220,20 @@ const TIME_BUDGET_MS = 45_000; // the API route allows 60 s
 
 async function fetchHtml(url: URL): Promise<string> {
   const res = await fetch(url.toString(), {
-    headers: { 'User-Agent': UA, Accept: 'text/html,application/xhtml+xml,application/json', 'Accept-Language': 'az,ru,en' },
+    headers: {
+      'User-Agent': UA,
+      Accept: 'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'az-AZ,az;q=0.9,ru;q=0.8,en;q=0.7',
+      // What a browser sends on a first visit; some shops serve a stub without them.
+      'Upgrade-Insecure-Requests': '1',
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'none',
+      'Cache-Control': 'no-cache',
+    },
     redirect: 'follow',
   });
-  if (!res.ok) throw new Error(`Səhifə açılmadı: ${res.status} ${url.hostname}`);
+  if (!res.ok) throw new Error(`Səhifə açılmadı: ${res.status} ${url.hostname}${res.status === 403 ? ' (sayt serverdən gələn sorğunu bloklayır)' : ''}`);
   return res.text();
 }
 
@@ -292,10 +302,17 @@ async function parsePage(html: string, base: URL, allowAI: boolean): Promise<{ i
   // 5. AI over the visible text (first page only)
   if (allowAI) {
     const text = htmlToText(html);
-    if (text.length < 200) throw new Error(
-      'Səhifə boş gəldi — məhsullar JavaScript ilə yüklənir, server HTML-ə vermır.\n' +
-      'Həll: brauzerdə F12 → Network → Fetch/XHR → saytı yenilə → "products", "catalog", "items" adlı sorğunun URL-ini kopyala → admin import-a yapışdır.'
-    );
+    if (text.length < 200) {
+      // What the server actually sent decides the remedy: a bot wall, a
+      // redirect stub, a cookie check and a JavaScript shell each look
+      // different, and only the first 160 characters tell them apart.
+      const title = html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]?.trim() ?? '';
+      throw new Error(
+        `Səhifə boş gəldi (${html.length} bayt${title ? `, başlıq: "${title.slice(0, 60)}"` : ''}). ` +
+        `Mətn: "${text.slice(0, 160).replace(/\s+/g, ' ')}". ` +
+        'Ya məhsullar JavaScript ilə yüklənir (həll: F12 → Network → Fetch/XHR → "products"/"search" sorğusunun URL-i), ya da sayt serverdən gələn sorğunu bloklayır.'
+      );
+    }
     const ai = await fromAI(text, base);
     if (ai.length) return { items: ai, source: 'ai' };
   }
