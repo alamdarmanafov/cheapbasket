@@ -218,23 +218,70 @@ const MAX_ITEMS = 1000;
 const MAX_PAGES = 60;
 const TIME_BUDGET_MS = 45_000; // the API route allows 60 s
 
+const BROWSER_HEADERS = {
+  'User-Agent': UA,
+  Accept: 'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
+  'Accept-Language': 'az-AZ,az;q=0.9,ru;q=0.8,en;q=0.7',
+  'Upgrade-Insecure-Requests': '1',
+  'Sec-Fetch-Dest': 'document',
+  'Sec-Fetch-Mode': 'navigate',
+  'Sec-Fetch-User': '?1',
+  'Cache-Control': 'no-cache',
+};
+
+// Cookies a site handed out on its front page, per host, for the hour: some
+// shops answer a cookieless search with an empty 200.
+const jar = new Map<string, { at: number; cookie: string }>();
+
+async function warmCookies(url: URL): Promise<string> {
+  const hit = jar.get(url.host);
+  if (hit && Date.now() - hit.at < 60 * 60 * 1000) return hit.cookie;
+  try {
+    const res = await fetch(`${url.protocol}//${url.host}/`, { headers: { ...BROWSER_HEADERS, 'Sec-Fetch-Site': 'none' }, redirect: 'follow' });
+    const raw = typeof (res.headers as unknown as { getSetCookie?: () => string[] }).getSetCookie === 'function'
+      ? (res.headers as unknown as { getSetCookie: () => string[] }).getSetCookie()
+      : [res.headers.get('set-cookie') ?? ''];
+    const cookie = raw.map((c) => c.split(';')[0]).filter(Boolean).join('; ');
+    await res.arrayBuffer().catch(() => undefined);
+    jar.set(url.host, { at: Date.now(), cookie });
+    return cookie;
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * The page as a browser would get it.
+ *
+ * First a plain visit. If that comes back empty with a 200, the site is
+ * talking to browsers only: take the cookies its front page sets and come
+ * back with them and a Referer, the way a person arriving from the front
+ * page would. What the server sent is kept for the error message, so a
+ * page that still reads as empty says why in its own words.
+ */
 async function fetchHtml(url: URL): Promise<string> {
-  const res = await fetch(url.toString(), {
-    headers: {
-      'User-Agent': UA,
-      Accept: 'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'az-AZ,az;q=0.9,ru;q=0.8,en;q=0.7',
-      // What a browser sends on a first visit; some shops serve a stub without them.
-      'Upgrade-Insecure-Requests': '1',
-      'Sec-Fetch-Dest': 'document',
-      'Sec-Fetch-Mode': 'navigate',
-      'Sec-Fetch-Site': 'none',
-      'Cache-Control': 'no-cache',
-    },
-    redirect: 'follow',
-  });
-  if (!res.ok) throw new Error(`Səhifə açılmadı: ${res.status} ${url.hostname}${res.status === 403 ? ' (sayt serverdən gələn sorğunu bloklayır)' : ''}`);
-  return res.text();
+  const attempt = async (extra: Record<string, string>) => {
+    const res = await fetch(url.toString(), { headers: { ...BROWSER_HEADERS, 'Sec-Fetch-Site': 'none', ...extra }, redirect: 'follow' });
+    const body = await res.text();
+    return { res, body };
+  };
+  let { res, body } = await attempt({});
+  if (res.ok && body.trim().length < 50) {
+    const cookie = await warmCookies(url);
+    ({ res, body } = await attempt({ ...(cookie ? { Cookie: cookie } : {}), Referer: `${url.protocol}//${url.host}/`, 'Sec-Fetch-Site': 'same-origin' }));
+  }
+  if (!res.ok) {
+    throw new Error(`Səhifə açılmadı: ${res.status} ${url.hostname}${res.status === 403 || res.status === 429 ? ' (sayt serverdən gələn sorğunu bloklayır)' : ''}`);
+  }
+  if (body.trim().length < 50) {
+    const via = [res.headers.get('server'), res.headers.get('cf-ray') ? 'cloudflare' : null, res.headers.get('x-powered-by')].filter(Boolean).join(', ');
+    throw new Error(
+      `Səhifə boş gəldi (${body.length} bayt, HTTP ${res.status}${res.url !== url.toString() ? `, yönləndi: ${res.url}` : ''}${via ? `, server: ${via}` : ''}). ` +
+      'Cookie ilə ikinci cəhd də boş qayıtdı: sayt brauzer olmayan sorğuya cavab vermir. ' +
+      'Həll: bu market Wolt-dadırsa Sinxronizasiya səhifəsində Wolt filialını mənbə kimi əlavə et; deyilsə F12 → Network → Fetch/XHR → axtarış sorğusunun URL-i.'
+    );
+  }
+  return body;
 }
 
 /**
