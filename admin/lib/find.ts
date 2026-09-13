@@ -9,7 +9,7 @@ import { normalizeGtin } from './gtin';
  * many words they share with ours, so the admin sees "Gilezi yumurta ağ iri
  * 10 əd · 0.18 ₼" next to "Giləzi Ağ Yumurta İri" and links them in a click.
  */
-export interface Candidate { ext_id: string; name: string; price: number; regular_price: number | null; barcode: string | null; image_url: string | null; score: number; exactBarcode: boolean }
+export interface Candidate { ext_id: string; name: string; price: number; regular_price: number | null; barcode: string | null; image_url: string | null; score: number; exactBarcode: boolean; /** From the store's site search rather than a feed: no durable link. */ web?: boolean }
 
 const fold = (s: string) =>
   s.toLowerCase().replace(/i̇/g, 'i')
@@ -55,10 +55,23 @@ export function similarity(ours: { brand: string; name: string; size: string }, 
 const cache = new Map<string, { at: number; items: WoltItem[]; venue: string }>();
 const TTL = 60 * 60 * 1000;
 
-export async function feedItems(url: string): Promise<{ items: WoltItem[]; venue: string }> {
+/** The words to search a site with: brand and name, not the size (sites index it their own way). */
+export function searchQuery(p: { brand: string; name: string }): string {
+  return `${p.brand} ${p.name}`.replace(/\s+/g, ' ').trim().slice(0, 60);
+}
+
+/** The template with the words in place, or null when it has no {q}. */
+export function siteSearchUrl(template: string | null | undefined, q: string): string | null {
+  const t = (template ?? '').trim();
+  if (!t.includes('{q}') || !/^https?:\/\//i.test(t)) return null;
+  return t.replace('{q}', encodeURIComponent(q));
+}
+
+export async function feedItems(url: string, ttl = TTL, limits?: { maxPages?: number; budgetMs?: number }): Promise<{ items: WoltItem[]; venue: string }> {
   const hit = cache.get(url);
-  if (hit && Date.now() - hit.at < TTL) return hit;
-  const r = await fetchAnySource(url);
+  if (hit && Date.now() - hit.at < ttl) return hit;
+  // A search results page answers on its first pages; a feed needs them all.
+  const r = limits ? await (await import('./generic-import')).fetchGenericPage(url, limits) : await fetchAnySource(url);
   const entry = { at: Date.now(), items: r.items, venue: r.venue };
   cache.set(url, entry);
   return entry;

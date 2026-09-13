@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Link2, X } from 'lucide-react';
 
-interface Candidate { ext_id: string; name: string; price: number; regular_price: number | null; barcode: string | null; image_url: string | null; score: number; exactBarcode: boolean }
+interface Candidate { ext_id: string; name: string; price: number; regular_price: number | null; barcode: string | null; image_url: string | null; score: number; exactBarcode: boolean; web?: boolean }
 interface StoreResult { store_id: string; store_name: string; have: number | null; sources: number; candidates: Candidate[]; linked: string | null; error?: string }
 interface ProductInfo { id: string; brand: string; name: string; size: string; barcode: string | null }
 
@@ -80,7 +80,7 @@ export function FindInStores({ productId, stores, onClose, onLinked }: { product
           <h2 style={{ margin: 0 }}>Marketlərdə tap{p ? <span className="muted" style={{ fontWeight: 500 }}> · {p.brand} {p.name} {p.size}</span> : null}</h2>
           <button className="btn ghost" onClick={onClose}><X size={18} /></button>
         </div>
-        <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>Hər marketin mənbəyində (Wolt filialı / sayt) bu məhsula ən oxşar sətirlər. "Bu odur" qiyməti yazır və linki yadda saxlayır: sinxron bundan sonra o sətri həmişə bu məhsul kimi tanıyır.</p>
+        <p className="muted" style={{ fontSize: 12, marginTop: 6 }}>Hər marketin mənbəyində (Wolt filialı, ya "Marketlər"də yazılmış sayt axtarışı) bu məhsula ən oxşar sətirlər. "Bu odur" qiyməti yazır; Wolt sətri üçün linki də saxlayır, sinxron bundan sonra onu həmişə bu məhsul kimi tanıyır.</p>
         {err && <div className="alert err">{err}</div>}
         {(results.length > 0 || pending) && (
           <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
@@ -92,7 +92,7 @@ export function FindInStores({ productId, stores, onClose, onLinked }: { product
                     <span style={{ padding: '2px 10px', borderRadius: 999, background: storeColors[s.store_id] ?? '#999', color: '#fff', fontWeight: 700, fontSize: 12 }}>{s.store_name}</span>
                     <span className="muted" style={{ fontSize: 12 }}>
                       {s.have != null ? <>bizdə: <b>{s.have.toFixed(2)} ₼</b></> : 'bizdə qiymət yoxdur'}
-                      {s.sources === 0 && ' · mənbə yoxdur'}
+                      {s.sources === 0 && ' · mənbə yoxdur (Sinxronizasiya-da Wolt filialı və ya Marketlər-də sayt axtarışı yaz)'}
                       {linkedNow && <> · <Link2 size={11} style={{ verticalAlign: -1 }} /> link var</>}
                     </span>
                     {s.error && <span className="pill red" style={{ fontSize: 11 }}>{s.error}</span>}
@@ -108,6 +108,7 @@ export function FindInStores({ productId, stores, onClose, onLinked }: { product
                           <div className="muted" style={{ fontSize: 11 }}>
                             {c.exactBarcode ? <b style={{ color: '#15803D' }}>barkod eynidir</b> : `oxşarlıq ${Math.round(c.score * 100)}%`}
                             {c.barcode ? ` · ${c.barcode}` : ''}
+                            {c.web && <span className="pill gray" style={{ marginLeft: 6, fontSize: 10 }} title="Marketin saytından oxundu; qiymət yazılır, daimi link saxlanmır">sayt</span>}
                           </div>
                         </div>
                         <div style={{ fontWeight: 800, whiteSpace: 'nowrap' }}>

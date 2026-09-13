@@ -370,7 +370,9 @@ function nextPageUrl(html: string, current: URL, pageNo: number, prevCount = 0):
  * Import from any shop page. Follows the listing's pagination (up to MAX_ITEMS products / MAX_PAGES pages / 45 s)
  * and returns one entry per product (same name or id on later pages is dropped).
  */
-export async function fetchGenericPage(input: string): Promise<WoltResult> {
+export async function fetchGenericPage(input: string, limits: { maxPages?: number; budgetMs?: number } = {}): Promise<WoltResult> {
+  const maxPages = limits.maxPages ?? MAX_PAGES;
+  const budgetMs = limits.budgetMs ?? TIME_BUDGET_MS;
   const started = Date.now();
   const first = new URL(input.trim());
   const seen = new Map<string, WoltItem>();
@@ -382,7 +384,7 @@ export async function fetchGenericPage(input: string): Promise<WoltResult> {
   let pages = 0;
   const pageParam = first.searchParams.get('page') ?? first.searchParams.get('p');
   if (pageParam && /^\d+$/.test(pageParam)) pageNo = Number(pageParam);
-  while (url && pages < MAX_PAGES && seen.size < MAX_ITEMS && Date.now() - started < TIME_BUDGET_MS) {
+  while (url && pages < maxPages && seen.size < MAX_ITEMS && Date.now() - started < budgetMs) {
     if (visited.has(url.toString())) break;
     visited.add(url.toString());
     let html: string;
