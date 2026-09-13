@@ -13,12 +13,14 @@ export default function Stores() {
   /** Open the store's search with a common word and say how many priced items came back. */
   const testSearch = async (s: Store) => {
     if (!s.search_url) return;
+    const q = (prompt(`${s.name} saytında nə axtaraq?`, 'yumurta') ?? '').trim();
+    if (!q) return;
     setTesting(s.id);
     try {
-      const r = await fetch(`/api/products/find?store_id=${encodeURIComponent(s.id)}&q=${encodeURIComponent('yumurta')}&url=${encodeURIComponent(s.search_url)}`);
+      const r = await fetch(`/api/products/find?store_id=${encodeURIComponent(s.id)}&q=${encodeURIComponent(q)}&url=${encodeURIComponent(s.search_url)}`);
       const j = (await r.json()) as { count?: number; sample?: string[]; error?: string };
       if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
-      setMsg(j.count ? `${s.name}: "yumurta" üçün ${j.count} məhsul oxundu · ${(j.sample ?? []).join(' · ')}` : `${s.name}: səhifə açıldı, amma qiymətli məhsul oxunmadı. Sayt qiyməti JavaScript ilə yükləyirsə bu üsul işləmir.`);
+      setMsg(j.count ? `${s.name}: "${q}" üçün ${j.count} məhsul oxundu · ${(j.sample ?? []).join(' · ')}` : `${s.name}: "${q}" üçün səhifə açıldı, amma qiymətli məhsul oxunmadı. Sayt qiyməti JavaScript ilə yükləyirsə bu üsul işləmir.`);
     } catch (e) { setMsg(`Yükləmə xətası: ${(e as Error).message}`); }
     finally { setTesting(null); }
   };
@@ -72,7 +74,7 @@ export default function Stores() {
                   onChange={(e) => setRows(rows.map((r) => (r.id === s.id ? { ...r, search_url: e.target.value || null } : r)))}
                   style={{ width: 240, textAlign: 'left' }}
                 />{' '}
-                <button className="btn ghost" disabled={!s.search_url || !!testing} title="Saytda 'yumurta' axtar, nə oxunduğunu göstər" onClick={() => testSearch(s)}>{testing === s.id ? '…' : <Search size={14} />}</button>
+                <button className="btn ghost" disabled={!s.search_url || !!testing} title="Saytda bir söz axtar, nə oxunduğunu göstər" onClick={() => testSearch(s)}>{testing === s.id ? '…' : <Search size={14} />}</button>
               </td>
               <td style={{ whiteSpace: 'nowrap' }}>
                 <Hours
