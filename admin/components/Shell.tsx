@@ -70,6 +70,11 @@ export function Shell({ children, title }: { children: React.ReactNode; title: s
           <button className="btn ghost" onClick={logout}>
             <LogOut size={16} /> Çıxış
           </button>
+          {/* Which build is answering: settles "is the fix live?" without a guess. */}
+          <div className="muted" style={{ fontSize: 10, marginTop: 6, fontFamily: 'monospace' }} title="Deploy olunmuş commit">
+            {(process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ?? 'local').slice(0, 7)}
+            {process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF ? ` · ${process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF}` : ''}
+          </div>
         </div>
       </aside>
       <main className="content">
