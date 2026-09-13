@@ -23,6 +23,8 @@ export interface Store {
   id: string; name: string; color: string; initial: string; logo_url?: string | null;
   /** Hours for the whole chain; a branch may override with its own values. */
   open_from?: string | null; open_until?: string | null; always_open?: boolean;
+  /** Site search with {q} for the words, read by the finder when the store has no feed. */
+  search_url?: string | null;
 }
 
 /** Announcement popup shown over the app (campaigns, release notes). */

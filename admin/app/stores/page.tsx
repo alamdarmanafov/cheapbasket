@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Search, Trash2 } from 'lucide-react';
 import { Shell } from '@/components/Shell';
 import { Store, db, slugify } from '@/lib/supabase';
 
@@ -8,6 +8,20 @@ export default function Stores() {
   const [rows, setRows] = useState<Store[]>([]);
   const [draft, setDraft] = useState<Store>({ id: '', name: '', color: '#E53935', initial: '', logo_url: '', open_from: '', open_until: '', always_open: false });
   const [msg, setMsg] = useState<string | null>(null);
+  const [testing, setTesting] = useState<string | null>(null);
+
+  /** Open the store's search with a common word and say how many priced items came back. */
+  const testSearch = async (s: Store) => {
+    if (!s.search_url) return;
+    setTesting(s.id);
+    try {
+      const r = await fetch(`/api/products/find?store_id=${encodeURIComponent(s.id)}&q=${encodeURIComponent('yumurta')}&url=${encodeURIComponent(s.search_url)}`);
+      const j = (await r.json()) as { count?: number; sample?: string[]; error?: string };
+      if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
+      setMsg(j.count ? `${s.name}: "yumurta" üçün ${j.count} məhsul oxundu · ${(j.sample ?? []).join(' · ')}` : `${s.name}: səhifə açıldı, amma qiymətli məhsul oxunmadı. Sayt qiyməti JavaScript ilə yükləyirsə bu üsul işləmir.`);
+    } catch (e) { setMsg(`Yükləmə xətası: ${(e as Error).message}`); }
+    finally { setTesting(null); }
+  };
 
   const load = async () => {
     setRows(await db.select<Store>('stores', { order: 'name' }).catch((e: Error) => { setMsg(`Yükləmə xətası: ${e.message}`); return []; }));
@@ -31,7 +45,7 @@ export default function Stores() {
     <Shell title="Marketlər">
       {msg && <div className={`alert ${msg.startsWith('Yükləmə xətası') || msg.includes('error') ? 'err' : 'ok'}`}>{msg}</div>}
       <table>
-        <thead><tr><th>ID</th><th>Ad</th><th>Rəng</th><th>Qısaltma</th><th>Logo URL</th><th>İş saatı</th><th></th></tr></thead>
+        <thead><tr><th>ID</th><th>Ad</th><th>Rəng</th><th>Qısaltma</th><th>Logo URL</th><th>Sayt axtarışı ({'{q}'} = sözlər)</th><th>İş saatı</th><th></th></tr></thead>
         <tbody>
           {rows.map((s) => (
             <tr key={s.id}>
@@ -50,6 +64,15 @@ export default function Stores() {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={s.logo_url} alt="" style={{ width: 32, height: 32, objectFit: 'contain', borderRadius: 4, border: '1px solid #eee' }} />
                 )}
+              </td>
+              <td style={{ whiteSpace: 'nowrap' }}>
+                <input
+                  placeholder="https://araz.az/search?q={q}"
+                  value={s.search_url ?? ''}
+                  onChange={(e) => setRows(rows.map((r) => (r.id === s.id ? { ...r, search_url: e.target.value || null } : r)))}
+                  style={{ width: 240, textAlign: 'left' }}
+                />{' '}
+                <button className="btn ghost" disabled={!s.search_url || !!testing} title="Saytda 'yumurta' axtar, nə oxunduğunu göstər" onClick={() => testSearch(s)}>{testing === s.id ? '…' : <Search size={14} />}</button>
               </td>
               <td style={{ whiteSpace: 'nowrap' }}>
                 <Hours
@@ -80,6 +103,7 @@ export default function Stores() {
                 <img src={draft.logo_url} alt="" style={{ width: 32, height: 32, objectFit: 'contain', borderRadius: 4, border: '1px solid #eee' }} />
               )}
             </td>
+            <td><input placeholder="https://…?q={q}" value={draft.search_url ?? ''} onChange={(e) => setDraft({ ...draft, search_url: e.target.value || null })} style={{ width: 240, textAlign: 'left' }} /></td>
             <td style={{ whiteSpace: 'nowrap' }}>
               <Hours value={draft} onChange={(patch) => setDraft({ ...draft, ...patch })} />
             </td>
