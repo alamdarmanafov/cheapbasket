@@ -15,6 +15,7 @@ import { useAuth } from '@/store/auth';
 import { useT } from '@/lib/i18n';
 import { confirmAsync, notify } from '@/lib/confirm';
 import { recordTrip } from '@/lib/trips';
+import { receiptsEnabled } from '@/lib/features';
 
 /**
  * The basket as a checklist to walk the aisles with.
@@ -82,7 +83,8 @@ export default function Shop() {
     // Bought means the basket has done its job; offer to start the next one clean.
     if (await confirmAsync(t('shop.clearTitle'), t('shop.clearBody'), t('common.yes'))) clear();
     // The receipt is in hand right now — the one moment it will be photographed.
-    if (await confirmAsync(t('receipt.afterShopTitle'), t('receipt.afterShopBody'), t('receipt.takePhoto'))) {
+    // Only when the admin has the feature on (0039).
+    if ((await receiptsEnabled()) && (await confirmAsync(t('receipt.afterShopTitle'), t('receipt.afterShopBody'), t('receipt.takePhoto')))) {
       router.replace({ pathname: '/receipt', params: { store: storeId } } as never);
       return;
     }

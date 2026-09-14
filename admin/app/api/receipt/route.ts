@@ -23,6 +23,7 @@ export async function POST(req: Request) {
     if (!userId) return NextResponse.json({ error: 'Giriş tələb olunur', code: 'auth' }, { status: 401 });
     const db = adminDb();
     const { data: setting } = await db.from('app_settings').select('value').eq('key', 'receipts').maybeSingle();
+    if ((setting?.value as { enabled?: boolean } | null)?.enabled !== true) return NextResponse.json({ error: 'Çek qəbulu hazırda bağlıdır', code: 'off' }, { status: 403 });
     const perDay = Number((setting?.value as { free_per_day?: number } | null)?.free_per_day ?? 3);
     const { count } = await db.from('ai_usage').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('kind', 'receipt').gte('created_at', bakuDayStart());
     if ((count ?? 0) >= perDay) return NextResponse.json({ error: `Gündə ${perDay} çek. Sabah davam et.`, code: 'limit' }, { status: 429 });

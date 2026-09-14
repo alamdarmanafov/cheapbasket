@@ -17,6 +17,7 @@ import { registerForPush, unregisterPush } from '@/lib/notifications';
 import * as StoreReview from 'expo-store-review';
 import { confirmAsync, notify } from '@/lib/confirm';
 import { LANGS, useI18n, type Key } from '@/lib/i18n';
+import { useReceiptsEnabled } from '@/lib/features';
 
 type RowDef = { key: Key; icon: keyof typeof Ionicons.glyphMap; value?: string; route?: string; href?: string; plus?: boolean; action?: 'location' | 'rate' | 'language'; info?: boolean };
 const ROWS: RowDef[] = [
@@ -38,6 +39,9 @@ const ROWS: RowDef[] = [
 ];
 
 export default function Profile() {
+  const receiptsOn = useReceiptsEnabled();
+  // Receipt scanning is an admin switch (0039); off, the row is not there at all.
+  const rows = receiptsOn ? ROWS : ROWS.filter((r) => r.route !== '/receipt');
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isPlus, optimization: o } = useBasket();
@@ -224,12 +228,12 @@ export default function Profile() {
             <Ionicons name="chevron-forward" size={18} color={colors.grayLight} />
           </Pressable>
         )}
-        {ROWS.map((r, i) => (
+        {rows.map((r, i) => (
           <Pressable
             key={r.key}
             disabled={r.info}
             onPress={() => onRow(r)}
-            style={({ pressed }) => [styles.row, i < ROWS.length - 1 && styles.rowLine, pressed && { backgroundColor: colors.fill }]}
+            style={({ pressed }) => [styles.row, i < rows.length - 1 && styles.rowLine, pressed && { backgroundColor: colors.fill }]}
           >
             <Ionicons name={r.icon} size={20} color={colors.dark} />
             <Txt v="body" style={{ marginLeft: 12, fontSize: 13 }}>
