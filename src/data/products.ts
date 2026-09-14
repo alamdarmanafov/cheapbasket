@@ -4,6 +4,7 @@
  */
 
 import { categoryLabel } from './categoryNames';
+import { synonymsOf } from './synonyms';
 import { normalizeGtin } from '@/lib/gtin';
 
 export type StoreId = string;
@@ -229,17 +230,21 @@ export function searchProducts(query: string): Product[] {
   // or more may be one letter off from a word in the product — "yumrta" finds
   // yumurta, "qatiq" already did through normalisation. Shorter words stay
   // exact: at three letters one edit matches half the dictionary.
+  // A word typed in English, Turkish or Russian stands for its Azerbaijani
+  // counterpart(s) too: "молоко" is a way of asking for süd.
   const words = q.split(/\s+/).filter(Boolean);
+  const alts = words.map((w) => [w, ...synonymsOf(w).map(norm)]);
+  const translated = alts.map((a) => a[1] ?? a[0]).join(' ');
   const exact: Product[] = [];
   const near: Product[] = [];
   for (const p of catalog.products) {
     const hay = norm(`${p.brand} ${p.name} ${p.category} ${categoryLabel(p.category)}`);
-    if (hay.includes(q)) {
+    if (hay.includes(q) || (translated !== q && hay.includes(translated))) {
       exact.push(p);
       continue;
     }
     const tokens = hay.split(/[^a-z0-9]+/).filter(Boolean);
-    const ok = words.every((w) => hay.includes(w) || (w.length >= 4 && tokens.some((tk) => within1(w, tk))));
+    const ok = alts.every((options) => options.some((w) => hay.includes(w) || (w.length >= 4 && tokens.some((tk) => within1(w, tk)))));
     if (ok) near.push(p);
   }
   // Within each band, the products that can actually be compared come first:

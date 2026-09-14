@@ -39,3 +39,25 @@ test('a product priced at one store says so', async ({ page }) => {
   await page.getByPlaceholder('Məhsul axtar...').fill('yumurta');
   await expect(page.getByText('yalnız Araz')).toBeVisible();
 });
+
+test('a budget under the basket total offers a cheaper swap or says none exists', async ({ page }) => {
+  await signedIn(page);
+  await page.goto('/');
+  await page.getByPlaceholder('Məhsul axtar...').fill('süd');
+  await page.getByText('Sütaş Süd 3.2%').first().click();
+  await page.getByText('Səbətə əlavə et').first().click();
+  await page.goBack();
+  await page.getByRole('tab', { name: 'Səbət' }).click();
+
+  // Milk is 2.10 at the best store; a budget of 1 ₼ is over by 1.10.
+  await page.getByTestId('budget-chip').click();
+  await page.getByTestId('budget-input').fill('1');
+  await page.getByText('Yadda saxla').click();
+  await expect(page.getByTestId('budget-over')).toBeVisible();
+  await expect(page.getByText('Büdcədən 1.10 ₼ artıqdır')).toBeVisible();
+
+  // Search in another language finds the same milk.
+  await page.getByRole('tab', { name: 'Ana səhifə' }).click();
+  await page.getByPlaceholder('Məhsul axtar...').fill('milk');
+  await expect(page.getByText('Sütaş Süd 3.2%').first()).toBeVisible();
+});

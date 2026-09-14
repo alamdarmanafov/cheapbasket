@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { notify } from '@/lib/confirm';
 import { recordTrip } from '@/lib/trips';
 import { noteTripForReview } from '@/lib/review';
+import { recordPurchases } from '@/lib/purchases';
 import { useAuth } from '@/store/auth';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -172,7 +173,10 @@ function BestStoreView({
     }
     setLogging(true);
     const r = await recordTrip(tripArgs());
-    if (!r.error) noteTripForReview();
+    if (!r.error) {
+      noteTripForReview();
+      recordPurchases(lines.map((l) => l.product.id)).catch(() => undefined);
+    }
     setLogging(false);
     if (r.error) return notify(t('common.error'), r.error);
     notify(t('markets.boughtThanks'), r.earned > 0 ? t('markets.boughtBodyPoints', { n: r.earned }) : t('markets.boughtBody'));

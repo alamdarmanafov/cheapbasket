@@ -1,5 +1,5 @@
 import { catalog, Product, Store } from '../data/products';
-import { optimize } from '../lib/optimizer';
+import { optimize, splitPlan } from '../lib/optimizer';
 
 const store = (id: string): Store => ({ id, name: id, color: '#000', initial: id[0] });
 const product = (id: string, prices: Record<string, number | null>): Product => ({
@@ -46,5 +46,24 @@ describe('optimize', () => {
     expect(optimize([]).best).toBeNull();
     catalog.stores = [];
     expect(optimize([{ product: product('milk', { araz: 1 }), qty: 1 }]).ranked).toEqual([]);
+  });
+});
+
+describe('splitPlan', () => {
+  const store = (id: string) => ({ id, name: id, color: '#000', initial: id[0].toUpperCase() });
+  const line = (id: string, prices: Record<string, number | null>, qty = 1) => ({ product: { id, prices } as never, qty });
+  it('splits the basket when two stores beat the best single one by the margin', () => {
+    const stores = [store('araz'), store('bravo')] as never[];
+    const lines = [line('a', { araz: 1, bravo: 5 }), line('b', { araz: 5, bravo: 1 }), line('c', { araz: 1, bravo: 1 })];
+    const plan = splitPlan(lines as never, stores as never, 2);
+    expect(plan).not.toBeNull();
+    expect(plan!.total).toBe(3);
+    expect(plan!.saving).toBe(4);
+    expect(plan!.a.lines.length + plan!.b.lines.length).toBe(3);
+  });
+  it('stays quiet when the second trip is not worth it', () => {
+    const stores = [store('araz'), store('bravo')] as never[];
+    const lines = [line('a', { araz: 1, bravo: 1.5 }), line('b', { araz: 1.5, bravo: 1 })];
+    expect(splitPlan(lines as never, stores as never, 2)).toBeNull();
   });
 });

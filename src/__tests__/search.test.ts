@@ -21,7 +21,15 @@ describe('searchProducts', () => {
     expect(searchProducts('kesmyk').map((p) => p.id)).toEqual(['4']);
   });
   it('keeps short words exact', () => {
-    expect(searchProducts('sut')).toEqual([]);
+    expect(searchProducts('sdu')).toEqual([]);
+  });
+  it('understands the same word in English, Turkish or Russian', () => {
+    expect(searchProducts('milk').map((p) => p.id)).toEqual(['2']);
+    expect(searchProducts('süt').map((p) => p.id)).toEqual(['2']);
+    expect(searchProducts('молоко').map((p) => p.id)).toEqual(['2']);
+    expect(searchProducts('eggs').map((p) => p.id)).toEqual(['3']);
+    expect(searchProducts('milk 3.2').map((p) => p.id)).toEqual(['2']);
+    expect(searchProducts('yogurt').map((p) => p.id)).toEqual(['1']);
   });
   it('puts exact matches before near ones', () => {
     catalog.products.push(product('5', 'Bravo', 'Yumurta 6 ədəd', 'yumurta'));

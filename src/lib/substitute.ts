@@ -25,3 +25,27 @@ export function suggestSubstitute(product: Product, storeId: StoreId): { product
   }
   return best ? { product: best.product, price: best.price } : null;
 }
+
+/**
+ * A cheaper product of the same kind at this store, for a basket over budget.
+ * Same category, sold there for less; the closest name wins, and a swap that
+ * saves less than 10 qəpik is not worth the change.
+ */
+export function cheaperAlternative(product: Product, storeId: StoreId): { product: Product; price: number; saving: number } | null {
+  const current = product.prices[storeId];
+  if (current == null) return null;
+  const want = new Set([...norm(product.name), ...norm(product.brand)]);
+  let best: { product: Product; price: number; saving: number; score: number } | null = null;
+  for (const p of catalog.products) {
+    if (p.id === product.id || p.category !== product.category) continue;
+    const price = p.prices[storeId];
+    if (price == null || current - price < 0.1) continue;
+    const words = new Set([...norm(p.name), ...norm(p.brand)]);
+    let score = 0;
+    for (const w of want) if (words.has(w)) score += 2;
+    if (p.size === product.size) score += 1;
+    score += Math.min(3, (current - price) / current * 3);
+    if (!best || score > best.score) best = { product: p, price, saving: current - price, score };
+  }
+  return best ? { product: best.product, price: best.price, saving: best.saving } : null;
+}

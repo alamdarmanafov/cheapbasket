@@ -7,18 +7,30 @@ import { Btn, Divider, Pill, Price, Row, Txt } from './ui';
 import { Freshness, StoreAvatar } from './product';
 import { PriceAlertCard } from './PriceAlertCard';
 import { useBasket } from '@/store/basket';
-import { stalestMinutes, storeLabel, storeProductCount } from '@/data/products';
+import { nearestBranch, stalestMinutes, storeLabel, storeProductCount } from '@/data/products';
+import { splitPlan } from '@/lib/optimizer';
+import { useBudget, useRankMode } from '@/lib/budget';
+import { useCatalog } from '@/store/catalog';
 import { useT } from '@/lib/i18n';
 
 /**
  * Market comparison bottom sheet.
  * Shows all stores ranked by basket total, best store highlighted.
  */
-export function ResultSheet({ visible, onClose, onShowMap, onGoToStore, onShop }: { visible: boolean; onClose: () => void; onShowMap: () => void; onGoToStore?: (storeId: string) => void; onShop?: (storeId: string) => void }) {
+export function ResultSheet({ visible, onClose, onShowMap, onGoToStore, onShop, onShopSplit }: { visible: boolean; onClose: () => void; onShowMap: () => void; onGoToStore?: (storeId: string) => void; onShop?: (storeId: string) => void; onShopSplit?: (storeId: string, productIds: string[]) => void }) {
   const insets = useSafeAreaInsets();
   const { optimization: o, count, lines } = useBasket();
   const t = useT();
+  const cat = useCatalog();
+  const budget = useBudget();
+  // "Cheap" is the comparison's own order. "Near" is the shopper's other
+  // question — which of these is a five-minute walk — and it only makes sense
+  // once we know where they are.
+  const [rankMode, setRankMode] = useRankMode();
+  const located = cat.locationGranted === true;
+  const kmOf = (storeId: string) => (located ? nearestBranch(storeId)?.distanceKm ?? null : null);
   const [ready, setReady] = useState(false);
+  const split = React.useMemo(() => (ready ? splitPlan(lines, o.ranked.map((r) => r.store)) : null), [ready, lines, o.ranked]);
   const scale = React.useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -84,6 +96,26 @@ export function ResultSheet({ visible, onClose, onShowMap, onGoToStore, onShop }
                   {t('result.missingCount', { count: best.missing.length })}
                 </Txt>
               )}
+              {/* The cheapest shop and the nearest shop are often not the same
+                  one; the difference is what the walk costs. */}
+              {located && (() => {
+                const withKm = o.ranked.map((r) => ({ r, km: kmOf(r.store.id) })).filter((x): x is { r: typeof o.ranked[number]; km: number } => x.km != null);
+                const near = withKm.sort((a, b) => a.km - b.km)[0];
+                if (!near) return null;
+                const bestKm = kmOf(best.store.id);
+                return (
+                  <Txt v="caption" color={colors.gray} center style={{ marginTop: 4 }}>
+                    {near.r.store.id === best.store.id
+                      ? t('result.nearestSame', { km: bestKm ?? near.km })
+                      : t('result.nearestOther', { store: near.r.store.name, km: near.km, amount: Math.max(0, near.r.total - best.total).toFixed(2) })}
+                  </Txt>
+                );
+              })()}
+              {budget != null && (
+                <View style={{ marginTop: 6 }}>
+                  <Pill tone={best.total <= budget ? 'success' : 'warning'} icon="wallet-outline" text={best.total <= budget ? t('budget.left', { amount: (budget - best.total).toFixed(2) }) : t('budget.over', { amount: (best.total - budget).toFixed(2) })} />
+                </View>
+              )}
               {/* The screen where someone decides which shop to walk to is the
                   screen that owes them the age of the prices it is comparing.
                   The oldest line sets it: a total is only as current as its
@@ -113,11 +145,28 @@ export function ResultSheet({ visible, onClose, onShowMap, onGoToStore, onShop }
             {/* All stores ranked */}
             {o.ranked.length > 1 && (
               <View style={styles.rankCard}>
-                <Txt v="captionStrong" color={colors.gray} style={{ marginBottom: space.sm }}>
-                  {t('result.allStores')}
-                </Txt>
-                {o.ranked.map((r, i) => {
+                <Row style={{ justifyContent: 'space-between', marginBottom: space.sm }}>
+                  <Txt v="captionStrong" color={colors.gray}>
+                    {t('result.allStores')}
+                  </Txt>
+                  {located && (
+                    <View style={styles.seg}>
+                      {(['cheap', 'near'] as const).map((m) => (
+                        <Pressable key={m} onPress={() => setRankMode(m)} style={[styles.segBtn, rankMode === m && styles.segBtnActive]} accessibilityRole="button" accessibilityState={{ selected: rankMode === m }} testID={`rank-${m}`}>
+                          <Txt v="captionStrong" color={rankMode === m ? colors.white : colors.gray} style={{ fontSize: 11 }}>
+                            {t(m === 'cheap' ? 'result.rankCheap' : 'result.rankNear')}
+                          </Txt>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                </Row>
+                {(rankMode === 'near' && located
+                  ? [...o.ranked].sort((a, b) => (kmOf(a.store.id) ?? 1e9) - (kmOf(b.store.id) ?? 1e9))
+                  : o.ranked
+                ).map((r, i) => {
                   const isBest = r.store.id === best.store.id;
+                  const km = kmOf(r.store.id);
                   return (
                     <React.Fragment key={r.store.id}>
                       {i > 0 && <Divider />}
@@ -135,6 +184,12 @@ export function ResultSheet({ visible, onClose, onShowMap, onGoToStore, onShop }
                           <Txt v="captionStrong" style={{ fontSize: 13 }}>
                             {storeLabel(r.store)}
                           </Txt>
+                          {km != null && (
+                            <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>
+                              {t('result.km', { km })}
+                              {!isBest && rankMode === 'near' ? ` · +${(r.total - best.total).toFixed(2)} ₼` : ''}
+                            </Txt>
+                          )}
                           {r.missing.length > 0 && (
                             /* "3 yoxdur" reads as a verdict on the shop; what it
                                actually says is how much of this shop we have
@@ -160,8 +215,47 @@ export function ResultSheet({ visible, onClose, onShowMap, onGoToStore, onShop }
               </View>
             )}
 
+            {/* Two shops instead of one, when the second trip pays: each half
+                is a ready checklist for that shop. */}
+            {split && (
+              <View style={[styles.rankCard, { marginTop: space.sm, borderColor: colors.success }]} testID="split-plan">
+                <Row style={{ justifyContent: 'space-between' }}>
+                  <View style={{ flex: 1 }}>
+                    <Txt v="captionStrong" style={{ fontSize: 13 }}>{t('split.title', { amount: split.saving.toFixed(2) })}</Txt>
+                    <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }}>{t('split.body')}</Txt>
+                  </View>
+                  <Price value={split.total} size="sm" color={colors.success} />
+                </Row>
+                {[split.a, split.b].map((side, i) => (
+                  <React.Fragment key={side.store.id}>
+                    <Divider />
+                    <Pressable
+                      onPress={() => onShopSplit?.(side.store.id, side.lines.map((l) => l.product.id))}
+                      disabled={!onShopSplit}
+                      style={({ pressed }) => [styles.rankRow, pressed && { opacity: 0.7 }]}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('split.go', { store: side.store.name })}
+                    >
+                      <Txt v="captionStrong" color={colors.gray} style={{ width: 18 }}>
+                        {i + 1}
+                      </Txt>
+                      <StoreAvatar store={side.store} size={26} />
+                      <View style={{ flex: 1, marginLeft: 8 }}>
+                        <Txt v="captionStrong" style={{ fontSize: 13 }}>{storeLabel(side.store)}</Txt>
+                        <Txt v="caption" color={colors.gray} style={{ fontSize: 11 }} numberOfLines={1}>
+                          {t('split.items', { n: side.lines.length })} · {side.lines.slice(0, 3).map((l) => l.product.name).join(', ')}{side.lines.length > 3 ? '…' : ''}
+                        </Txt>
+                      </View>
+                      <Price value={side.total} size="sm" />
+                      {onShopSplit && <Ionicons name="chevron-forward" size={14} color={colors.gray} />}
+                    </Pressable>
+                  </React.Fragment>
+                ))}
+              </View>
+            )}
+
             {/* Multi-store split total */}
-            {o.cheapestSplitTotal > 0 && o.cheapestSplitTotal < (best.total * 0.95) && (
+            {!split && o.cheapestSplitTotal > 0 && o.cheapestSplitTotal < (best.total * 0.95) && (
               <View style={[styles.rankCard, { marginTop: space.sm, backgroundColor: colors.fill }]}>
                 <Row style={{ justifyContent: 'space-between' }}>
                   <View style={{ flex: 1 }}>
@@ -218,6 +312,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginTop: space.md,
   },
+  seg: { flexDirection: 'row', backgroundColor: colors.fill, borderRadius: radius.pill, padding: 2 },
+  segBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.pill },
+  segBtnActive: { backgroundColor: colors.dark },
   rankRowBest: {
     backgroundColor: `${colors.success}10`,
     marginHorizontal: -space.md,
