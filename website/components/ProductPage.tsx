@@ -25,12 +25,20 @@ const COPY = {
  * function with the anon key — the same data the app shows — and offers the deep
  * link, which the app answers when installed.
  */
-export function ProductPage() {
+export interface Seed { name: string; brand: string; size: string; category?: string }
+
+/**
+ * `id` comes from the static route (/product/<id>) or, for the older shared
+ * links, from the query string (/p?id=). `seed` is the name the build already
+ * knows, painted before the prices arrive so the page is never blank — and so
+ * a crawler that runs no script still reads what the product is.
+ */
+export function ProductPage({ id: idProp, seed }: { id?: string; seed?: Seed } = {}) {
   const params = useSearchParams();
-  const id = params.get('id') ?? '';
+  const id = idProp ?? params.get('id') ?? '';
   const { lang } = useLang();
   const c = COPY[(lang as keyof typeof COPY) in COPY ? (lang as keyof typeof COPY) : 'az'];
-  const [row, setRow] = useState<Row | null | undefined>(undefined);
+  const [row, setRow] = useState<Row | null | undefined>(seed ? { id, name: seed.name, brand: seed.brand, size: seed.size, image_url: null, prices: null } : undefined);
   const [stores, setStores] = useState<Store[]>([]);
 
   useEffect(() => {
@@ -43,8 +51,9 @@ export function ProductPage() {
       body: JSON.stringify({ p_id: id }),
     })
       .then((r) => r.json())
-      .then((j: { product?: Row | null; stores?: Store[] } | null) => { setRow(j?.product ?? null); setStores(Array.isArray(j?.stores) ? j.stores : []); })
-      .catch(() => setRow(null));
+      .then((j: { product?: Row | null; stores?: Store[] } | null) => { setRow(j?.product ?? (seed ? { id, name: seed.name, brand: seed.brand, size: seed.size, image_url: null, prices: null } : null)); setStores(Array.isArray(j?.stores) ? j.stores : []); })
+      .catch(() => setRow((prev) => prev ?? null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const priced = row
