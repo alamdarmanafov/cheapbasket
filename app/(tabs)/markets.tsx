@@ -2,12 +2,14 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { notify } from '@/lib/confirm';
 import { recordTrip } from '@/lib/trips';
 import { noteTripForReview } from '@/lib/review';
+import { recordPurchases } from '@/lib/purchases';
 import { useAuth } from '@/store/auth';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, radius, shadow, space } from '@/theme';
+import { radius, shadow, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { useRefresh } from '@/lib/useRefresh';
 import { Btn, Card, Divider, Pill, Price, Row, Txt } from '@/components/ui';
 import { ProductArt, StoreAvatar } from '@/components/product';
@@ -27,6 +29,8 @@ type View2 = 'best' | 'branches';
  * and every store's branches with distance and a maps link.
  */
 export default function Markets() {
+  const colors = useColors();
+  const styles = useStyles();
   const refresh = useRefresh();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -81,7 +85,7 @@ export default function Markets() {
             accessibilityRole="button"
             accessibilityLabel={t('markets.enableLocation')}
           >
-            <Ionicons name={locationGranted === true ? 'location' : 'location-outline'} size={20} color={locationGranted === true ? colors.white : colors.primary} />
+            <Ionicons name={locationGranted === true ? 'location' : 'location-outline'} size={20} color={locationGranted === true ? colors.onAccent : colors.primary} />
           </Pressable>
         )}
       </Row>
@@ -144,6 +148,8 @@ function BestStoreView({
   hiddenStores: number;
   onSeeBranches: (storeId: string) => void;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const t = useT();
 
   if (lines.length === 0 || !o.best) {
@@ -172,7 +178,10 @@ function BestStoreView({
     }
     setLogging(true);
     const r = await recordTrip(tripArgs());
-    if (!r.error) noteTripForReview();
+    if (!r.error) {
+      noteTripForReview();
+      recordPurchases(lines.map((l) => l.product.id)).catch(() => undefined);
+    }
     setLogging(false);
     if (r.error) return notify(t('common.error'), r.error);
     notify(t('markets.boughtThanks'), r.earned > 0 ? t('markets.boughtBodyPoints', { n: r.earned }) : t('markets.boughtBody'));
@@ -406,7 +415,7 @@ function BestStoreView({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   altRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primarySoft, borderRadius: radius.sm, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 6 },
   hero: { backgroundColor: colors.white, borderRadius: 20, padding: 18, marginTop: 14, alignItems: 'center', ...shadow.card },
   rank: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 8, borderRadius: 12 },
@@ -421,4 +430,4 @@ const styles = StyleSheet.create({
   seg: { marginHorizontal: space.lg, marginTop: 12, marginBottom: space.md, backgroundColor: colors.fill, borderRadius: radius.pill, padding: 3 },
   segBtn: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: radius.pill },
   segBtnActive: { backgroundColor: colors.white, ...shadow.card },
-});
+}));

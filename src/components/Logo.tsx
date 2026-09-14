@@ -1,12 +1,15 @@
 import React from 'react';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
-import { colors } from '@/theme';
+import { useColors } from '@/lib/theme';
 
 /**
  * Brand mark: a "C" that becomes a basket on wheels, with a price tag.
  * Renders crisp at any size — used for the header, splash and empty states.
  */
-export function LogoMark({ size = 40, color = colors.white, bg = colors.primary, rounded = true }: { size?: number; color?: string; bg?: string | null; rounded?: boolean }) {
+export function LogoMark({ size = 40, color, bg, rounded = true }: { size?: number; color?: string; bg?: string | null; rounded?: boolean }) {
+  const colors = useColors();
+  color ??= colors.onAccent;
+  bg ??= colors.primary;
   return (
     <Svg width={size} height={size} viewBox="0 0 100 100">
       {bg && <Rect x={0} y={0} width={100} height={100} rx={rounded ? 24 : 0} fill={bg} />}

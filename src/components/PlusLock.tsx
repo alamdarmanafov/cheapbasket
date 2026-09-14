@@ -2,7 +2,8 @@ import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { colors, radius, space } from '@/theme';
+import { radius, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { useT } from '@/lib/i18n';
 import { Btn, Txt } from './ui';
 import { useBasket } from '@/store/basket';
@@ -10,9 +11,11 @@ import { useKnownPlusPrices } from '@/lib/plusStore';
 
 /** Small "PLUS" tag for rows and titles. */
 export function PlusTag() {
+  const colors = useColors();
+  const styles = useStyles();
   return (
     <View style={styles.tag}>
-      <Txt style={{ fontSize: 9, lineHeight: 11, color: colors.white, fontFamily: 'Inter_800ExtraBold', letterSpacing: 0.5 }}>PLUS</Txt>
+      <Txt style={{ fontSize: 9, lineHeight: 11, color: colors.onAccent, fontFamily: 'Inter_800ExtraBold', letterSpacing: 0.5 }}>PLUS</Txt>
     </View>
   );
 }
@@ -22,6 +25,8 @@ export function PlusTag() {
  * with a single upgrade action; Plus users see the content as-is.
  */
 export function PlusLock({ feature, children, minHeight = 160, fill = false }: { feature: string; children: React.ReactNode; minHeight?: number; fill?: boolean }) {
+  const colors = useColors();
+  const styles = useStyles();
   const t = useT();
   const prices = useKnownPlusPrices();
   const { isPlus } = useBasket();
@@ -52,8 +57,8 @@ export function PlusLock({ feature, children, minHeight = 160, fill = false }: {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   tag: { backgroundColor: colors.primary, borderRadius: 6, paddingHorizontal: 6, height: 18, alignItems: 'center', justifyContent: 'center' },
   overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', padding: space.lg },
   lockIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line },
-});
+}));

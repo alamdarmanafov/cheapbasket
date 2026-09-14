@@ -3,7 +3,8 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { colors, fonts, radius, space } from '@/theme';
+import { fonts, radius, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { IconBtn, Row, Txt } from './ui';
 import { LogoMark } from './Logo';
 import { useCatalog } from '@/store/catalog';
@@ -11,6 +12,8 @@ import { useT } from '@/lib/i18n';
 
 /** Brand + location + notifications, as in the design's top bar. */
 export function TopBar() {
+  const colors = useColors();
+  const styles = useStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const cat = useCatalog();
@@ -35,7 +38,7 @@ export function TopBar() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   bar: { paddingHorizontal: space.lg, paddingBottom: space.sm, backgroundColor: colors.white },
   location: { backgroundColor: colors.fill, borderRadius: radius.pill, paddingHorizontal: 10, height: 32, flexDirection: 'row', alignItems: 'center', maxWidth: 190 },
-});
+}));

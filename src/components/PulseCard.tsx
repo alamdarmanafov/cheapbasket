@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { colors, radius, space } from '@/theme';
+import { radius, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Row, Txt } from './ui';
 import { cheapest } from '@/data/products';
 import { useBasket } from '@/store/basket';
@@ -21,6 +22,8 @@ interface Hist { product_id: string; store_id: string; price: number; recorded_a
  * zero.
  */
 export function PulseCard() {
+  const colors = useColors();
+  const styles = useStyles();
   const t = useT();
   const router = useRouter();
   const { lines } = useBasket();
@@ -102,7 +105,7 @@ export function PulseCard() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   card: { marginTop: 14, backgroundColor: colors.white, borderRadius: 17, padding: 15 },
   link: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', marginTop: 10, paddingVertical: 4, paddingRight: 4, borderRadius: radius.pill },
-});
+}));

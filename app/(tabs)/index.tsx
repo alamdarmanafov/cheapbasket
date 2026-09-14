@@ -2,17 +2,20 @@ import React, { useEffect, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { colors, fonts, radius, shadow, space } from '@/theme';
+import { fonts, radius, shadow, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Btn, Card, Divider, Price, Row, Txt } from '@/components/ui';
 import { ProductRow, StoreAvatar } from '@/components/product';
 import { ProductRowSkeleton } from '@/components/states';
 import { TopBar } from '@/components/TopBar';
 import { BannerSlider } from '@/components/BannerSlider';
 import { PlusTag } from '@/components/PlusLock';
-import { Product, catalogCategories, categoryEmoji, cheapest, nearestBranch, searchProducts } from '@/data/products';
+import { Product, catalogCategories, categoryEmoji, cheapest, coverage, nearestBranch, searchProducts } from '@/data/products';
 import { categoryLabel } from '@/data/categoryNames';
 import { HelpFillCard } from '@/components/HelpFillCard';
 import { PulseCard } from '@/components/PulseCard';
+import { RepeatCard } from '@/components/RepeatCard';
+import { ChallengeCard } from '@/components/ChallengeCard';
 import { useCatalog } from '@/store/catalog';
 import { useAuth } from '@/store/auth';
 import { supabase } from '@/lib/supabase';
@@ -22,6 +25,8 @@ import { useT } from '@/lib/i18n';
 
 
 export default function Home() {
+  const colors = useColors();
+  const styles = useStyles();
   const router = useRouter();
   const basket = useBasket();
   const { optimization: o } = basket;
@@ -46,7 +51,8 @@ export default function Home() {
     for (const c of categories.slice(0, 8)) {
       let best: { product: Product; price: number } | null = null;
       for (const p of cat.products) {
-        if (p.category !== c) continue;
+        // "Cheapest" means something only against other stores.
+        if (p.category !== c || coverage(p) < 2) continue;
         const price = cheapest(p).price;
         if (price != null && (best == null || price < best.price)) best = { product: p, price };
       }
@@ -193,6 +199,8 @@ export default function Home() {
 
         {/* Fill the gaps first, then the week's pulse: a comparison needs the
             prices before it can move. */}
+        {!q.trim() && <ChallengeCard />}
+        {!q.trim() && <RepeatCard />}
         {!q.trim() && <HelpFillCard />}
         {!q.trim() && <PulseCard />}
 
@@ -289,7 +297,7 @@ export default function Home() {
             </Txt>
           </View>
           <View style={styles.aiArrow}>
-            <Ionicons name="arrow-forward" size={18} color={colors.white} />
+            <Ionicons name="arrow-forward" size={18} color={colors.onAccent} />
           </View>
         </Pressable>
 
@@ -312,7 +320,7 @@ export default function Home() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   catCard: { width: 132, backgroundColor: colors.white, borderRadius: radius.lg, padding: 10, ...shadow.card },
   search: {
     height: 48,
@@ -342,7 +350,7 @@ const styles = StyleSheet.create({
   },
   storeChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 13, paddingVertical: 8, paddingHorizontal: 10 },
   category: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 13, paddingVertical: 10, paddingHorizontal: 11 },
-  aiBanner: { marginTop: 14, borderRadius: 17, backgroundColor: '#FFF0F0', padding: 14, flexDirection: 'row', alignItems: 'center' },
+  aiBanner: { marginTop: 14, borderRadius: 17, backgroundColor: colors.primarySoft, padding: 14, flexDirection: 'row', alignItems: 'center' },
   aiArrow: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   savings: { marginTop: 12, borderRadius: 17, backgroundColor: colors.successSoft, padding: 14, flexDirection: 'row', alignItems: 'center' },
-});
+}));

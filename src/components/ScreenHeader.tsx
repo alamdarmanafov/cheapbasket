@@ -2,7 +2,8 @@ import React from 'react';
 import { View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, space } from '@/theme';
+import { space } from '@/theme';
+import { useColors } from '@/lib/theme';
 import { IconBtn, Row, Txt } from './ui';
 
 export function ScreenHeader({
@@ -18,6 +19,7 @@ export function ScreenHeader({
   transparent?: boolean;
   closeIcon?: boolean;
 }) {
+  const colors = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const back = onBack ?? (() => (router.canGoBack() ? router.back() : router.replace('/')));

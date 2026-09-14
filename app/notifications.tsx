@@ -3,7 +3,8 @@ import { Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, radius, space } from '@/theme';
+import { radius, space } from '@/theme';
+import { useColors } from '@/lib/theme';
 import { Card, Divider, Pill, Row, Txt } from '@/components/ui';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { useT } from '@/lib/i18n';
@@ -23,6 +24,7 @@ interface Drop { product_id: string; store_id: string; new_price: number; old_pr
 
 /** Bell in the top bar: push settings + the latest price drops as an in-app feed. */
 export default function Notifications() {
+  const colors = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const auth = useAuth();
@@ -71,7 +73,7 @@ export default function Notifications() {
                 {t('notif.pushBody')}{isPlus ? t('notif.everyDay') : t('notif.plusFeature')}
               </Txt>
             </View>
-            <Switch value={push} disabled={busy} onValueChange={togglePush} trackColor={{ true: colors.primary, false: colors.line }} thumbColor={colors.white} />
+            <Switch value={push} disabled={busy} onValueChange={togglePush} trackColor={{ true: colors.primary, false: colors.line }} thumbColor={colors.onAccent} />
           </Row>
           <View style={{ marginVertical: space.md }}>
             <Divider />

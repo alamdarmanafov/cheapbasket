@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { LayoutChangeEvent, Linking, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { colors, radius, space } from '@/theme';
+import { radius, space } from '@/theme';
+import { makeStyles } from '@/lib/theme';
 import { Txt } from './ui';
 import { Banner } from '@/data/products';
 
@@ -10,6 +11,7 @@ const INTERVAL_MS = 5000;
 
 /** Auto-advancing promo slider (admin-managed banners). Pauses while the user drags. */
 export function BannerSlider({ banners, width }: { banners: Banner[]; width?: number }) {
+  const styles = useStyles();
   const router = useRouter();
   const { width: screenW } = useWindowDimensions();
   // Real container width (the web phone frame is narrower than the window); window-based fallback until measured.
@@ -98,9 +100,9 @@ export function BannerSlider({ banners, width }: { banners: Banner[]; width?: nu
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   slide: { height: 132, borderRadius: radius.lg, padding: space.lg, justifyContent: 'center', overflow: 'hidden' },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 8 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.grayLight },
   dotActive: { width: 18, backgroundColor: colors.primary },
-});
+}));

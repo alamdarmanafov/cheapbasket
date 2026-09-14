@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { colors, fonts, radius, space } from '@/theme';
+import { fonts, radius, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Btn, Row, Txt } from './ui';
 import { useT } from '@/lib/i18n';
 import { supabase } from '@/lib/supabase';
@@ -17,6 +18,8 @@ import { useAuth } from '@/store/auth';
  * suggester points, so the reward is named on the button.
  */
 export function SuggestProduct({ barcode, initialName = '', storeId, title, body, onDone, onFocus }: { barcode?: string; initialName?: string; storeId?: string | null; title: string; body?: string; onDone?: () => void; onFocus?: () => void }) {
+  const colors = useColors();
+  const styles = useStyles();
   const t = useT();
   const router = useRouter();
   const auth = useAuth();
@@ -100,7 +103,7 @@ export function SuggestProduct({ barcode, initialName = '', storeId, title, body
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   box: { marginTop: space.md, backgroundColor: colors.fill, borderRadius: radius.lg, padding: space.md },
   input: {
     marginTop: space.sm,
@@ -114,4 +117,4 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     color: colors.dark,
   },
-});
+}));

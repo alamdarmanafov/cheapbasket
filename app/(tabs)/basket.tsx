@@ -3,7 +3,8 @@ import { Platform, Pressable, ScrollView, Share, StyleSheet, View } from 'react-
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, radius, shadow, space } from '@/theme';
+import { radius, shadow, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { useRefresh } from '@/lib/useRefresh';
 import { Btn, Divider, IconBtn, Pill, Price, Row, Txt } from '@/components/ui';
 import { Freshness, ProductArt } from '@/components/product';
@@ -11,7 +12,9 @@ import { StateView } from '@/components/states';
 import { ResultSheet } from '@/components/ResultSheet';
 import { PriceAlertCard } from '@/components/PriceAlertCard';
 import { cheapest, stalestMinutes } from '@/data/products';
-import { suggestSubstitute } from '@/lib/substitute';
+import { cheaperAlternative, suggestSubstitute } from '@/lib/substitute';
+import { BudgetModal } from '@/components/BudgetModal';
+import { useBudget } from '@/lib/budget';
 import { useBasket } from '@/store/basket';
 import { track } from '@/lib/track';
 import { confirmAsync, notify } from '@/lib/confirm';
@@ -19,6 +22,8 @@ import { SITE_URL } from '@/lib/links';
 import { useT } from '@/lib/i18n';
 
 export default function Basket() {
+  const colors = useColors();
+  const styles = useStyles();
   const refresh = useRefresh();
   const t = useT();
   const router = useRouter();
@@ -26,7 +31,21 @@ export default function Basket() {
   const params = useLocalSearchParams<{ compare?: string }>();
   const { lines, count, setQty, remove, add, clear, optimization: o, setChosenStore } = useBasket();
   const [showResult, setShowResult] = useState(false);
+  const [showBudget, setShowBudget] = useState(false);
+  const budget = useBudget();
   const best = o.best;
+  // Over the limit at the best store: the cheapest same-kind swaps that would
+  // bring it back under, biggest saving first, three at most.
+  const overBy = budget != null && best ? best.total - budget : 0;
+  const swaps = React.useMemo(() => {
+    if (!best || overBy <= 0) return [];
+    return lines
+      .map((l) => ({ line: l, alt: cheaperAlternative(l.product, best.store.id) }))
+      .filter((x): x is { line: typeof x.line; alt: NonNullable<typeof x.alt> } => !!x.alt)
+      .map((x) => ({ ...x, saving: x.alt.saving * x.line.qty }))
+      .sort((a, b) => b.saving - a.saving)
+      .slice(0, 3);
+  }, [lines, best, overBy]);
 
   // Deep link from the assistant: /basket?compare=1 opens the AI result directly.
   useEffect(() => {
@@ -101,9 +120,47 @@ export default function Basket() {
         </Txt>
         {/* The total above is only as current as the oldest price in it, and this
             is where the user reads that total. */}
-        <View style={{ marginTop: 6 }}>
+        <Row style={{ marginTop: 6, justifyContent: 'space-between' }}>
           <Freshness minutes={stalestMinutes(lines.map((l) => l.product))} label={t('result.checked')} />
-        </View>
+          <Pressable onPress={() => setShowBudget(true)} style={({ pressed }) => [styles.budgetChip, budget != null && overBy > 0 && styles.budgetChipOver, pressed && { opacity: 0.7 }]} accessibilityRole="button" testID="budget-chip">
+            <Ionicons name="wallet-outline" size={13} color={budget != null && overBy > 0 ? colors.warning : colors.primary} />
+            <Txt v="captionStrong" color={budget != null && overBy > 0 ? colors.warning : colors.primary} style={{ fontSize: 11, marginLeft: 4 }}>
+              {budget == null ? t('budget.chip') : t('budget.set', { amount: budget.toFixed(0) })}
+            </Txt>
+          </Pressable>
+        </Row>
+
+        {/* The limit is a number the shopper chose; this is the app doing
+            something with it — the swaps that get the basket back under. */}
+        {budget != null && best && overBy > 0 && (
+          <View style={styles.budgetCard} testID="budget-over">
+            <Txt v="captionStrong" color={colors.warning}>
+              {t('budget.overTitle', { amount: overBy.toFixed(2) })}
+            </Txt>
+            <Txt v="caption" color={colors.gray} style={{ marginTop: 2 }}>
+              {swaps.length ? t('budget.overBody', { saving: swaps.reduce((a, x) => a + x.saving, 0).toFixed(2) }) : t('budget.noSwaps')}
+            </Txt>
+            {swaps.map((x) => (
+              <Row key={x.line.product.id} gap={8} style={{ marginTop: 8 }}>
+                <ProductArt product={x.alt.product} size={34} emojiScale={0.55} />
+                <View style={{ flex: 1 }}>
+                  <Txt v="caption" numberOfLines={2} style={{ fontSize: 12 }}>
+                    {t('budget.swap', { from: x.line.product.name, to: `${x.alt.product.brand} ${x.alt.product.name} ${x.alt.product.size}`.trim() })}
+                  </Txt>
+                  <Txt v="captionStrong" color={colors.success} style={{ fontSize: 11 }}>
+                    −{x.saving.toFixed(2)} ₼ · {x.alt.price.toFixed(2)} ₼
+                  </Txt>
+                </View>
+                <Btn title={t('budget.swapBtn')} size="md" full={false} variant="secondary" onPress={() => { remove(x.line.product.id); add(x.alt.product, x.line.qty); }} />
+              </Row>
+            ))}
+          </View>
+        )}
+        {budget != null && best && overBy <= 0 && (
+          <Txt v="caption" color={colors.success} style={{ marginTop: 6 }}>
+            {t('budget.fits', { amount: (-overBy).toFixed(2) })}
+          </Txt>
+        )}
 
         <View style={styles.list}>
           {lines.map((l, i) => {
@@ -193,12 +250,19 @@ export default function Basket() {
           setShowResult(false);
           router.push({ pathname: '/shop', params: { store: storeId } } as never);
         }}
+        onShopSplit={(storeId, ids) => {
+          setShowResult(false);
+          router.push({ pathname: '/shop', params: { store: storeId, items: ids.join(',') } } as never);
+        }}
       />
+      <BudgetModal visible={showBudget} value={budget} onClose={() => setShowBudget(false)} />
     </View>
   );
 }
 
 function StepBtn({ icon, onPress }: { icon: keyof typeof Ionicons.glyphMap; onPress: () => void }) {
+  const colors = useColors();
+  const styles = useStyles();
   return (
     <Pressable onPress={onPress} hitSlop={6} style={({ pressed }) => [styles.step, pressed && { backgroundColor: colors.fill }]}>
       <Ionicons name={icon} size={16} color={colors.dark} />
@@ -206,7 +270,7 @@ function StepBtn({ icon, onPress }: { icon: keyof typeof Ionicons.glyphMap; onPr
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   list: { backgroundColor: colors.white, borderRadius: 17, paddingHorizontal: 10, marginTop: 14, overflow: 'hidden', ...shadow.card },
   item: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
   step: { width: 28, height: 28, borderRadius: 8, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
@@ -215,13 +279,16 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: '#DDD',
+    borderColor: colors.line,
     backgroundColor: colors.white,
     padding: 13,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  budgetChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primarySoft, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 4 },
+  budgetChipOver: { backgroundColor: colors.warningSoft },
+  budgetCard: { marginTop: 10, backgroundColor: colors.white, borderRadius: 14, borderWidth: 1, borderColor: colors.warningSoft, padding: 12 },
   sticky: {
     position: 'absolute',
     left: 0,
@@ -234,4 +301,4 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radius.xl,
     ...shadow.card,
   },
-});
+}));

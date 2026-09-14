@@ -6,7 +6,7 @@
     "scheme": "cheapbasket",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "backgroundColor": "#F7F7F7",
     "primaryColor": "#E53935",
     "splash": {

@@ -4,7 +4,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
-import { colors, radius, space } from '@/theme';
+import { radius, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Row, Txt } from './ui';
 import { useT } from '@/lib/i18n';
 import { registerForPush } from '@/lib/notifications';
@@ -24,6 +25,8 @@ const DISMISSED = 'cb_alert_ask_dismissed';
  * the basket it applies to, and never again after an answer either way.
  */
 export function PriceAlertCard({ lines }: { lines: number }) {
+  const colors = useColors();
+  const styles = useStyles();
   const t = useT();
   const router = useRouter();
   const { user } = useAuth();
@@ -90,7 +93,7 @@ export function PriceAlertCard({ lines }: { lines: number }) {
             {t('notif.askBody')}
           </Txt>
           <Pressable onPress={enable} disabled={busy} style={({ pressed }) => [styles.cta, pressed && { opacity: 0.75 }]} accessibilityRole="button">
-            <Txt v="captionStrong" color={colors.white} style={{ fontSize: 12 }}>
+            <Txt v="captionStrong" color={colors.onAccent} style={{ fontSize: 12 }}>
               {user ? t('notif.askCta') : t('notif.askSignIn')}
             </Txt>
           </Pressable>
@@ -103,7 +106,7 @@ export function PriceAlertCard({ lines }: { lines: number }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   card: {
     marginTop: 12,
     backgroundColor: colors.white,
@@ -121,4 +124,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 7,
   },
-});
+}));

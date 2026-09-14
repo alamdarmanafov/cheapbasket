@@ -6,7 +6,8 @@ import { track } from '@/lib/track';
 import { ScrollView, Share, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { colors, radius, space } from '@/theme';
+import { radius, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { useRefresh } from '@/lib/useRefresh';
 import { Btn, Card, Divider, Price, Row, Txt } from '@/components/ui';
 import { StoreAvatar } from '@/components/product';
@@ -17,6 +18,8 @@ import { useBasket } from '@/store/basket';
 import { useAuth } from '@/store/auth';
 import { supabase } from '@/lib/supabase';
 import { getStore } from '@/data/products';
+import { monthlyReport } from '@/lib/report';
+import { useI18n } from '@/lib/i18n';
 
 /**
  * Savings — computed from the real basket: best store vs the most expensive
@@ -24,6 +27,8 @@ import { getStore } from '@/data/products';
  * totals) is added once shopping trips are recorded.
  */
 export default function Savings() {
+  const colors = useColors();
+  const styles = useStyles();
   const t = useT();
   const router = useRouter();
   const auth = useAuth();
@@ -38,6 +43,18 @@ export default function Savings() {
     loadTrips();
   }, [loadTrips]);
   const refresh = useRefresh(loadTrips);
+  const { lang } = useI18n();
+  const locale = { az: 'az-AZ', en: 'en-US', tr: 'tr-TR', ru: 'ru-RU' }[lang];
+  const months = monthlyReport(trips).slice(0, 6);
+  const monthName = (m: { year: number; month: number }) => new Date(m.year, m.month, 1).toLocaleDateString(locale, { month: 'long', year: 'numeric' });
+  const shareReport = async (m: (typeof months)[number]) => {
+    track('share', { what: 'monthly_report', month: m.key });
+    try {
+      await Share.share({ message: t('report.shareText', { month: monthName(m), trips: m.trips, spent: m.spent.toFixed(2), saved: m.saved.toFixed(2), store: m.topStore ? getStore(m.topStore).name : '—' }) });
+    } catch {
+      /* dismissed */
+    }
+  };
   const monthKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}`;
   const thisMonth = trips.filter((t) => monthKey(new Date(t.created_at)) === monthKey(new Date()));
   const monthSaving = thisMonth.reduce((a, t) => a + Number(t.saving), 0);
@@ -75,7 +92,7 @@ export default function Savings() {
           <Txt v="body" color="rgba(255,255,255,0.85)" style={{ marginTop: space.lg }}>
             {t('sav.cardTitle')}
           </Txt>
-          <Txt v="display" color={colors.white}>
+          <Txt v="display" color={colors.onAccent}>
             {monthSaving.toFixed(2)} ₼
           </Txt>
           <Txt v="caption" color="rgba(255,255,255,0.75)">
@@ -88,7 +105,7 @@ export default function Savings() {
           <Txt v="body" color="rgba(255,255,255,0.8)">
             {hasBasket ? t('sav.thisBasket') : t('sav.notYet')}
           </Txt>
-          <Price value={o.saving} size="xl" color={colors.white} style={{ marginTop: space.sm }} />
+          <Price value={o.saving} size="xl" color={colors.onAccent} style={{ marginTop: space.sm }} />
           {hasBasket && worst && (
             <Row gap={6} style={{ marginTop: space.sm }}>
               <Ionicons name="trending-down" size={16} color="#A7F3C6" />
@@ -172,6 +189,57 @@ export default function Savings() {
           )}
         </PlusLock>
 
+        {/* The month as a statement: spent, kept, where. One card per month,
+            the current one first, each shareable as a line of text. */}
+        <Txt v="bodyStrong" style={{ marginTop: space.xl, marginBottom: space.sm }}>
+          {t('report.title')}
+        </Txt>
+        {months.length === 0 ? (
+          <Txt v="caption" color={colors.gray} center>
+            {t('report.empty')}
+          </Txt>
+        ) : (
+          months.map((m, i) => (
+            <Card key={m.key} style={{ marginBottom: space.sm, borderWidth: i === 0 ? 1 : 0, borderColor: colors.primary }} testID={`report-${m.key}`}>
+              <Row style={{ justifyContent: 'space-between' }}>
+                <Txt v="bodyStrong" style={{ textTransform: 'capitalize' }}>
+                  {monthName(m)}
+                </Txt>
+                <Txt v="caption" color={colors.gray}>
+                  {t('report.trips', { n: m.trips })}
+                </Txt>
+              </Row>
+              <Row gap={space.md} style={{ marginTop: space.sm }}>
+                <View style={{ flex: 1 }}>
+                  <Txt v="title" num>
+                    {m.spent.toFixed(2)} ₼
+                  </Txt>
+                  <Txt v="caption" color={colors.gray}>
+                    {t('report.spent')}
+                  </Txt>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Txt v="title" num color={colors.success}>
+                    −{m.saved.toFixed(2)} ₼
+                  </Txt>
+                  <Txt v="caption" color={colors.gray}>
+                    {t('report.saved')}
+                  </Txt>
+                </View>
+              </Row>
+              {m.topStore && (
+                <Row gap={8} style={{ marginTop: space.sm }}>
+                  <StoreAvatar store={getStore(m.topStore)} size={22} />
+                  <Txt v="caption" color={colors.gray}>
+                    {t('report.topStore', { store: getStore(m.topStore).name })}
+                  </Txt>
+                </Row>
+              )}
+              <Btn title={t('report.share')} variant="ghost" size="md" full={false} icon="share-social-outline" onPress={() => shareReport(m)} style={{ marginTop: space.xs, alignSelf: 'flex-start', paddingHorizontal: 0 }} />
+            </Card>
+          ))
+        )}
+
         <Btn title={hasBasket ? t('sav.viewBasket') : t('sav.addProduct')} icon={hasBasket ? 'basket' : 'add'} variant="dark" onPress={() => router.push(hasBasket ? '/basket' : '/search')} style={{ marginTop: space.xl }} />
       </ScrollView>
     </View>
@@ -179,6 +247,7 @@ export default function Savings() {
 }
 
 function Stat({ value, label }: { value: string; label: string }) {
+  const colors = useColors();
   return (
     <Card style={{ flex: 1 }}>
       <Txt v="display" num>
@@ -191,7 +260,7 @@ function Stat({ value, label }: { value: string; label: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   shareCard: { backgroundColor: colors.primary, borderRadius: radius.xl, padding: space.xl, marginBottom: space.sm },
   hero: { backgroundColor: colors.success, borderRadius: radius.xl, padding: space.xl },
-});
+}));

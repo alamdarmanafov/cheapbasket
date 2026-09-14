@@ -3,7 +3,8 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, radius, space } from '@/theme';
+import { fonts, radius, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Btn, Card, Divider, Pill, Row, Txt } from '@/components/ui';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { StateView } from '@/components/states';
@@ -23,6 +24,8 @@ const FREE_LIMIT = 1;
 
 /** {t('lists.title')}: save the current basket under a name and load it back later. Free: 1 list, Plus: unlimited. */
 export default function Lists() {
+  const colors = useColors();
+  const styles = useStyles();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const auth = useAuth();
@@ -176,9 +179,9 @@ export default function Lists() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   template: { width: '31%', backgroundColor: colors.white, borderRadius: radius.lg, padding: 10, borderWidth: 1, borderColor: colors.line },
   input: { flex: 1, backgroundColor: colors.fill, borderRadius: radius.md, paddingHorizontal: 14, height: 44, fontFamily: fonts.regular, fontSize: 15, color: colors.dark },
   icon: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   loadBtn: { backgroundColor: colors.dark, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 8 },
-});
+}));

@@ -3,8 +3,9 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Product, Store, cheapest, StorePrice } from '@/data/products';
-import { colors, radius, space } from '@/theme';
+import { Product, Store, cheapest, StorePrice, coverage } from '@/data/products';
+import { radius, space } from '@/theme';
+import { makeStyles, useColors, useTheme } from '@/lib/theme';
 import { useT } from '@/lib/i18n';
 import { Price, Row, Txt } from './ui';
 import { useBasket } from '@/store/basket';
@@ -14,13 +15,15 @@ import { daysLeft } from '@/lib/discount';
 
 /** Product visual on a soft tinted background — stands in for photography. */
 export function ProductArt({ product, size = 56, emojiScale = 0.5 }: { product: Product; size?: number; emojiScale?: number }) {
+  // The pastel tint is a light-theme idea; on a dark ground it glares.
+  const { colors, isDark } = useTheme();
   return (
     <View
       style={{
         width: size,
         height: size,
         borderRadius: size >= 120 ? radius.xl : radius.md,
-        backgroundColor: product.tint,
+        backgroundColor: isDark ? colors.fill : product.tint,
         alignItems: 'center',
         justifyContent: 'center',
       }}
@@ -35,6 +38,7 @@ export function ProductArt({ product, size = 56, emojiScale = 0.5 }: { product: 
 }
 
 export function StoreAvatar({ store, size = 32 }: { store: Store; size?: number }) {
+  const colors = useColors();
   if (store.logo_url) {
     // Logos arrive with their own (often transparent) backgrounds, so they sit on
     // a white disc with a hairline edge — otherwise they dissolve into the page
@@ -75,7 +79,7 @@ export function StoreAvatar({ store, size = 32 }: { store: Store; size?: number 
         justifyContent: 'center',
       }}
     >
-      <Txt v="captionStrong" color={colors.white} style={{ fontSize: size * 0.38, lineHeight: size * 0.5 }}>
+      <Txt v="captionStrong" color={colors.onAccent} style={{ fontSize: size * 0.38, lineHeight: size * 0.5 }}>
         {store.initial}
       </Txt>
     </View>
@@ -84,6 +88,8 @@ export function StoreAvatar({ store, size = 32 }: { store: Store; size?: number 
 
 /** A product row with cheapest price and a one-tap add button. */
 export function ProductRow({ product, showStore = true }: { product: Product; showStore?: boolean }) {
+  const colors = useColors();
+  const styles = useStyles();
   const t = useT();
   const router = useRouter();
   const basket = useBasket();
@@ -105,9 +111,15 @@ export function ProductRow({ product, showStore = true }: { product: Product; sh
           {showStore && c.price != null && (
             <>
               {'  ·  '}
-              <Txt v="caption" color={colors.success}>
-                ən ucuz {c.store.name}
-              </Txt>
+              {coverage(product) < 2 ? (
+                <Txt v="caption" color={colors.warning}>
+                  {t('row.onlyAt', { store: c.store.name })}
+                </Txt>
+              ) : (
+                <Txt v="caption" color={colors.success}>
+                  {t('row.cheapestAt', { store: c.store.name })}
+                </Txt>
+              )}
             </>
           )}
         </Txt>
@@ -144,6 +156,8 @@ export function ProductRow({ product, showStore = true }: { product: Product; sh
 
 /** One line in a price comparison list. */
 export function PriceLine({ item, rank, best }: { item: StorePrice; rank: number; best: number }) {
+  const colors = useColors();
+  const styles = useStyles();
   const t = useT();
   const unavailable = item.price == null;
   const diff = item.price != null ? item.price - best : 0;
@@ -204,6 +218,7 @@ function fmtDate(iso: string): string {
 
 /** Small tag showing the discount validity window: "–27.09" or "20.08–27.09". */
 export function DiscountRange({ starts, ends }: { starts?: string; ends?: string }) {
+  const colors = useColors();
   if (!starts && !ends) return null;
   const label = starts && ends ? `${fmtDate(starts)}–${fmtDate(ends)}` : ends ? `–${fmtDate(ends)}` : `${fmtDate(starts!)}–`;
   return (
@@ -215,6 +230,7 @@ export function DiscountRange({ starts, ends }: { starts?: string; ends?: string
 
 /** Crossed-out regular price shown above a discounted price. */
 export function OldPrice({ value }: { value: number }) {
+  const colors = useColors();
   return (
     <Txt v="caption" color={colors.grayLight} style={{ textDecorationLine: 'line-through' }}>
       {value.toFixed(2)} ₼
@@ -223,6 +239,7 @@ export function OldPrice({ value }: { value: number }) {
 }
 
 export function Freshness({ minutes, label }: { minutes: number; label?: string }) {
+  const colors = useColors();
   const t = useT();
   const level = freshnessLevel(minutes);
   const color = level === 'fresh' ? colors.success : level === 'ok' ? colors.warning : colors.gray;
@@ -236,7 +253,7 @@ export function Freshness({ minutes, label }: { minutes: number; label?: string 
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -261,4 +278,4 @@ const styles = StyleSheet.create({
   priceLineBest: {
     backgroundColor: colors.primarySoft,
   },
-});
+}));

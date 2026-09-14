@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
-import { colors, radius, space } from '@/theme';
+import { radius, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Btn, Txt } from './ui';
 
 /** Empty / error / not-found states share one calm layout with a clear next step. */
@@ -24,6 +25,8 @@ export function StateView({
   /** Tighter spacing for a state that shares a sheet with something below it. */
   compact?: boolean;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   return (
     <View style={[styles.state, compact && { paddingVertical: space.md }]}>
       <View style={styles.emojiWrap}>
@@ -45,6 +48,7 @@ export function StateView({
 
 /** Shimmering placeholder block. */
 export function Skeleton({ w = '100%', h = 16, r = 8, style }: { w?: number | `${number}%`; h?: number; r?: number; style?: object }) {
+  const colors = useColors();
   const anim = useRef(new Animated.Value(0.4)).current;
   useEffect(() => {
     const loop = Animated.loop(
@@ -72,7 +76,7 @@ export function ProductRowSkeleton() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   state: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.xl, paddingVertical: space.xxxl },
   emojiWrap: {
     width: 96,
@@ -82,4 +86,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+}));

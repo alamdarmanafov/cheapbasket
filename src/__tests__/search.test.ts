@@ -21,11 +21,31 @@ describe('searchProducts', () => {
     expect(searchProducts('kesmyk').map((p) => p.id)).toEqual(['4']);
   });
   it('keeps short words exact', () => {
-    expect(searchProducts('sut')).toEqual([]);
+    expect(searchProducts('sdu')).toEqual([]);
+  });
+  it('understands the same word in English, Turkish or Russian', () => {
+    expect(searchProducts('milk').map((p) => p.id)).toEqual(['2']);
+    expect(searchProducts('süt').map((p) => p.id)).toEqual(['2']);
+    expect(searchProducts('молоко').map((p) => p.id)).toEqual(['2']);
+    expect(searchProducts('eggs').map((p) => p.id)).toEqual(['3']);
+    expect(searchProducts('milk 3.2').map((p) => p.id)).toEqual(['2']);
+    expect(searchProducts('yogurt').map((p) => p.id)).toEqual(['1']);
   });
   it('puts exact matches before near ones', () => {
     catalog.products.push(product('5', 'Bravo', 'Yumurta 6 ədəd', 'yumurta'));
     const ids = searchProducts('yumurta').map((p) => p.id);
     expect(ids).toEqual(['3', '5']);
+  });
+});
+
+describe('coverage ordering', () => {
+  it('puts products priced at more stores first within a band', () => {
+    catalog.categories = [];
+    catalog.products = [
+      { ...catalog.products[0], id: 'one', brand: 'Sütaş', name: 'Süd 1L', category: 'süd', prices: { araz: 2.1 } } as never,
+      { ...catalog.products[0], id: 'three', brand: 'Sütaş', name: 'Süd 1L', category: 'süd', prices: { araz: 2.1, bravo: 2.2, oba: 2.3 } } as never,
+      { ...catalog.products[0], id: 'two', brand: 'Sütaş', name: 'Süd 1L', category: 'süd', prices: { araz: 2.1, bravo: 2.0 } } as never,
+    ];
+    expect(searchProducts('sütaş süd').map((p) => p.id)).toEqual(['three', 'two', 'one']);
   });
 });

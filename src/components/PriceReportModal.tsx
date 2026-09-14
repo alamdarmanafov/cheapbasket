@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { colors, fonts, radius, space } from '@/theme';
+import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
+import { fonts, radius, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
+import { API_URL } from '@/lib/plusStore';
 import { Btn, Chip, Row, Txt } from './ui';
 import { Product, sortedPrices } from '@/data/products';
 import { useT } from '@/lib/i18n';
@@ -22,7 +26,9 @@ const REASONS: ReportReason[] = ['add', 'wrong', 'outdated', 'missing'];
  * the same price at the same store apply it between them (0035). Either way
  * the reporter is paid in points, so the sheet says so.
  */
-export function PriceReportModal({ product, visible, onClose, initialStore, initialReason = 'add' }: { product: Product; visible: boolean; onClose: () => void; initialStore?: string | null; initialReason?: ReportReason }) {
+export function PriceReportModal({ product, visible, onClose, initialStore, initialReason = 'add', initialPrice }: { product: Product; visible: boolean; onClose: () => void; initialStore?: string | null; initialReason?: ReportReason; initialPrice?: number | null }) {
+  const colors = useColors();
+  const styles = useStyles();
   const t = useT();
   const router = useRouter();
   const auth = useAuth();
@@ -30,14 +36,46 @@ export function PriceReportModal({ product, visible, onClose, initialStore, init
   const [reason, setReason] = useState<ReportReason>(initialReason);
   const [price, setPrice] = useState('');
   const [busy, setBusy] = useState(false);
+  const [reading, setReading] = useState(false);
   const [reward, setReward] = useState(2);
 
   useEffect(() => {
     if (!visible) return;
     setStore(initialStore ?? null);
     setReason(initialReason);
-    setPrice('');
-  }, [visible, initialStore, initialReason]);
+    setPrice(initialPrice != null ? String(initialPrice) : '');
+  }, [visible, initialStore, initialReason, initialPrice]);
+
+  /**
+   * The shelf tag is right there: a photo of it fills the price field. The
+   * number is read server-side (vision, a daily allowance); the report still
+   * goes the ordinary way, so a misread is corrected before it is sent.
+   */
+  const photo = async () => {
+    if (!supabase || !API_URL) return;
+    if (!auth.user) {
+      onClose();
+      router.push('/auth');
+      return;
+    }
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) return notify(t('prod.tagFail'), t('prod.tagNoCamera'));
+    const res = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.5, base64: true, allowsEditing: false });
+    if (res.canceled || !res.assets[0]?.base64) return;
+    setReading(true);
+    try {
+      const tokenValue = (await supabase.auth.getSession()).data.session?.access_token ?? '';
+      const r = await fetch(`${API_URL}/api/pricetag`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenValue}` }, body: JSON.stringify({ image: res.assets[0].base64 }) });
+      const j = (await r.json().catch(() => ({}))) as { price?: number | null; error?: string };
+      if (!r.ok || j.price == null) return notify(t('prod.tagFail'), j.error ?? t('prod.tagUnread'));
+      setPrice(String(j.price));
+      track('pricetag', { product_id: product.id, price: j.price });
+    } catch {
+      notify(t('prod.tagFail'), t('prod.tagUnread'));
+    } finally {
+      setReading(false);
+    }
+  };
 
   useEffect(() => {
     if (!supabase) return;
@@ -125,6 +163,14 @@ export function PriceReportModal({ product, visible, onClose, initialStore, init
                   {t('prod.reportPoints', { points: reward })}
                 </Txt>
               </Row>
+              {Platform.OS !== 'web' && !!API_URL && (
+                <Pressable onPress={photo} disabled={reading} style={({ pressed }) => [styles.photoBtn, (pressed || reading) && { opacity: 0.6 }]} accessibilityRole="button" testID="pricetag-photo">
+                  <Ionicons name="camera-outline" size={16} color={colors.primary} />
+                  <Txt v="captionStrong" color={colors.primary} style={{ marginLeft: 6, fontSize: 12 }}>
+                    {reading ? t('prod.tagReading') : t('prod.tagPhoto')}
+                  </Txt>
+                </Pressable>
+              )}
             </>
           )}
           <Btn title={auth.user ? t('prod.reportSend') : t('scan.suggestSignIn')} size="md" loading={busy} disabled={!!auth.user && !canSend} onPress={send} style={{ marginTop: space.lg }} />
@@ -134,9 +180,10 @@ export function PriceReportModal({ product, visible, onClose, initialStore, init
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   sheet: { backgroundColor: colors.white, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: space.lg, paddingBottom: space.xxl },
+  photoBtn: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', marginTop: space.sm, backgroundColor: colors.primarySoft, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 7 },
   input: {
     width: 110,
     backgroundColor: colors.fill,
@@ -149,4 +196,4 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semibold,
     color: colors.dark,
   },
-});
+}));

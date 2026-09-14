@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { colors, radius, shadow, space } from '@/theme';
+import { radius, shadow, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Btn, Divider, Pill, Price, Row, Txt } from '@/components/ui';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { ProductArt, StoreAvatar } from '@/components/product';
@@ -17,6 +18,7 @@ import { confirmAsync, notify } from '@/lib/confirm';
 import { recordTrip } from '@/lib/trips';
 import { noteTripForReview } from '@/lib/review';
 import { receiptsEnabled } from '@/lib/features';
+import { recordPurchases } from '@/lib/purchases';
 
 /**
  * The basket as a checklist to walk the aisles with.
@@ -27,13 +29,22 @@ import { receiptsEnabled } from '@/lib/features';
  * shelves.
  */
 export default function Shop() {
+  const colors = useColors();
+  const styles = useStyles();
   const t = useT();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const auth = useAuth();
-  const { store: storeParam } = useLocalSearchParams<{ store?: string }>();
-  const { lines, optimization: o, clear } = useBasket();
+  const { store: storeParam, items: itemsParam } = useLocalSearchParams<{ store?: string; items?: string }>();
+  const { lines: allLines, optimization: o, clear } = useBasket();
   const storeId = storeParam || o.best?.store.id || '';
+  // A split plan sends only this shop's half of the basket: `items` names it.
+  const lines = useMemo(() => {
+    const only = itemsParam ? new Set(itemsParam.split(',').filter(Boolean)) : null;
+    const picked = only ? allLines.filter((l) => only.has(l.product.id)) : allLines;
+    return picked.length ? picked : allLines;
+  }, [allLines, itemsParam]);
+  const isSubset = lines.length < allLines.length;
   const store = getStore(storeId);
   const branch = nearestBranch(storeId);
   const key = `cb_shop_ticks_${storeId}`;
@@ -67,6 +78,8 @@ export default function Shop() {
     return sum + (l && p != null ? p * l.qty : 0);
   }, 0);
   const rank = o.ranked.find((r) => r.store.id === storeId);
+  const subsetTotal = lines.reduce((sum, l) => sum + (l.product.prices[storeId] ?? 0) * l.qty, 0);
+  const expected = isSubset ? subsetTotal : (rank?.total ?? 0);
 
   const finish = async () => {
     if (!auth.user) {
@@ -74,16 +87,18 @@ export default function Shop() {
       return;
     }
     setBusy(true);
-    const total = ticked.size ? tickedTotal : (rank?.total ?? 0);
+    const total = ticked.size ? tickedTotal : expected;
     const saving = rank && o.best ? (rank.store.id === o.best.store.id ? o.saving : Math.max(0, (o.worst?.total ?? rank.total) - rank.total)) : 0;
     const r = await recordTrip({ storeId, branchId: branch?.id ?? null, total, saving, items: ticked.size || lines.length });
     setBusy(false);
     if (r.error) return notify(t('common.error'), r.error);
     await AsyncStorage.removeItem(key).catch(() => undefined);
     noteTripForReview();
+    // What went into the trolley today, for "you usually buy this every N days".
+    recordPurchases((ticked.size ? lines.filter((l) => ticked.has(l.product.id)) : lines).map((l) => l.product.id)).catch(() => undefined);
     notify(t('markets.boughtThanks'), r.earned > 0 ? t('markets.boughtBodyPoints', { n: r.earned }) : t('markets.boughtBody'));
     // Bought means the basket has done its job; offer to start the next one clean.
-    if (await confirmAsync(t('shop.clearTitle'), t('shop.clearBody'), t('common.yes'))) clear();
+    if (!isSubset && (await confirmAsync(t('shop.clearTitle'), t('shop.clearBody'), t('common.yes')))) clear();
     // The receipt is in hand right now — the one moment it will be photographed.
     // Only when the admin has the feature on (0039).
     if ((await receiptsEnabled()) && (await confirmAsync(t('receipt.afterShopTitle'), t('receipt.afterShopBody'), t('receipt.takePhoto')))) {
@@ -112,6 +127,11 @@ export default function Shop() {
           <StoreAvatar store={store} size={40} />
           <View style={{ flex: 1 }}>
             <Txt v="bodyStrong">{store.name}</Txt>
+            {isSubset && (
+              <Txt v="caption" color={colors.primary} numberOfLines={1}>
+                {t('split.subset', { n: lines.length, total: allLines.length })}
+              </Txt>
+            )}
             {branch && (
               <Txt v="caption" color={colors.gray} numberOfLines={1}>
                 {branch.name} · {t('markets.walk', { km: branch.distanceKm, min: branch.walkMinutes })}
@@ -160,12 +180,12 @@ export default function Shop() {
             </Txt>
             <Price value={tickedTotal} size="lg" />
           </View>
-          {rank && (
+          {(rank || isSubset) && (
             <View style={{ alignItems: 'flex-end' }}>
               <Txt v="caption" color={colors.gray}>
                 {t('shop.expected')}
               </Txt>
-              <Price value={rank.total} size="sm" color={colors.gray} />
+              <Price value={expected} size="sm" color={colors.gray} />
             </View>
           )}
         </Row>
@@ -175,7 +195,7 @@ export default function Shop() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   list: { backgroundColor: colors.white, borderRadius: 17, paddingHorizontal: 10, marginTop: 14, overflow: 'hidden', ...shadow.card },
   item: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 10 },
   sticky: {
@@ -190,4 +210,4 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radius.xl,
     ...shadow.card,
   },
-});
+}));

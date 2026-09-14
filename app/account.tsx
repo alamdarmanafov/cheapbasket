@@ -3,7 +3,8 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, TextInp
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, radius, space } from '@/theme';
+import { fonts, radius, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { useRefresh } from '@/lib/useRefresh';
 import { Btn, Card, Row, Txt } from '@/components/ui';
 import { ScreenHeader } from '@/components/ScreenHeader';
@@ -14,6 +15,8 @@ import { supabase } from '@/lib/supabase';
 
 /** {t('account.title')}: name/surname and city are editable (Apple often hides the name), plus account deletion. */
 export default function Account() {
+  const colors = useColors();
+  const styles = useStyles();
   const refresh = useRefresh();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -114,7 +117,7 @@ export default function Account() {
               </Txt>
             </View>
             {auth.profile?.plan === 'plus' ? (
-              <Switch value={digest} onValueChange={toggleDigest} trackColor={{ true: colors.primary, false: colors.line }} thumbColor={colors.white} />
+              <Switch value={digest} onValueChange={toggleDigest} trackColor={{ true: colors.primary, false: colors.line }} thumbColor={colors.onAccent} />
             ) : (
               <Btn title={t('account.goPlus')} size="md" full={false} icon="star" onPress={() => router.push('/plus')} />
             )}
@@ -125,8 +128,8 @@ export default function Account() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   input: { height: 48, borderRadius: radius.md, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.line, paddingHorizontal: space.md, marginTop: 6, fontSize: 15, color: colors.dark, fontFamily: fonts.regular, ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : {}) },
   tag: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.fill, borderRadius: radius.pill, paddingHorizontal: 8, height: 22 },
   note: { padding: space.md, borderRadius: radius.md, marginTop: space.md },
-});
+}));

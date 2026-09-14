@@ -3,7 +3,8 @@ import { FlatList, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons';
 import { useCatalog } from '@/store/catalog';
 import { isAllDay, isOpenNow, Branch } from '@/data/products';
-import { colors, fonts, radius, space } from '@/theme';
+import { fonts, radius, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Row, Txt } from './ui';
 import { StoreAvatar } from './product';
 import { useT } from '@/lib/i18n';
@@ -19,6 +20,8 @@ function fmtDist(km: number): string {
 
 /** Store branches with distance, opening state and a Google/Apple Maps link. */
 export function BranchList({ filter, onFilterChange }: { filter: string; onFilterChange: (storeId: string) => void }) {
+  const colors = useColors();
+  const styles = useStyles();
   const { branches, stores, requestLocation, loading } = useCatalog();
   const t = useT();
   // Pulling here should reload the branches themselves, not just re-read the
@@ -69,7 +72,7 @@ export function BranchList({ filter, onFilterChange }: { filter: string; onFilte
               </View>
             )}
             {openState !== null && (
-              <View style={[styles.badge, { backgroundColor: isOpen ? colors.successSoft : '#FEE2E2' }]}>
+              <View style={[styles.badge, { backgroundColor: isOpen ? colors.successSoft : colors.primarySoft }]}>
                 <View style={[styles.dot, { backgroundColor: isOpen ? colors.success : colors.primary }]} />
                 <Txt v="caption" color={isOpen ? colors.success : colors.primary} style={{ marginLeft: 4, fontFamily: fonts.semibold }}>
                   {!isOpen ? t('common.closed') : allDay ? t('common.allDay') : b.openUntil ? t('common.openUntil', { time: b.openUntil }) : t('common.open')}
@@ -97,7 +100,7 @@ export function BranchList({ filter, onFilterChange }: { filter: string; onFilte
       {stores.length > 1 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipBar} contentContainerStyle={styles.chips}>
           <Pressable style={[styles.chip, filter === 'all' && styles.chipActive]} onPress={() => onFilterChange('all')}>
-            <Txt v="captionStrong" color={filter === 'all' ? colors.white : colors.dark}>
+            <Txt v="captionStrong" color={filter === 'all' ? colors.onAccent : colors.dark}>
               {t('branches.all', { count: branches.length })}
             </Txt>
           </Pressable>
@@ -110,7 +113,7 @@ export function BranchList({ filter, onFilterChange }: { filter: string; onFilte
                 style={[styles.chip, filter === s.id && styles.chipActive, filter !== s.id && { borderColor: s.color, borderWidth: 1.5 }]}
                 onPress={() => onFilterChange(filter === s.id ? 'all' : s.id)}
               >
-                <Txt v="captionStrong" color={filter === s.id ? colors.white : colors.dark}>
+                <Txt v="captionStrong" color={filter === s.id ? colors.onAccent : colors.dark}>
                   {t('branches.chip', { store: s.name, count })}
                 </Txt>
               </Pressable>
@@ -150,7 +153,7 @@ export function BranchList({ filter, onFilterChange }: { filter: string; onFilte
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   // Without flexGrow:0 the row steals the column's spare height and, with the
   // default cross-axis stretch, each chip grows to fill it.
   chipBar: { flexGrow: 0, flexShrink: 0 },
@@ -167,4 +170,4 @@ const styles = StyleSheet.create({
   navBtn: { width: 40, height: 40, borderRadius: radius.pill, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   sep: { height: space.sm },
   empty: { paddingTop: 60, alignItems: 'center' },
-});
+}));

@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { colors, radius, space } from '@/theme';
+import { radius, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Btn, Card, Chip, Divider, Row, Txt } from '@/components/ui';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { StoreAvatar } from '@/components/product';
@@ -30,6 +31,8 @@ interface Read { store_id: string | null; store_name: string | null; total: numb
  * For every store nobody scrapes, this is where the prices come from.
  */
 export default function Receipt() {
+  const colors = useColors();
+  const styles = useStyles();
   const t = useT();
   const receiptsOn = useReceiptsEnabled();
   const router = useRouter();
@@ -179,7 +182,7 @@ export default function Receipt() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
   sticky: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: colors.white, paddingHorizontal: space.lg, paddingTop: space.md, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl },
-});
+}));

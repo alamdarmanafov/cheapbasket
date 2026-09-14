@@ -1,7 +1,35 @@
 import { Platform, TextStyle } from 'react-native';
 
-/** Brand palette — red is an accent, never the whole UI. */
-export const colors = {
+/**
+ * Brand palette — red is an accent, never the whole UI.
+ *
+ * Two palettes, one set of names. `white` is the card surface and `dark` the
+ * text on it, and they trade places in the dark theme, so a dark chip with
+ * white text inverts on its own. What must not invert has its own name:
+ * `onAccent` is the text on a red, green or gold background, `inverse` the
+ * card that stays near-black in both themes.
+ */
+export interface Palette {
+  primary: string;
+  primaryDark: string;
+  primarySoft: string;
+  dark: string;
+  bg: string;
+  white: string;
+  success: string;
+  successSoft: string;
+  gray: string;
+  grayLight: string;
+  line: string;
+  fill: string;
+  warning: string;
+  warningSoft: string;
+  gold: string;
+  onAccent: string;
+  inverse: string;
+}
+
+export const light: Palette = {
   primary: '#E53935',
   primaryDark: '#C62828',
   primarySoft: '#FDECEC', // primary at ~8% on white
@@ -17,7 +45,32 @@ export const colors = {
   warning: '#D97706',
   warningSoft: '#FEF3E2',
   gold: '#F59E0B',
-} as const;
+  onAccent: '#FFFFFF',
+  inverse: '#171717',
+};
+
+export const dark: Palette = {
+  primary: '#EF4B47',
+  primaryDark: '#E53935',
+  primarySoft: '#3A1D1D',
+  dark: '#F4F4F5',
+  bg: '#0E0E10',
+  white: '#1B1B1E',
+  success: '#22C55E',
+  successSoft: '#10301C',
+  gray: '#A1A1AA',
+  grayLight: '#6F6F78',
+  line: '#2A2A2F',
+  fill: '#26262B',
+  warning: '#F5A524',
+  warningSoft: '#3A2A10',
+  gold: '#F5B31C',
+  onAccent: '#FFFFFF',
+  inverse: '#2A2A2F',
+};
+
+/** The light palette, for code that runs outside a component. Components read `useColors()`. */
+export const colors: Palette = light;
 
 /** 8-pt grid */
 export const space = {

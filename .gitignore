@@ -49,3 +49,8 @@ yarn-error.*
 # Firebase (add locally / via EAS secrets)
 google-services.json
 GoogleService-Info.plist
+
+# E2E
+dist-e2e/
+playwright-report/
+test-results/

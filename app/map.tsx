@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, radius, shadow, space } from '@/theme';
+import { radius, shadow, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Btn, Chip, IconBtn, Price, Row, Txt } from '@/components/ui';
 import { StoreAvatar } from '@/components/product';
 import { RealMap } from '@/components/RealMap';
@@ -16,6 +17,8 @@ import { track } from '@/lib/track';
 
 /** Full-screen map: the user, the nearest branch of the chosen store, and directions. */
 export default function MapScreen() {
+  const colors = useColors();
+  const styles = useStyles();
   const t = useT();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -93,7 +96,7 @@ export default function MapScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#EAF0EA' }}>
+    <View style={{ flex: 1, backgroundColor: colors.fill }}>
       <View style={{ alignSelf: 'center' }}>
         <RealMap
           width={mapW} height={mapH}
@@ -192,7 +195,7 @@ export default function MapScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   mapsBtn: { width: 56, height: 56, borderRadius: radius.md, backgroundColor: colors.fill, alignItems: 'center', justifyContent: 'center' },
   card: {
     position: 'absolute',
@@ -206,4 +209,4 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   summary: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: radius.md, padding: space.md, marginTop: space.md },
-});
+}));

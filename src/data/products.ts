@@ -4,6 +4,7 @@
  */
 
 import { categoryLabel } from './categoryNames';
+import { synonymsOf } from './synonyms';
 import { normalizeGtin } from '@/lib/gtin';
 
 export type StoreId = string;
@@ -205,6 +206,19 @@ function within1(a: string, b: string): boolean {
   return edits + (a.length - i) + (b.length - j) <= 1;
 }
 
+/** At how many stores this product has a price: below two it cannot be compared. */
+export function coverage(p: Product): number {
+  return Object.values(p.prices).filter((v) => v != null).length;
+}
+
+/** Stable: products priced at more stores first, ties keep their order. */
+function byCoverage(list: Product[]): Product[] {
+  return list
+    .map((p, i) => ({ p, i, c: coverage(p) }))
+    .sort((a, b) => b.c - a.c || a.i - b.i)
+    .map((x) => x.p);
+}
+
 export function searchProducts(query: string): Product[] {
   const q = norm(query.trim());
   if (!q) return [];
@@ -216,20 +230,26 @@ export function searchProducts(query: string): Product[] {
   // or more may be one letter off from a word in the product — "yumrta" finds
   // yumurta, "qatiq" already did through normalisation. Shorter words stay
   // exact: at three letters one edit matches half the dictionary.
+  // A word typed in English, Turkish or Russian stands for its Azerbaijani
+  // counterpart(s) too: "молоко" is a way of asking for süd.
   const words = q.split(/\s+/).filter(Boolean);
+  const alts = words.map((w) => [w, ...synonymsOf(w).map(norm)]);
+  const translated = alts.map((a) => a[1] ?? a[0]).join(' ');
   const exact: Product[] = [];
   const near: Product[] = [];
   for (const p of catalog.products) {
     const hay = norm(`${p.brand} ${p.name} ${p.category} ${categoryLabel(p.category)}`);
-    if (hay.includes(q)) {
+    if (hay.includes(q) || (translated !== q && hay.includes(translated))) {
       exact.push(p);
       continue;
     }
     const tokens = hay.split(/[^a-z0-9]+/).filter(Boolean);
-    const ok = words.every((w) => hay.includes(w) || (w.length >= 4 && tokens.some((tk) => within1(w, tk))));
+    const ok = alts.every((options) => options.some((w) => hay.includes(w) || (w.length >= 4 && tokens.some((tk) => within1(w, tk)))));
     if (ok) near.push(p);
   }
-  return [...exact, ...near];
+  // Within each band, the products that can actually be compared come first:
+  // a hit priced at one store is a fact, a hit priced at four is an answer.
+  return [...byCoverage(exact), ...byCoverage(near)];
 }
 
 /** Category names present in the current catalog, in admin order (for chips). */
@@ -248,19 +268,19 @@ export function catalogCategories(): string[] {
  * says which one it is. Memoised on the products array, since it walks the whole
  * catalogue and the ranked list asks once per store.
  */
-let coverageOf: Product[] | null = null;
-let coverage = new Map<StoreId, number>();
+let storeCountsOf: Product[] | null = null;
+let storeCounts = new Map<StoreId, number>();
 export function storeProductCount(storeId: StoreId): number {
-  if (coverageOf !== catalog.products) {
-    coverageOf = catalog.products;
-    coverage = new Map();
+  if (storeCountsOf !== catalog.products) {
+    storeCountsOf = catalog.products;
+    storeCounts = new Map();
     for (const p of catalog.products) {
       for (const [id, price] of Object.entries(p.prices)) {
-        if (price != null) coverage.set(id, (coverage.get(id) ?? 0) + 1);
+        if (price != null) storeCounts.set(id, (storeCounts.get(id) ?? 0) + 1);
       }
     }
   }
-  return coverage.get(storeId) ?? 0;
+  return storeCounts.get(storeId) ?? 0;
 }
 
 /** Age of the oldest price among these products, for a "checked N ago" line. */
