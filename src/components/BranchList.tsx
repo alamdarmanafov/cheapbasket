@@ -10,6 +10,7 @@ import { StoreAvatar } from './product';
 import { useT } from '@/lib/i18n';
 import { useRefresh } from '@/lib/useRefresh';
 import { openBranch } from '@/lib/maps';
+import { useRouter } from 'expo-router';
 
 /** How many branches one tap reveals. */
 const PAGE = 10;
@@ -24,6 +25,7 @@ export function BranchList({ filter, onFilterChange }: { filter: string; onFilte
   const styles = useStyles();
   const { branches, stores, requestLocation, loading } = useCatalog();
   const t = useT();
+  const router = useRouter();
   // Pulling here should reload the branches themselves, not just re-read the
   // position — a silent location refresh rides along so distances stay right.
   const refresh = useRefresh(useCallback(() => requestLocation({ prompt: false }), [requestLocation]));
@@ -137,16 +139,26 @@ export function BranchList({ filter, onFilterChange }: { filter: string; onFilte
         }
         ItemSeparatorComponent={() => <View style={styles.sep} />}
         ListFooterComponent={
-          more > 0 ? (
-            <Pressable onPress={() => setShown((n) => n + PAGE)} style={({ pressed }) => [styles.more, pressed && { opacity: 0.85 }]} accessibilityRole="button">
-              <Txt v="captionStrong" color={colors.primary}>
-                {t('branches.showMore')}
-              </Txt>
-              <Txt v="caption" color={colors.gray} style={{ fontSize: 11, marginTop: 2 }}>
-                {t('branches.shownOf', { shown: visible.length, total: filtered.length })}
-              </Txt>
+          <>
+            {more > 0 && (
+              <Pressable onPress={() => setShown((n) => n + PAGE)} style={({ pressed }) => [styles.more, pressed && { opacity: 0.85 }]} accessibilityRole="button">
+                <Txt v="captionStrong" color={colors.primary}>
+                  {t('branches.showMore')}
+                </Txt>
+                <Txt v="caption" color={colors.gray} style={{ fontSize: 11, marginTop: 2 }}>
+                  {t('branches.shownOf', { shown: visible.length, total: filtered.length })}
+                </Txt>
+              </Pressable>
+            )}
+            {/* The map is only as complete as the people standing in the shops. */}
+            <Pressable onPress={() => router.push('/add-branch')} style={({ pressed }) => [styles.more, pressed && { opacity: 0.85 }]} accessibilityRole="button" testID="add-branch">
+              <Row gap={6} style={{ justifyContent: 'center' }}>
+                <Ionicons name="add-circle-outline" size={16} color={colors.primary} />
+                <Txt v="captionStrong" color={colors.primary}>{t('addBranch.cta')}</Txt>
+              </Row>
+              <Txt v="caption" color={colors.gray} style={{ fontSize: 11, marginTop: 2 }}>{t('addBranch.ctaBody')}</Txt>
             </Pressable>
-          ) : null
+          </>
         }
       />
     </View>

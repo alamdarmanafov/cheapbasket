@@ -305,7 +305,7 @@ export default function Products() {
         const changed = !before ? c.price.trim() !== '' : before.price !== c.price || before.discount !== c.discount;
         if (!changed) continue;
         if (num(c.price) == null) { if (before) await db.delete('prices', { product_id: row.id, store_id: s.id }); }
-        else up.push({ product_id: row.id, store_id: s.id, price: num(c.price), discount_price: num(c.discount), updated_at: now });
+        else up.push({ product_id: row.id, store_id: s.id, price: num(c.price), discount_price: num(c.discount), source: 'admin', updated_at: now });
       }
       if (up.length) await db.upsert('prices', up, 'product_id,store_id');
       let alertNote = '';

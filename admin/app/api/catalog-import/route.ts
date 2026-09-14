@@ -144,6 +144,7 @@ export async function PUT(req: Request) {
         store_id,
         price: it.old_price ?? it.price,
         discount_price: it.old_price != null ? it.price : null,
+        source: 'feed',
         updated_at: at,
       }));
       for (let i = 0; i < rows.length; i += 200) {

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Animated, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -40,6 +40,7 @@ export default function Scan() {
   const colors = useColors();
   const styles = useStyles();
   const kb = useKeyboardHeight();
+  const { height: windowHeight } = useWindowDimensions();
   const notFoundRef = useRef<ScrollView>(null);
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -287,18 +288,29 @@ export default function Scan() {
         /* The sheet is pinned to the bottom, which is exactly where the keyboard
            goes: it lifts itself by the keyboard's height and scrolls the name
            field into view, so the box someone is typing into stays on screen. */
-        <View style={[styles.sheet, { bottom: kb, maxHeight: '88%', paddingBottom: kb ? space.md : insets.bottom + space.lg }]}>
-          <ScrollView ref={notFoundRef} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-            <StateView
-              emoji="🤔"
-              title={t('scan.notFound')}
-              body={hint ?? t('scan.notFoundBody')}
-              cta={t('scan.searchByName')}
-              onCta={() => router.replace('/search')}
-              secondary={t('scan.again')}
-              onSecondary={reset}
-              compact
-            />
+        <View style={[styles.sheet, { bottom: kb, maxHeight: kb ? Math.max(220, windowHeight - kb - insets.top - space.md) : '88%', paddingBottom: kb ? space.md : insets.bottom + space.lg }]}>
+          {/* `flexShrink: 1` is what makes the list scroll at all: a child of a
+              max-height parent keeps its full content height otherwise and is
+              simply cut off at the bottom — the box under the keyboard. */}
+          <ScrollView ref={notFoundRef} style={{ flexShrink: 1 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="none" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: space.sm }}>
+            {kb ? (
+              /* While typing, the big state gives way to one line: the form is
+                 what matters and it should fit above the keyboard unscrolled. */
+              <Txt v="captionStrong" color={colors.gray} center style={{ marginBottom: space.xs }}>
+                {t('scan.notFound')} · {code}
+              </Txt>
+            ) : (
+              <StateView
+                emoji="🤔"
+                title={t('scan.notFound')}
+                body={hint ?? t('scan.notFoundBody')}
+                cta={t('scan.searchByName')}
+                onCta={() => router.replace('/search')}
+                secondary={t('scan.again')}
+                onSecondary={reset}
+                compact
+              />
+            )}
             {/* "Not found" was a dead end: the person is holding a product we do
                 not list and had no way to tell us. Now the code goes to the
                 admin's queue with a name, and approval pays them back in points. */}
@@ -308,7 +320,7 @@ export default function Scan() {
                 storeId={hereId}
                 title={t('scan.suggest')}
                 onDone={reset}
-                onFocus={() => setTimeout(() => notFoundRef.current?.scrollToEnd({ animated: true }), 250)}
+                onFocus={() => setTimeout(() => notFoundRef.current?.scrollToEnd({ animated: true }), 400)}
               />
             )}
           </ScrollView>
@@ -411,7 +423,7 @@ function FoundSheet({
   return (
     <View style={[styles.sheet, { paddingBottom: bottomInset + space.md, maxHeight: '78%' }]}>
       <View style={styles.handle} />
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
         <Row gap={6} style={{ justifyContent: 'center' }}>
           <Pill tone="success" icon="checkmark-circle" text={t('scan.found')} />
         </Row>

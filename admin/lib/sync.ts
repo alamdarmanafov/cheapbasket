@@ -102,7 +102,7 @@ export async function syncSource(src: { id: string; store_id: string; url: strin
     for (const [id, v] of wantPrices ? next : []) {
       const cur = current.get(id);
       if (cur && cur.price === v.price && cur.discount === v.discount) { unchanged++; continue; }
-      rows.push({ product_id: id, store_id: src.store_id, price: v.price, discount_price: v.discount, updated_at: at });
+      rows.push({ product_id: id, store_id: src.store_id, price: v.price, discount_price: v.discount, source: 'feed', updated_at: at });
     }
     for (let i = 0; i < rows.length; i += 200) {
       const { error } = await db.from('prices').upsert(rows.slice(i, i + 200), { onConflict: 'product_id,store_id' });

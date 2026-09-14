@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ArrowLeftRight, Bell, BookOpen, BrainCircuit, Clock, Download, DollarSign, FlaskConical, Image as ImageIcon, MessageSquare, MessageSquareWarning, RefreshCw, Tags, Ticket, LayoutDashboard, LogOut, MapPin, Package, Store, Users, Receipt, Link2, Target } from 'lucide-react';
+import { ArrowLeftRight, Bell, BookOpen, BrainCircuit, Clock, Download, DollarSign, FlaskConical, Image as ImageIcon, MessageSquare, MessageSquareWarning, RefreshCw, Tags, Ticket, LayoutDashboard, LogOut, MapPin, Package, Store, Users, Receipt, Link2, Target, ShieldCheck, Handshake } from 'lucide-react';
 
 const NAV = [
   ['/', 'Panel', LayoutDashboard],
@@ -17,6 +17,8 @@ const NAV = [
   ['/pending', 'Növbə', Clock],
   ['/matches', 'Uyğunlaşdırma', Link2],
   ['/core', 'Nüvə siyahısı', Target],
+  ['/quality', 'Keyfiyyət', ShieldCheck],
+  ['/partners', 'Partnyorlar', Handshake],
   ['/receipts', 'Çeklər', Receipt],
   ['/ai', 'AI aktivliyi', BrainCircuit],
   ['/providers', 'Wolt yoxlaması', FlaskConical],

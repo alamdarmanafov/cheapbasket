@@ -194,6 +194,15 @@ export function PriceLine({ item, rank, best }: { item: StorePrice; rank: number
             +{diff.toFixed(2)} ₼ baha
           </Txt>
         )}
+        {/* Where the number came from and who has seen it since: a feed
+            price two shoppers confirmed is worth more than either alone. */}
+        {!unavailable && (item.source || item.confirmations) && (
+          <Txt v="caption" color={item.confirmations ? colors.success : colors.grayLight} style={{ fontSize: 11 }} numberOfLines={1}>
+            {item.confirmations ? t('prod.confirmed', { n: item.confirmations }) : ''}
+            {item.confirmations && item.source ? ' · ' : ''}
+            {item.source ? t(`prod.source_${item.source}` as never) : ''}
+          </Txt>
+        )}
       </View>
       {item.price != null ? (
         <View style={{ alignItems: 'flex-end' }}>

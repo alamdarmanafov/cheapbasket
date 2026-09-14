@@ -30,6 +30,7 @@ const ROWS: RowDef[] = [
   { key: 'profile.rowStores', icon: 'storefront-outline', route: '/stores' },
   { key: 'profile.rowReceipt', icon: 'receipt-outline', route: '/receipt' },
   { key: 'profile.rowContrib', icon: 'hand-left-outline', route: '/contributions' },
+  { key: 'profile.rowTasks', icon: 'clipboard-outline', route: '/tasks' },
   { key: 'profile.rowReferral', icon: 'gift-outline', route: '/referral' },
   { key: 'profile.rowSavings', icon: 'trending-up-outline', route: '/savings', plus: true },
   { key: 'profile.rowLanguage', icon: 'language-outline', action: 'language' },
