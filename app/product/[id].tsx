@@ -93,6 +93,11 @@ export default function ProductScreen() {
   };
 
   const [reportOpen, setReportOpen] = useState(false);
+  const [reportInit, setReportInit] = useState<{ store: string | null; reason: 'wrong' | 'add' }>({ store: null, reason: 'wrong' });
+  const openReport = (store: string | null, reason: 'wrong' | 'add') => {
+    setReportInit({ store, reason });
+    setReportOpen(true);
+  };
 
   /** System share sheet: cheapest price + link to the web version of this product. */
   const share = async () => {
@@ -181,6 +186,21 @@ export default function ProductScreen() {
               <PriceLine key={s.store.id} item={s} rank={i} best={c.price ?? 0} />
             ))}
           </Card>
+          {/* A store with no price is a gap the reader may be able to close:
+              a product cannot be compared until at least two stores price it,
+              so the missing ones come first, each a tap from the price sheet. */}
+          {prices.some((s) => s.price == null) && (
+            <View style={styles.gapCard}>
+              <Txt v="captionStrong" color={colors.gray}>{t('prod.gapTitle')}</Txt>
+              {prices.filter((s) => s.price == null).map((s) => (
+                <Pressable key={s.store.id} onPress={() => openReport(s.store.id, 'add')} style={({ pressed }) => [styles.gapRow, pressed && { opacity: 0.7 }]} accessibilityRole="button">
+                  <StoreAvatar store={s.store} size={22} />
+                  <Txt v="caption" style={{ flex: 1, marginLeft: 8 }}>{t('prod.gapRow', { store: s.store.name })}</Txt>
+                  <Txt v="captionStrong" color={colors.primary}>{t('prod.gapCta')}</Txt>
+                </Pressable>
+              ))}
+            </View>
+          )}
           {saving > 0 && (
             <Row gap={8} style={styles.savingNote}>
               <Ionicons name="trending-down" size={18} color={colors.success} />
@@ -200,12 +220,12 @@ export default function ProductScreen() {
         {/* A wrong price seen once loses the reader; this turns it into a
             report instead. Store + reason, two taps, lands next to the
             receipts in the admin panel. */}
-        <Pressable onPress={() => setReportOpen(true)} style={{ alignSelf: 'center', marginTop: space.sm, padding: 6 }} accessibilityRole="button">
+        <Pressable onPress={() => openReport(c.price == null ? null : c.store.id, 'wrong')} style={{ alignSelf: 'center', marginTop: space.sm, padding: 6 }} accessibilityRole="button">
           <Txt v="caption" color={colors.gray} style={{ textDecorationLine: 'underline' }}>
             {t('prod.reportPrice')}
           </Txt>
         </Pressable>
-        <PriceReportModal product={product} visible={reportOpen} onClose={() => setReportOpen(false)} initialStore={c.price == null ? null : c.store.id} initialReason="wrong" />
+        <PriceReportModal product={product} visible={reportOpen} onClose={() => setReportOpen(false)} initialStore={reportInit.store} initialReason={reportInit.reason} />
 
         <View style={{ paddingHorizontal: space.lg, marginTop: space.xl }}>
           <Row gap={8} style={{ marginBottom: space.sm }}>
@@ -311,6 +331,8 @@ function PriceChart({ data }: { data: number[] }) {
 }
 
 const styles = StyleSheet.create({
+  gapCard: { marginTop: space.sm, backgroundColor: colors.fill, borderRadius: radius.lg, padding: space.md },
+  gapRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
   savingNote: { marginTop: space.md, backgroundColor: colors.successSoft, padding: space.md, borderRadius: radius.md },
   aiRow: {
     marginHorizontal: space.lg,

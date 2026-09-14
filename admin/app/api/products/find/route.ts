@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { adminDb, errText, requireAdmin } from '@/lib/server';
-import { Candidate, feedItems, rank, searchQuery, siteSearchUrl } from '@/lib/find';
-import { normalizeGtin } from '@/lib/gtin';
+import { Candidate, applyLink, feedItems, rank, searchQuery, siteSearchUrl } from '@/lib/find';
 
 export const maxDuration = 60;
 
@@ -80,25 +79,7 @@ export async function PUT(req: Request) {
   try {
     const b = (await req.json()) as { product_id: string; store_id: string; ext_id: string; price: number; regular_price?: number | null; barcode?: string | null };
     if (!b.product_id || !b.store_id || !b.ext_id || !(Number(b.price) > 0)) return NextResponse.json({ error: 'Məlumat natamamdır' }, { status: 400 });
-    const db = adminDb();
-    const now = new Date().toISOString();
-    if (!b.ext_id.startsWith('web:')) {
-      const { error: e1 } = await db.from('product_links').upsert({ store_id: b.store_id, ext_id: b.ext_id, product_id: b.product_id }, { onConflict: 'store_id,ext_id' });
-      if (e1) throw e1;
-    }
-    const regular = b.regular_price != null && Number(b.regular_price) > Number(b.price) ? Number(b.regular_price) : null;
-    const row: { product_id: string; store_id: string; price: number; discount_price: number | null; updated_at: string } = {
-      product_id: b.product_id, store_id: b.store_id,
-      price: regular ?? Number(b.price), discount_price: regular ? Number(b.price) : null, updated_at: now,
-    };
-    const { error: e2 } = await db.from('prices').upsert(row, { onConflict: 'product_id,store_id' });
-    if (e2) throw e2;
-    await db.from('price_history').insert({ ...row, recorded_at: now }).then(() => undefined, () => undefined);
-    const bc = normalizeGtin(b.barcode);
-    if (bc) {
-      const { data: taken } = await db.from('products').select('id').eq('barcode', bc).neq('id', b.product_id).maybeSingle();
-      if (!taken) await db.from('products').update({ barcode: bc }).eq('id', b.product_id).is('barcode', null);
-    }
+    await applyLink(adminDb(), b);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: errText(e) }, { status: 500 });
