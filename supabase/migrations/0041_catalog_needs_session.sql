@@ -1,15 +1,14 @@
--- The catalogue is for the app, not for whoever holds the anon key.
+-- The catalogue is for signed-in people, not for whoever holds the anon key.
 --
 -- The anon key ships inside the app, so anyone can pull it out and read the
 -- REST API directly; until now that meant every product and price in one
--- sweep. From here the catalogue tables answer only a signed-in session:
--- the app opens an anonymous one on first launch (Supabase "Allow anonymous
--- sign-ins" must be ON in Authentication → Sign In / Up before this runs),
--- so a reader notices nothing, while a request has to carry a session that
--- can be counted and blocked.
+-- sweep. From here the catalogue tables answer only a signed-in session.
+-- The app already asks for an account before its tabs open, so a reader
+-- notices nothing; a request without an account gets nothing, and one that
+-- pulls too much has a user id to block.
 --
--- Run this only after the build that opens the anonymous session is live:
--- an older build reads the catalogue with the bare key and would go blank.
+-- Safe to run at any time: every build reads the catalogue with the
+-- signed-in session's token.
 --
 -- Share links on the website read one product through public_product().
 

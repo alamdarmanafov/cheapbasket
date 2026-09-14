@@ -21,28 +21,3 @@ export const supabase: SupabaseClient | null =
     : null;
 
 export const hasSupabase = supabase != null;
-
-let ensuring: Promise<void> | null = null;
-
-/**
- * A session for the catalogue to read with.
- *
- * The catalogue tables answer only signed-in sessions (0041), so a device
- * that has no account gets an anonymous one, invisibly, on first launch and
- * again after sign-out. A real sign-in later simply replaces it. Concurrent
- * callers share one attempt.
- */
-export async function ensureSession(): Promise<void> {
-  if (!supabase) return;
-  if (ensuring) return ensuring;
-  const client = supabase;
-  ensuring = (async () => {
-    const { data } = await client.auth.getSession();
-    if (data.session) return;
-    const { error } = await client.auth.signInAnonymously();
-    if (error) console.warn('anonymous session:', error.message);
-  })().finally(() => {
-    ensuring = null;
-  });
-  return ensuring;
-}

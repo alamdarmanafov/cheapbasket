@@ -4,7 +4,7 @@ import * as Location from 'expo-location';
 import { Product, Branch, Banner, Store, LatLng, DEFAULT_LOCATION, catalog, withDistances, withStoreHours } from '@/data/products';
 import { fetchBanners, fetchBranches, fetchCategories, fetchProducts, fetchStores } from '@/lib/catalog';
 import { tr } from '@/lib/i18n';
-import { hasSupabase, supabase, ensureSession } from '@/lib/supabase';
+import { hasSupabase, supabase } from '@/lib/supabase';
 import { cacheCatalog, readCatalogCache } from '@/lib/cache';
 import { notify } from '@/lib/confirm';
 
@@ -43,8 +43,6 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
     if (!hasSupabase) return;
     setLoading(true);
     setError(null);
-    // The catalogue answers only a session (0041); the first launch has none yet.
-    await ensureSession();
 
     // Each source lands on screen as it arrives instead of everything waiting on
     // the slowest. The home screen needs the stores, the banner and the
@@ -179,6 +177,12 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, scheduleRefresh)
       .subscribe();
 
+    // 1b) The catalogue answers only a signed-in session (0041): a launch
+    //     without one gets nothing, so the moment of sign-in reloads it.
+    const { data: authSub } = db.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') scheduleRefresh();
+    });
+
     // 2) Coming back to the app refreshes too (covers devices without a live socket).
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') scheduleRefresh();
@@ -189,6 +193,7 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       db.removeChannel(channel);
+      authSub.subscription.unsubscribe();
       sub.remove();
       clearInterval(interval);
       if (refreshTimer.current) clearTimeout(refreshTimer.current);
