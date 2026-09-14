@@ -13,7 +13,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { StateView } from '@/components/states';
 import { PriceReportModal } from '@/components/PriceReportModal';
 import { PlusLock, PlusTag } from '@/components/PlusLock';
-import { cheapest, getProduct, maxSaving, sortedPrices } from '@/data/products';
+import { cheapest, getProduct, getStore, maxSaving, sortedPrices } from '@/data/products';
 import { categoryLabel } from '@/data/categoryNames';
 import { fetchPriceHistory } from '@/lib/catalog';
 import { hasSupabase } from '@/lib/supabase';
@@ -34,7 +34,7 @@ export default function ProductScreen() {
   const router = useRouter();
   const auth = useAuth();
   const insets = useSafeAreaInsets();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, ask: askParam } = useLocalSearchParams<{ id: string; ask?: string }>();
   const basket = useBasket();
   const product = getProduct(String(id));
   const [history, setHistory] = useState<number[]>(product?.history ?? []);
@@ -100,6 +100,26 @@ export default function ProductScreen() {
   const openReport = (store: string | null, reason: 'wrong' | 'add') => {
     setReportInit({ store, reason });
     setReportOpen(true);
+  };
+  // A push "how much is it at Bravo?" lands here with ?ask=bravo: straight to the sheet.
+  useEffect(() => {
+    if (askParam && product) openReport(askParam, 'add');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [askParam, product?.id]);
+  // "Ask" — the stores this person has already asked about, so the row says so.
+  const [asked, setAsked] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!supabase || !auth.user || !product) return;
+    supabase.from('price_requests').select('store_id').eq('product_id', product.id).eq('status', 'open').then(({ data }) => setAsked(new Set((data ?? []).map((r) => r.store_id as string))));
+  }, [auth.user, product?.id]);
+  const ask = async (storeId: string) => {
+    if (!supabase || !product) return;
+    if (!auth.user) return router.push('/auth');
+    const { error } = await supabase.from('price_requests').insert({ product_id: product.id, store_id: storeId, user_id: auth.user.id });
+    if (error && !/duplicate|unique/i.test(error.message)) return notify(t('common.error'), error.message.replace(/^.*?: /, ''));
+    setAsked((prev) => new Set(prev).add(storeId));
+    track('price_ask', { product_id: product.id, store_id: storeId });
+    notify(t('prod.askedTitle'), t('prod.askedBody', { store: getStore(storeId).name }));
   };
 
   /** System share sheet: cheapest price + link to the web version of this product. */
@@ -199,6 +219,10 @@ export default function ProductScreen() {
                 <Pressable key={s.store.id} onPress={() => openReport(s.store.id, 'add')} style={({ pressed }) => [styles.gapRow, pressed && { opacity: 0.7 }]} accessibilityRole="button">
                   <StoreAvatar store={s.store} size={22} />
                   <Txt v="caption" style={{ flex: 1, marginLeft: 8 }}>{t('prod.gapRow', { store: s.store.name })}</Txt>
+                  {/* Do not know it? Ask the people who shop there. */}
+                  <Pressable onPress={() => ask(s.store.id)} disabled={asked.has(s.store.id)} hitSlop={6} style={{ marginRight: 12 }} accessibilityRole="button" testID={`ask-${s.store.id}`}>
+                    <Txt v="captionStrong" color={asked.has(s.store.id) ? colors.grayLight : colors.gray}>{asked.has(s.store.id) ? t('prod.asked') : t('prod.ask')}</Txt>
+                  </Pressable>
                   <Txt v="captionStrong" color={colors.primary}>{t('prod.gapCta')}</Txt>
                 </Pressable>
               ))}

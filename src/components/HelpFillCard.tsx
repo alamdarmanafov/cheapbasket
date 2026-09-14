@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { radius, space } from '@/theme';
 import { makeStyles, useColors } from '@/lib/theme';
 import { Row, Txt } from './ui';
@@ -30,6 +31,7 @@ export function HelpFillCard({ points = 2 }: { points?: number }) {
   const basket = useBasket();
   const prefs = useStorePrefs();
   const [pick, setPick] = useState<Product | null>(null);
+  const router = useRouter();
 
   const storeId = useMemo(() => {
     const fav = prefs.favorites?.find((id) => cat.stores.some((s) => s.id === id));
@@ -83,6 +85,9 @@ export function HelpFillCard({ points = 2 }: { points?: number }) {
           </View>
         </Pressable>
       ))}
+      <Pressable onPress={() => router.push('/tasks')} style={{ paddingTop: 8, alignSelf: 'flex-start' }} accessibilityRole="button" testID="help-all">
+        <Txt v="captionStrong" color={colors.primary} style={{ fontSize: 12 }}>{t('help.all')}</Txt>
+      </Pressable>
       {pick && <PriceReportModal product={pick} visible onClose={() => setPick(null)} initialStore={storeId} initialReason="add" />}
     </View>
   );

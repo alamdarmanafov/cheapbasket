@@ -27,6 +27,9 @@ const C = {
     rewardBody: (name: string) => `"${name}" bazaya əlavə olundu. Xallar hesabındadır.`,
     priceTitle: (pts: number) => pts > 0 ? `Qiymətin qəbul edildi 🎉 +${pts} xal` : 'Qiymətin qəbul edildi 🎉',
     priceBody: (name: string, store: string, price: string) => `${name}: ${store}-da ${price} ₼ kimi yazıldı. Təşəkkürlər!`,
+    askTitle: (store: string) => `${store}-da neçəyədir? 🏷️`,
+    askBody: (name: string, pts: number) => `${name} — qiyməti bilirsənsə yaz, +${pts} xal.`,
+    askAnswered: (name: string, store: string) => `${name}: ${store} üçün cavab gəldi, təsdiq gözləyir.`,
     aiLang: 'Azərbaycan dilində',
   },
   en: {
@@ -43,6 +46,9 @@ const C = {
     rewardBody: (name: string) => `"${name}" is in the catalogue now. The points are in your account.`,
     priceTitle: (pts: number) => pts > 0 ? `Your price was accepted 🎉 +${pts} points` : 'Your price was accepted 🎉',
     priceBody: (name: string, store: string, price: string) => `${name} is now ${price} ₼ at ${store}. Thank you!`,
+    askTitle: (store: string) => `How much is it at ${store}? 🏷️`,
+    askBody: (name: string, pts: number) => `${name} — if you know the price, write it in, +${pts} points.`,
+    askAnswered: (name: string, store: string) => `${name}: an answer for ${store} came in, awaiting review.`,
     aiLang: 'in English',
   },
   tr: {
@@ -59,6 +65,9 @@ const C = {
     rewardBody: (name: string) => `"${name}" kataloğa eklendi. Puanlar hesabında.`,
     priceTitle: (pts: number) => pts > 0 ? `Fiyatın kabul edildi 🎉 +${pts} puan` : 'Fiyatın kabul edildi 🎉',
     priceBody: (name: string, store: string, price: string) => `${name}: ${store} için ${price} ₼ olarak yazıldı. Teşekkürler!`,
+    askTitle: (store: string) => `${store}'da kaç para? 🏷️`,
+    askBody: (name: string, pts: number) => `${name} — fiyatı biliyorsan yaz, +${pts} puan.`,
+    askAnswered: (name: string, store: string) => `${name}: ${store} için cevap geldi, onay bekliyor.`,
     aiLang: 'Türkçe',
   },
   ru: {
@@ -75,6 +84,9 @@ const C = {
     rewardBody: (name: string) => `«${name}» добавлен в каталог. Баллы уже на счету.`,
     priceTitle: (pts: number) => pts > 0 ? `Ваша цена принята 🎉 +${pts} баллов` : 'Ваша цена принята 🎉',
     priceBody: (name: string, store: string, price: string) => `${name}: в ${store} записано ${price} ₼. Спасибо!`,
+    askTitle: (store: string) => `Сколько стоит в ${store}? 🏷️`,
+    askBody: (name: string, pts: number) => `${name} — если знаете цену, впишите, +${pts} баллов.`,
+    askAnswered: (name: string, store: string) => `${name}: пришёл ответ для ${store}, ждёт проверки.`,
     aiLang: 'на русском языке',
   },
 } as const;
