@@ -32,6 +32,9 @@ interface ProductPriceRow {
   regular_prices?: Record<string, number | null> | null;
   discount_ends?: Record<string, string | null> | null;
   discount_starts?: Record<string, string | null> | null;
+  sources?: Record<string, string | null> | null;
+  confirmations?: Record<string, number | null> | null;
+  updated_by_store?: Record<string, string | null> | null;
   updated_at: string | null;
 }
 
@@ -107,6 +110,9 @@ function rowToProduct(r: ProductPriceRow, history: number[] = []): Product {
     history,
     updatedMinutesAgo,
     rating: r.rating ?? undefined,
+    sources: r.sources ? Object.fromEntries(Object.entries(r.sources).filter((e): e is [string, string] => !!e[1])) : undefined,
+    confirmations: r.confirmations ? Object.fromEntries(Object.entries(r.confirmations).filter((e): e is [string, number] => !!e[1]).map(([k, v]) => [k, Number(v)])) : undefined,
+    updatedAt: r.updated_by_store ? Object.fromEntries(Object.entries(r.updated_by_store).filter((e): e is [string, string] => !!e[1])) : undefined,
   };
 }
 

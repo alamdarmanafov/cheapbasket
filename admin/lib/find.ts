@@ -155,9 +155,9 @@ export async function applyLink(db: SupabaseClient, b: { product_id: string; sto
     if (e1) throw e1;
   }
   const regular = b.regular_price != null && Number(b.regular_price) > Number(b.price) ? Number(b.regular_price) : null;
-  const row: { product_id: string; store_id: string; price: number; discount_price: number | null; updated_at: string } = {
+  const row: { product_id: string; store_id: string; price: number; discount_price: number | null; source: string; updated_at: string } = {
     product_id: b.product_id, store_id: b.store_id,
-    price: regular ?? Number(b.price), discount_price: regular ? Number(b.price) : null, updated_at: now,
+    price: regular ?? Number(b.price), discount_price: regular ? Number(b.price) : null, source: 'feed', updated_at: now,
   };
   const { error: e2 } = await db.from('prices').upsert(row, { onConflict: 'product_id,store_id' });
   if (e2) throw e2;

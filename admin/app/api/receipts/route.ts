@@ -76,7 +76,7 @@ export async function POST(req: Request) {
     const lines = body.items.filter((it) => it.product_id && it.price > 0);
     if (lines.length) {
       const now = new Date().toISOString();
-      const { error: e2 } = await db.from('prices').upsert(lines.map((it) => ({ product_id: it.product_id, store_id: body.store_id, price: it.price, updated_at: now })), { onConflict: 'product_id,store_id' });
+      const { error: e2 } = await db.from('prices').upsert(lines.map((it) => ({ product_id: it.product_id, store_id: body.store_id, price: it.price, source: 'receipt', updated_at: now })), { onConflict: 'product_id,store_id' });
       if (e2) throw e2;
     }
     const { error: e3 } = await db.from('receipts').update({ status: 'approved', store_id: body.store_id, items: body.items, reviewed_at: new Date().toISOString() }).eq('id', body.id);

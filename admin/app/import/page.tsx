@@ -361,7 +361,7 @@ export default function ImportPage() {
         const prev = priceById.get(id);
         const hasDiscount = num(r.discountText) != null;
         const candidate = {
-          product_id: id, store_id: storeId,
+          product_id: id, store_id: storeId, source: 'feed',
           price: num(r.priceText), discount_price: num(r.discountText),
           discount_starts: hasDiscount && discountFrom  ? discountFrom  : null,
           discount_ends:   hasDiscount && discountUntil ? discountUntil : null,
@@ -552,9 +552,9 @@ export default function ImportPage() {
           products.push({ id, barcode, name: name || barcode, brand: brand || '', size, category, emoji: '🛒', tint: '#F3F4F6', image_url: null });
         }
         if (multi) {
-          for (const ps of perStore) priceRows.push({ product_id: id, store_id: ps.store_id, price: ps.price, discount_price: null, discount_starts: null, discount_ends: null, updated_at: now });
+          for (const ps of perStore) priceRows.push({ product_id: id, store_id: ps.store_id, price: ps.price, discount_price: null, discount_starts: null, discount_ends: null, source: 'csv', updated_at: now });
         } else if (price != null) {
-          priceRows.push({ product_id: id, store_id: csvStoreId, price, discount_price: discount ?? null, discount_starts: null, discount_ends: null, updated_at: now });
+          priceRows.push({ product_id: id, store_id: csvStoreId, price, discount_price: discount ?? null, discount_starts: null, discount_ends: null, source: 'csv', updated_at: now });
         }
       }
       // Deduplicate before upsert to avoid ON CONFLICT affecting same row twice

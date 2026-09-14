@@ -65,6 +65,12 @@ export interface Product {
   /** Minutes since the price was last verified. */
   updatedMinutesAgo: number;
   rating?: number;
+  /** Where each store's price came from: feed | csv | user | partner | admin | receipt. */
+  sources?: Record<StoreId, string>;
+  /** How many shoppers named this exact price since it was written. */
+  confirmations?: Record<StoreId, number>;
+  /** When each store's price was last written (ISO). */
+  updatedAt?: Record<StoreId, string>;
 }
 
 export interface Branch {
@@ -302,6 +308,9 @@ export interface StorePrice {
   discountEnds?: string;
   /** ISO date string (YYYY-MM-DD) when this store's discount starts. */
   discountStarts?: string;
+  source?: string;
+  confirmations?: number;
+  updatedAt?: string;
 }
 
 /** Prices sorted cheapest → most expensive; unavailable last. */
@@ -313,6 +322,9 @@ export function sortedPrices(p: Product): StorePrice[] {
       regular: p.regularPrices?.[store.id],
       discountEnds: p.discountEnds?.[store.id],
       discountStarts: p.discountStarts?.[store.id],
+      source: p.sources?.[store.id],
+      confirmations: p.confirmations?.[store.id],
+      updatedAt: p.updatedAt?.[store.id],
     }))
     .sort((a, b) => {
       if (a.price == null) return 1;

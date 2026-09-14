@@ -12,6 +12,7 @@ const TABLES = new Set([
   'stores', 'products', 'prices', 'price_history', 'branches', 'profiles', 'push_tokens',
   'baskets', 'admin_users', 'banners', 'categories', 'feedback', 'promo_codes',
   'promo_redemptions', 'events', 'popups', 'ai_logs', 'iap_events',
+  'price_quarantine', 'price_requests', 'partner_uploads',
 ]);
 
 type Op =
