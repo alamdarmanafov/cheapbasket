@@ -79,6 +79,11 @@ img{display:block;max-width:100%}
 
 /* Pricing */
 .pricing{padding:95px 0;background:#fafafa;text-align:center}
+.billing-toggle{display:inline-flex;align-items:center;gap:2px;background:#fff;border:1px solid #eee;border-radius:999px;padding:4px;margin-bottom:35px}
+.billing-toggle button{border:0;background:transparent;padding:9px 16px;border-radius:999px;font-size:13px;font-weight:700;color:#777;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:background .15s,color .15s}
+.billing-toggle button.active{background:#e53935;color:#fff}
+.billing-toggle .save-badge{font-size:10px;font-weight:800;background:#16A34A;color:#fff;border-radius:999px;padding:2px 7px;letter-spacing:.2px}
+.billing-toggle button.active .save-badge{background:#fff;color:#16A34A}
 .plans{display:grid;grid-template-columns:320px 320px;justify-content:center;gap:20px;text-align:left}
 .plan{background:#fff;border:1px solid #eee;border-radius:18px;padding:25px;position:relative}
 .plan.featured{border:1.5px solid #e53935;box-shadow:0 10px 35px #e5393515}
