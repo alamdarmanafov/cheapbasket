@@ -2,7 +2,8 @@ import React, { useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, radius, space } from '@/theme';
+import { radius, space } from '@/theme';
+import { useColors } from '@/lib/theme';
 import { Card, Chip, Divider, Row, Txt } from '@/components/ui';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { StoreAvatar } from '@/components/product';
@@ -16,6 +17,7 @@ const RADII = [2, 3, 5, 10];
 
 /** Which stores the comparison considers: a chosen set, and/or only the ones with a branch nearby. */
 export default function Stores() {
+  const colors = useColors();
   const t = useT();
   const insets = useSafeAreaInsets();
   const cat = useCatalog();
@@ -92,7 +94,7 @@ export default function Stores() {
                 {cat.locationGranted === true ? t('stores.nearbyBody') : t('stores.nearbyNeedsLocation')}
               </Txt>
             </View>
-            <Switch value={prefs.nearbyOnly} onValueChange={(v) => { setStorePrefs({ nearbyOnly: v }); }} trackColor={{ true: colors.primary, false: colors.line }} thumbColor={colors.white} />
+            <Switch value={prefs.nearbyOnly} onValueChange={(v) => { setStorePrefs({ nearbyOnly: v }); }} trackColor={{ true: colors.primary, false: colors.line }} thumbColor={colors.onAccent} />
           </Row>
           {prefs.nearbyOnly && (
             <Row gap={8} style={{ marginTop: space.md, flexWrap: 'wrap' }}>

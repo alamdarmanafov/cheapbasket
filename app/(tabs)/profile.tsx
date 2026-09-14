@@ -5,7 +5,8 @@ import { SITE_URL } from '@/lib/links';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, shadow, space } from '@/theme';
+import { shadow, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Price, Row, Txt } from '@/components/ui';
 import { LogoMark } from '@/components/Logo';
 import { PlusTag } from '@/components/PlusLock';
@@ -17,9 +18,10 @@ import { registerForPush, unregisterPush } from '@/lib/notifications';
 import * as StoreReview from 'expo-store-review';
 import { confirmAsync, notify } from '@/lib/confirm';
 import { LANGS, useI18n, type Key } from '@/lib/i18n';
+import { ThemeMode, useTheme } from '@/lib/theme';
 import { useReceiptsEnabled } from '@/lib/features';
 
-type RowDef = { key: Key; icon: keyof typeof Ionicons.glyphMap; value?: string; route?: string; href?: string; plus?: boolean; action?: 'location' | 'rate' | 'language'; info?: boolean };
+type RowDef = { key: Key; icon: keyof typeof Ionicons.glyphMap; value?: string; route?: string; href?: string; plus?: boolean; action?: 'location' | 'rate' | 'language' | 'theme'; info?: boolean };
 const ROWS: RowDef[] = [
   { key: 'profile.rowAccount', icon: 'person-outline', route: '/account' },
   { key: 'profile.rowLocation', icon: 'location-outline', action: 'location' },
@@ -31,6 +33,7 @@ const ROWS: RowDef[] = [
   { key: 'profile.rowReferral', icon: 'gift-outline', route: '/referral' },
   { key: 'profile.rowSavings', icon: 'trending-up-outline', route: '/savings', plus: true },
   { key: 'profile.rowLanguage', icon: 'language-outline', action: 'language' },
+  { key: 'profile.rowTheme', icon: 'moon-outline', action: 'theme' },
   { key: 'profile.rowCurrency', icon: 'cash-outline', value: '₼ AZN', info: true },
   { key: 'profile.rowSupport', icon: 'chatbubble-ellipses-outline', route: '/feedback' },
   { key: 'profile.rowRate', icon: 'star-outline', action: 'rate' },
@@ -40,6 +43,8 @@ const ROWS: RowDef[] = [
 ];
 
 export default function Profile() {
+  const colors = useColors();
+  const styles = useStyles();
   const receiptsOn = useReceiptsEnabled();
   // Receipt scanning is an admin switch (0039); off, the row is not there at all.
   const rows = receiptsOn ? ROWS : ROWS.filter((r) => r.route !== '/receipt');
@@ -53,6 +58,13 @@ export default function Profile() {
   const [notifBusy, setNotifBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
+  const [themeOpen, setThemeOpen] = useState(false);
+  const theme = useTheme();
+  const THEMES: Array<{ id: ThemeMode; icon: keyof typeof Ionicons.glyphMap; key: Key }> = [
+    { id: 'system', icon: 'phone-portrait-outline', key: 'theme.system' },
+    { id: 'light', icon: 'sunny-outline', key: 'theme.light' },
+    { id: 'dark', icon: 'moon-outline', key: 'theme.dark' },
+  ];
   const { t, lang, setLang } = useI18n();
 
   /** "12 gün" for a subscription that expires, nothing for one that does not. */
@@ -83,6 +95,7 @@ export default function Profile() {
     if (r.href) return Linking.openURL(r.href).catch(() => undefined);
     if (r.action === 'location') return cat.requestLocation({ interactive: true });
     if (r.action === 'language') return setLangOpen(true);
+    if (r.action === 'theme') return setThemeOpen(true);
     if (r.action === 'rate') {
       if (Platform.OS !== 'web' && (await StoreReview.hasAction().catch(() => false))) return StoreReview.requestReview();
       return notify(t('profile.thanks'), t('profile.rateLater'));
@@ -105,6 +118,7 @@ export default function Profile() {
   const rowValue = (r: RowDef) => {
     if (r.action === 'location') return cat.place ?? t(cat.locationGranted === false ? 'profile.locationOff' : 'profile.locationOn');
     if (r.action === 'language') return LANGS.find((l) => l.id === lang)?.label;
+    if (r.action === 'theme') return t(THEMES.find((x) => x.id === theme.mode)?.key ?? 'theme.system');
     // The code is issued with the account, so the row can show it outright —
     // no need to open the screen to find out what to send a friend.
     if (r.route === '/referral') return auth.profile?.referralCode ?? (auth.profile?.points ? t('profile.pointsValue', { points: auth.profile.points }) : undefined);
@@ -125,7 +139,7 @@ export default function Profile() {
       <Pressable onPress={() => router.push(auth.user ? '/account' : '/auth')} style={({ pressed }) => [styles.card, pressed && { opacity: 0.9 }]}>
         <Row gap={12}>
           <View style={styles.avatar}>
-            <Txt v="title" color={colors.white}>
+            <Txt v="title" color={colors.onAccent}>
               {initial}
             </Txt>
           </View>
@@ -147,7 +161,7 @@ export default function Profile() {
             <Ionicons name="chevron-forward" size={20} color={colors.grayLight} />
           ) : (
             <View style={styles.loginBtn}>
-              <Txt v="captionStrong" color={colors.white}>
+              <Txt v="captionStrong" color={colors.onAccent}>
                 {t('profile.signIn')}
               </Txt>
             </View>
@@ -165,7 +179,7 @@ export default function Profile() {
       <Pressable onPress={() => router.push('/plus')} style={({ pressed }) => [styles.plus, pressed && { opacity: 0.92 }]}>
         <Txt style={{ fontSize: 26, lineHeight: 32 }}>⭐</Txt>
         <View style={{ flex: 1, marginLeft: 12 }}>
-          <Txt v="bodyStrong" color={colors.white}>
+          <Txt v="bodyStrong" color={colors.onAccent}>
             {t(isPlus ? 'profile.plusActive' : 'profile.plusTitle')}
           </Txt>
           <Txt v="caption" color="rgba(255,255,255,0.75)" style={{ fontSize: 11 }}>
@@ -179,7 +193,7 @@ export default function Profile() {
               : t('profile.plusPitch')}
           </Txt>
         </View>
-        <Ionicons name="chevron-forward" size={20} color={colors.white} />
+        <Ionicons name="chevron-forward" size={20} color={colors.onAccent} />
       </Pressable>
       )}
 
@@ -188,9 +202,9 @@ export default function Profile() {
           <Txt v="caption" color="rgba(255,255,255,0.85)">
             {t(o.saving > 0 ? 'profile.savingNow' : 'profile.saving')}
           </Txt>
-          <Price value={o.saving} size="lg" color={colors.white} />
+          <Price value={o.saving} size="lg" color={colors.onAccent} />
         </View>
-        <Txt v="captionStrong" color={colors.white}>
+        <Txt v="captionStrong" color={colors.onAccent}>
           {t('profile.more')}
         </Txt>
       </Pressable>
@@ -209,7 +223,7 @@ export default function Profile() {
               {t('profile.priceAlertBody')}
             </Txt>
           </View>
-          <Switch value={notif} disabled={notifBusy || !isPlus} onValueChange={toggleNotif} trackColor={{ true: colors.primary, false: colors.line }} thumbColor={colors.white} />
+          <Switch value={notif} disabled={notifBusy || !isPlus} onValueChange={toggleNotif} trackColor={{ true: colors.primary, false: colors.line }} thumbColor={colors.onAccent} />
         </Row>
         {isPlus && (
           <Pressable
@@ -298,6 +312,35 @@ export default function Profile() {
         </Txt>
       </View>
 
+      <Modal visible={themeOpen} transparent animationType="fade" onRequestClose={() => setThemeOpen(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setThemeOpen(false)} accessibilityRole="button">
+          <Pressable style={styles.sheet} onPress={() => undefined}>
+            <Txt v="bodyStrong" center style={{ marginBottom: space.xs }}>
+              {t('theme.title')}
+            </Txt>
+            {THEMES.map((m, i) => (
+              <Pressable
+                key={m.id}
+                onPress={() => {
+                  theme.setMode(m.id);
+                  setThemeOpen(false);
+                }}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: m.id === theme.mode }}
+                testID={`theme-${m.id}`}
+                style={({ pressed }) => [styles.langRow, i < THEMES.length - 1 && styles.rowLine, pressed && { backgroundColor: colors.fill }]}
+              >
+                <Ionicons name={m.icon} size={20} color={colors.dark} />
+                <Txt v="body" style={{ flex: 1, marginLeft: 12, fontSize: 14 }}>
+                  {t(m.key)}
+                </Txt>
+                {m.id === theme.mode && <Ionicons name="checkmark" size={20} color={colors.primary} />}
+              </Pressable>
+            ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       <Modal visible={langOpen} transparent animationType="fade" onRequestClose={() => setLangOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setLangOpen(false)} accessibilityRole="button">
           {/* Swallows taps so hitting a row does not also close via the backdrop. */}
@@ -330,12 +373,12 @@ export default function Profile() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   points: { backgroundColor: colors.warningSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, marginRight: 8 },
   card: { backgroundColor: colors.white, borderRadius: 17, padding: 14, marginTop: 15, ...shadow.card },
   loginBtn: { backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 12, height: 32, justifyContent: 'center' },
   avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  plus: { marginTop: 12, borderRadius: 17, backgroundColor: colors.dark, padding: 14, flexDirection: 'row', alignItems: 'center' },
+  plus: { marginTop: 12, borderRadius: 17, backgroundColor: colors.inverse, padding: 14, flexDirection: 'row', alignItems: 'center' },
   savings: { marginTop: 12, borderRadius: 17, backgroundColor: colors.success, padding: 16, flexDirection: 'row', alignItems: 'center' },
   rows: { marginTop: 15, backgroundColor: colors.white, borderRadius: 15, overflow: 'hidden', ...shadow.card },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', padding: space.lg },
@@ -343,4 +386,4 @@ const styles = StyleSheet.create({
   langRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 8 },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, paddingHorizontal: 12 },
   rowLine: { borderBottomWidth: 1, borderBottomColor: colors.line },
-});
+}));

@@ -6,7 +6,8 @@ import { track } from '@/lib/track';
 import { ScrollView, Share, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { colors, radius, space } from '@/theme';
+import { radius, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { useRefresh } from '@/lib/useRefresh';
 import { Btn, Card, Divider, Price, Row, Txt } from '@/components/ui';
 import { StoreAvatar } from '@/components/product';
@@ -26,6 +27,8 @@ import { useI18n } from '@/lib/i18n';
  * totals) is added once shopping trips are recorded.
  */
 export default function Savings() {
+  const colors = useColors();
+  const styles = useStyles();
   const t = useT();
   const router = useRouter();
   const auth = useAuth();
@@ -89,7 +92,7 @@ export default function Savings() {
           <Txt v="body" color="rgba(255,255,255,0.85)" style={{ marginTop: space.lg }}>
             {t('sav.cardTitle')}
           </Txt>
-          <Txt v="display" color={colors.white}>
+          <Txt v="display" color={colors.onAccent}>
             {monthSaving.toFixed(2)} ₼
           </Txt>
           <Txt v="caption" color="rgba(255,255,255,0.75)">
@@ -102,7 +105,7 @@ export default function Savings() {
           <Txt v="body" color="rgba(255,255,255,0.8)">
             {hasBasket ? t('sav.thisBasket') : t('sav.notYet')}
           </Txt>
-          <Price value={o.saving} size="xl" color={colors.white} style={{ marginTop: space.sm }} />
+          <Price value={o.saving} size="xl" color={colors.onAccent} style={{ marginTop: space.sm }} />
           {hasBasket && worst && (
             <Row gap={6} style={{ marginTop: space.sm }}>
               <Ionicons name="trending-down" size={16} color="#A7F3C6" />
@@ -244,6 +247,7 @@ export default function Savings() {
 }
 
 function Stat({ value, label }: { value: string; label: string }) {
+  const colors = useColors();
   return (
     <Card style={{ flex: 1 }}>
       <Txt v="display" num>
@@ -256,7 +260,7 @@ function Stat({ value, label }: { value: string; label: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   shareCard: { backgroundColor: colors.primary, borderRadius: radius.xl, padding: space.xl, marginBottom: space.sm },
   hero: { backgroundColor: colors.success, borderRadius: radius.xl, padding: space.xl },
-});
+}));

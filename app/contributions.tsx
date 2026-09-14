@@ -3,7 +3,8 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, radius, space } from '@/theme';
+import { radius, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Btn, Card, Divider, Pill, Row, Txt } from '@/components/ui';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { StateView } from '@/components/states';
@@ -27,6 +28,8 @@ interface Ledger { delta: number; reason: string; ref: string | null; created_at
  * with the points it paid, or declined.
  */
 export default function Contributions() {
+  const colors = useColors();
+  const styles = useStyles();
   const t = useT();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -173,9 +176,9 @@ export default function Contributions() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   row: { paddingVertical: 10, paddingHorizontal: space.sm, borderRadius: radius.md },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   badge: { width: '23%', flexGrow: 1, backgroundColor: colors.white, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, paddingVertical: 10, paddingHorizontal: 4, alignItems: 'center' },
   badgeOff: { backgroundColor: colors.fill, borderColor: colors.fill },
-});
+}));

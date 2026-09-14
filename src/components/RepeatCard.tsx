@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
-import { colors, radius, space } from '@/theme';
+import { radius, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Row, Txt } from './ui';
 import { ProductArt } from './product';
 import { cheapest } from '@/data/products';
@@ -19,6 +20,8 @@ import { useT } from '@/lib/i18n';
  * basket. Products already in the basket are not nagged about.
  */
 export function RepeatCard() {
+  const colors = useColors();
+  const styles = useStyles();
   const t = useT();
   const basket = useBasket();
   const [due, setDue] = useState<DueProduct[]>([]);
@@ -55,8 +58,8 @@ export function RepeatCard() {
               </Txt>
             </View>
             <Pressable onPress={() => basket.add(d.product)} style={({ pressed }) => [styles.add, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={t('repeat.add')}>
-              <Ionicons name="add" size={14} color={colors.white} />
-              <Txt v="captionStrong" color={colors.white} style={{ fontSize: 12, marginLeft: 2 }}>
+              <Ionicons name="add" size={14} color={colors.onAccent} />
+              <Txt v="captionStrong" color={colors.onAccent} style={{ fontSize: 12, marginLeft: 2 }}>
                 {t('repeat.add')}
               </Txt>
             </Pressable>
@@ -67,9 +70,9 @@ export function RepeatCard() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   card: { backgroundColor: colors.white, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, padding: space.md, marginTop: space.md },
   badge: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   row: { paddingVertical: 6 },
   add: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 6 },
-});
+}));

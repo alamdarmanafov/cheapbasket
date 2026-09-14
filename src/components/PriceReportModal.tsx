@@ -3,7 +3,8 @@ import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, TextInput
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, fonts, radius, space } from '@/theme';
+import { fonts, radius, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { API_URL } from '@/lib/plusStore';
 import { Btn, Chip, Row, Txt } from './ui';
 import { Product, sortedPrices } from '@/data/products';
@@ -26,6 +27,8 @@ const REASONS: ReportReason[] = ['add', 'wrong', 'outdated', 'missing'];
  * the reporter is paid in points, so the sheet says so.
  */
 export function PriceReportModal({ product, visible, onClose, initialStore, initialReason = 'add', initialPrice }: { product: Product; visible: boolean; onClose: () => void; initialStore?: string | null; initialReason?: ReportReason; initialPrice?: number | null }) {
+  const colors = useColors();
+  const styles = useStyles();
   const t = useT();
   const router = useRouter();
   const auth = useAuth();
@@ -177,7 +180,7 @@ export function PriceReportModal({ product, visible, onClose, initialStore, init
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   sheet: { backgroundColor: colors.white, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: space.lg, paddingBottom: space.xxl },
   photoBtn: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', marginTop: space.sm, backgroundColor: colors.primarySoft, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 7 },
@@ -193,4 +196,4 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semibold,
     color: colors.dark,
   },
-});
+}));

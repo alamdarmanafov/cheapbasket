@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Animated, Dimensions, Easing, Platform, Pressable, StyleSheet, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useAudioPlayer } from 'expo-audio';
-import { colors, fonts, radius, space } from '@/theme';
+import { fonts, radius, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Txt } from './ui';
 import { onCelebrate } from '@/lib/celebrate';
 
@@ -72,6 +73,8 @@ function Confetti({ piece, height, progress }: { piece: Piece; height: number; p
  * reads as a small flourish rather than a system beep.
  */
 export function CelebrationHost() {
+  const colors = useColors();
+  const styles = useStyles();
   const [shown, setShown] = useState<{ title: string; body: string } | null>(null);
   // Loaded once and rewound before each play, so a second celebration in the
   // same session starts from the beginning rather than from silence at the end.
@@ -135,7 +138,7 @@ export function CelebrationHost() {
           ]}
         >
           <Txt style={{ fontSize: 44, lineHeight: 52 }}>🎉</Txt>
-          <Txt v="title" color={colors.white} center style={{ marginTop: 6 }}>
+          <Txt v="title" color={colors.onAccent} center style={{ marginTop: 6 }}>
             {shown.title}
           </Txt>
           <Txt v="body" color="rgba(255,255,255,0.85)" center style={{ marginTop: 6 }}>
@@ -147,10 +150,10 @@ export function CelebrationHost() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   backdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.xl },
   card: {
-    backgroundColor: colors.dark,
+    backgroundColor: colors.inverse,
     borderRadius: radius.lg,
     paddingVertical: space.xl,
     paddingHorizontal: space.lg,
@@ -159,4 +162,4 @@ const styles = StyleSheet.create({
     width: '100%',
     fontFamily: fonts.regular,
   },
-});
+}));

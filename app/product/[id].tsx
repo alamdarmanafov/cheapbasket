@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
-import { colors, radius, shadow, space } from '@/theme';
+import { radius, shadow, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Btn, Card, Chip, Divider, Pill, Price, Row, Txt } from '@/components/ui';
 import { Freshness, OldPrice, PriceLine, ProductArt, StoreAvatar } from '@/components/product';
 import { UnitPrice } from '@/components/UnitPrice';
@@ -27,6 +28,8 @@ import { supabase } from '@/lib/supabase';
 
 /** Product comparison + detail: one screen, price first. */
 export default function ProductScreen() {
+  const colors = useColors();
+  const styles = useStyles();
   const t = useT();
   const router = useRouter();
   const auth = useAuth();
@@ -288,6 +291,7 @@ export default function ProductScreen() {
 
 /** Simple line chart with gradient fill — no chart library needed. */
 function PriceChart({ data }: { data: number[] }) {
+  const colors = useColors();
   const { width } = useWindowDimensions();
   const w = Math.min(width, 430) - space.lg * 2 - space.lg * 2;
   const hgt = 120;
@@ -330,7 +334,7 @@ function PriceChart({ data }: { data: number[] }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   gapCard: { marginTop: space.sm, backgroundColor: colors.fill, borderRadius: radius.lg, padding: space.md },
   gapRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
   savingNote: { marginTop: space.md, backgroundColor: colors.successSoft, padding: space.md, borderRadius: radius.md },
@@ -356,4 +360,4 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radius.xl,
     ...shadow.card,
   },
-});
+}));

@@ -1,12 +1,13 @@
 import React from 'react';
 import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { colors } from '@/theme';
+import { makeStyles } from '@/lib/theme';
 
 /**
  * On a desktop browser the prototype is shown inside a phone-sized frame so the
  * clickable demo reads as a mobile app. On real devices this is a no-op.
  */
 export function PhoneFrame({ children }: { children: React.ReactNode }) {
+  const styles = useStyles();
   const { width } = useWindowDimensions();
   if (Platform.OS !== 'web' || width < 560) return <>{children}</>;
   return (
@@ -16,7 +17,7 @@ export function PhoneFrame({ children }: { children: React.ReactNode }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   stage: { flex: 1, backgroundColor: '#ECECEE', alignItems: 'center', justifyContent: 'center', padding: 24 },
   phone: {
     width: 390,
@@ -29,4 +30,4 @@ const styles = StyleSheet.create({
     borderColor: '#171717',
     ...(Platform.OS === 'web' ? ({ boxShadow: '0 30px 60px rgba(0,0,0,0.25)' } as object) : {}),
   },
-});
+}));

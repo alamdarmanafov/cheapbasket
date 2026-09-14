@@ -1,11 +1,13 @@
 import React from 'react';
-import { colors } from '@/theme';
+import { useColors } from '@/lib/theme';
 import { Txt } from './ui';
 import { useT } from '@/lib/i18n';
 import { unitPrice } from '@/lib/unitPrice';
 
 /** "4.80 ₼/kq" next to a price, when the packet size allows it. Renders nothing otherwise. */
-export function UnitPrice({ price, size, color = colors.gray, fontSize = 11 }: { price: number | null | undefined; size: string | null | undefined; color?: string; fontSize?: number }) {
+export function UnitPrice({ price, size, color, fontSize = 11 }: { price: number | null | undefined; size: string | null | undefined; color?: string; fontSize?: number }) {
+  const colors = useColors();
+  color ??= colors.gray;
   const t = useT();
   const u = unitPrice(price, size);
   if (!u) return null;

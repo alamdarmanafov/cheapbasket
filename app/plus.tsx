@@ -3,7 +3,8 @@ import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleShee
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, radius, shadow, space } from '@/theme';
+import { fonts, radius, shadow, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { useRefresh } from '@/lib/useRefresh';
 import { Btn, Pill, Row, Txt } from '@/components/ui';
 import { ScreenHeader } from '@/components/ScreenHeader';
@@ -31,6 +32,8 @@ const FEATURES: Array<[Key, Key | boolean, Key | boolean]> = [
 ];
 
 export default function Plus() {
+  const colors = useColors();
+  const styles = useStyles();
   const refresh = useRefresh();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -235,6 +238,8 @@ export default function Plus() {
 }
 
 function Cell({ v, plus }: { v: string | boolean; plus?: boolean }) {
+  const colors = useColors();
+  const styles = useStyles();
   return (
     <View style={[styles.col, { alignItems: 'center' }]}>
       {typeof v === 'string' ? (
@@ -250,7 +255,7 @@ function Cell({ v, plus }: { v: string | boolean; plus?: boolean }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   promoInput: { flex: 1, backgroundColor: colors.white, borderWidth: 1.5, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: 14, height: 48, fontFamily: fonts.semibold, fontSize: 16, letterSpacing: 1.5, color: colors.dark },
   logo: { width: 72, height: 72, borderRadius: 18 },
   table: { marginTop: space.xl, backgroundColor: colors.white, borderRadius: radius.lg, overflow: 'hidden', ...shadow.card },
@@ -261,4 +266,4 @@ const styles = StyleSheet.create({
   period: { backgroundColor: colors.white, borderRadius: radius.md, padding: 14, borderWidth: 1.5, borderColor: colors.line },
   periodActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   sticky: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: colors.white, paddingHorizontal: space.lg, paddingTop: space.md, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, ...shadow.card },
-});
+}));

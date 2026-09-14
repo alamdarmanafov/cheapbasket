@@ -3,7 +3,8 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, radius, shadow, space } from '@/theme';
+import { radius, shadow, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Btn, Chip, Divider, Price, Row, Txt } from '@/components/ui';
 import { ProductArt, StoreAvatar } from '@/components/product';
 import { ScreenHeader } from '@/components/ScreenHeader';
@@ -24,6 +25,8 @@ interface Msg {
 }
 
 export default function Assistant() {
+  const colors = useColors();
+  const styles = useStyles();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const basket = useBasket();
@@ -101,7 +104,7 @@ export default function Assistant() {
         {msgs.map((m) => (
           <View key={m.id} style={{ alignItems: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
             <View style={[styles.bubble, m.role === 'user' ? styles.user : styles.ai]}>
-              <Txt v="body" color={m.role === 'user' ? colors.white : colors.dark}>
+              <Txt v="body" color={m.role === 'user' ? colors.onAccent : colors.dark}>
                 {m.text}
               </Txt>
             </View>
@@ -134,7 +137,7 @@ export default function Assistant() {
           returnKeyType="send"
         />
         <Pressable onPress={() => send(input)} style={[styles.send, !input.trim() && { opacity: 0.4 }]} accessibilityLabel={t('ai.send')}>
-          <Ionicons name="arrow-up" size={20} color={colors.white} />
+          <Ionicons name="arrow-up" size={20} color={colors.onAccent} />
         </Pressable>
       </Row>
       </PlusLock>
@@ -143,6 +146,8 @@ export default function Assistant() {
 }
 
 function CardView({ card, onAddAll, onAdd }: { card: AiCard; onAddAll: (p: AiCard extends { products: infer P } ? P : never) => void; onAdd: (p: AiCard['products'][number]) => void }) {
+  const colors = useColors();
+  const styles = useStyles();
   const t = useT();
   const router = useRouter();
   const baseCheapest = card.kind === 'alternatives' ? (cheapest(card.base).price ?? 0) : 0;
@@ -199,6 +204,7 @@ function CardView({ card, onAddAll, onAdd }: { card: AiCard; onAddAll: (p: AiCar
 }
 
 function Dot({ delay = 0 }: { delay?: number }) {
+  const colors = useColors();
   const [on, setOn] = useState(false);
   useEffect(() => {
     const i = setInterval(() => setOn((v) => !v), 400 + delay);
@@ -207,7 +213,7 @@ function Dot({ delay = 0 }: { delay?: number }) {
   return <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: on ? colors.gray : colors.line }} />;
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   bubble: { maxWidth: '85%', paddingHorizontal: space.lg, paddingVertical: space.md, borderRadius: radius.lg },
   user: { backgroundColor: colors.primary, borderBottomRightRadius: 6 },
   ai: { backgroundColor: colors.white, borderBottomLeftRadius: 6, ...shadow.card },
@@ -216,4 +222,4 @@ const styles = StyleSheet.create({
   inputBar: { paddingHorizontal: space.lg, paddingTop: space.sm, backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.line },
   input: { flex: 1, height: 48, borderRadius: radius.pill, backgroundColor: colors.fill, paddingHorizontal: space.lg, fontSize: 16, color: colors.dark, fontFamily: 'Inter_400Regular', ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : {}) },
   send: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-});
+}));

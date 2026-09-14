@@ -10,7 +10,8 @@ import { track } from '@/lib/track';
 import { useAuth } from '@/store/auth';
 import { useCatalog } from '@/store/catalog';
 import { notify } from '@/lib/confirm';
-import { colors, fonts, radius, shadow, space } from '@/theme';
+import { fonts, radius, shadow, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Btn, Divider, IconBtn, Pill, Price, Row, Txt } from '@/components/ui';
 import { Freshness, ProductArt, StoreAvatar } from '@/components/product';
 import { StateView } from '@/components/states';
@@ -36,6 +37,8 @@ type Phase = 'scanning' | 'searching' | 'found' | 'notfound' | 'error';
  * whether buying it *here* is a good deal for their basket.
  */
 export default function Scan() {
+  const colors = useColors();
+  const styles = useStyles();
   const kb = useKeyboardHeight();
   const notFoundRef = useRef<ScrollView>(null);
   const router = useRouter();
@@ -168,17 +171,17 @@ export default function Scan() {
 
       {/* Top bar */}
       <Row style={{ position: 'absolute', top: insets.top + space.sm, left: space.lg, right: space.lg, justifyContent: 'space-between' }}>
-        <IconBtn name="close" bg="rgba(255,255,255,0.15)" color={colors.white} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} label={t('common.close')} />
+        <IconBtn name="close" bg="rgba(255,255,255,0.15)" color={colors.onAccent} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} label={t('common.close')} />
         <Pressable onPress={() => setPickOpen(true)} style={styles.hereChip} accessibilityRole="button" accessibilityLabel={t('scan.pickStoreTitle')}>
           {here && <StoreAvatar store={here} size={20} />}
-          <Txt v="captionStrong" color={colors.white} style={{ marginLeft: here ? 6 : 0 }} numberOfLines={1}>
+          <Txt v="captionStrong" color={colors.onAccent} style={{ marginLeft: here ? 6 : 0 }} numberOfLines={1}>
             {here ? (nearest && !picked && !params.store ? t('scan.gpsAt', { store: here.name, m: Math.round((nearestBranch?.distanceKm ?? 0) * 1000) }) : t('scan.youAreAt', { store: here.name })) : t('scan.pickStore')}
           </Txt>
           <Ionicons name="chevron-down" size={14} color="rgba(255,255,255,0.8)" style={{ marginLeft: 4 }} />
         </Pressable>
         <Row gap={8}>
-          <IconBtn name={fast ? 'flash' : 'flash-outline'} bg={fast ? colors.success : 'rgba(255,255,255,0.15)'} color={colors.white} label={t('scan.fastMode')} onPress={toggleFast} />
-          <IconBtn name={torch ? 'flashlight' : 'flashlight-outline'} bg={torch ? colors.primary : 'rgba(255,255,255,0.15)'} color={colors.white} label={t('scan.torch')} onPress={() => (canUseCamera ? setTorch((t) => !t) : notify(t('scan.torch'), t('scan.torchOnlyApp')))} />
+          <IconBtn name={fast ? 'flash' : 'flash-outline'} bg={fast ? colors.success : 'rgba(255,255,255,0.15)'} color={colors.onAccent} label={t('scan.fastMode')} onPress={toggleFast} />
+          <IconBtn name={torch ? 'flashlight' : 'flashlight-outline'} bg={torch ? colors.primary : 'rgba(255,255,255,0.15)'} color={colors.onAccent} label={t('scan.torch')} onPress={() => (canUseCamera ? setTorch((t) => !t) : notify(t('scan.torch'), t('scan.torchOnlyApp')))} />
         </Row>
       </Row>
 
@@ -186,15 +189,15 @@ export default function Scan() {
       {fast && phase === 'scanning' && (
         <View style={[styles.fastBar, { top: insets.top + space.sm + 48 }]} pointerEvents="box-none">
           <View style={styles.fastPill}>
-            <Ionicons name="flash" size={14} color={colors.white} />
-            <Txt v="captionStrong" color={colors.white} style={{ marginLeft: 6 }}>
+            <Ionicons name="flash" size={14} color={colors.onAccent} />
+            <Txt v="captionStrong" color={colors.onAccent} style={{ marginLeft: 6 }}>
               {t('scan.fastOn')}
             </Txt>
           </View>
           {flash && (
             <View style={[styles.fastPill, { backgroundColor: colors.success, marginTop: 8 }]}>
-              <Ionicons name="checkmark" size={14} color={colors.white} />
-              <Txt v="captionStrong" color={colors.white} numberOfLines={1} style={{ marginLeft: 6, maxWidth: 240 }}>
+              <Ionicons name="checkmark" size={14} color={colors.onAccent} />
+              <Txt v="captionStrong" color={colors.onAccent} numberOfLines={1} style={{ marginLeft: 6, maxWidth: 240 }}>
                 {t('scan.fastAdded', { name: `${flash.brand} ${flash.name}`.trim() })}
               </Txt>
             </View>
@@ -203,12 +206,12 @@ export default function Scan() {
       )}
       {fast && phase === 'scanning' && basket.count > 0 && (
         <Pressable onPress={() => router.replace('/basket')} style={[styles.fastFooter, { bottom: insets.bottom + 24 }]} accessibilityRole="button">
-          <Ionicons name="basket" size={18} color={colors.white} />
-          <Txt v="bodyStrong" color={colors.white} style={{ flex: 1, marginLeft: 8 }}>
+          <Ionicons name="basket" size={18} color={colors.onAccent} />
+          <Txt v="bodyStrong" color={colors.onAccent} style={{ flex: 1, marginLeft: 8 }}>
             {t('scan.fastBasket', { count: basket.count })}
           </Txt>
           {basket.optimization.best && (
-            <Txt v="bodyStrong" color={colors.white} num>
+            <Txt v="bodyStrong" color={colors.onAccent} num>
               {basket.optimization.best.total.toFixed(2)} ₼
             </Txt>
           )}
@@ -218,7 +221,7 @@ export default function Scan() {
       {phase === 'scanning' && (
         <View style={styles.center} pointerEvents="box-none">
           <Frame />
-          <Txt v="bodyStrong" color={colors.white} center style={{ marginTop: space.xl }}>
+          <Txt v="bodyStrong" color={colors.onAccent} center style={{ marginTop: space.xl }}>
             {t('scan.frameHint')}
           </Txt>
           <Txt v="caption" color="rgba(255,255,255,0.7)" center style={{ marginTop: 4 }}>
@@ -259,7 +262,7 @@ export default function Scan() {
             {recentProducts.map((p) => (
               <Pressable key={p.id} onPress={() => router.push(`/product/${p.id}`)} style={styles.recentChip} accessibilityRole="button">
                 <ProductArt product={p} size={24} emojiScale={0.6} />
-                <Txt v="captionStrong" color={colors.white} numberOfLines={1} style={{ marginLeft: 6, maxWidth: 140 }}>
+                <Txt v="captionStrong" color={colors.onAccent} numberOfLines={1} style={{ marginLeft: 6, maxWidth: 140 }}>
                   {p.brand} {p.name}
                 </Txt>
               </Pressable>
@@ -271,7 +274,7 @@ export default function Scan() {
       {phase === 'searching' && (
         <View style={styles.center}>
           <Frame active />
-          <Txt v="bodyStrong" color={colors.white} center style={{ marginTop: space.xl }}>
+          <Txt v="bodyStrong" color={colors.onAccent} center style={{ marginTop: space.xl }}>
             {t('scan.searching')}
           </Txt>
           <Txt v="caption" color="rgba(255,255,255,0.7)" center style={{ marginTop: 4 }}>
@@ -386,6 +389,8 @@ function FoundSheet({
   onBasket: () => void;
   bottomInset: number;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const t = useT();
   const [priceOpen, setPriceOpen] = useState(false);
   const prices = sortedPrices(product);
@@ -513,6 +518,8 @@ function FoundSheet({
 
 /** Corner-bracket scan frame with a moving laser line. */
 function Frame({ active }: { active?: boolean }) {
+  const colors = useColors();
+  const styles = useStyles();
   const y = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(
@@ -525,7 +532,7 @@ function Frame({ active }: { active?: boolean }) {
     return () => loop.stop();
   }, [y]);
   const size = 260;
-  const c = active ? colors.success : colors.white;
+  const c = active ? colors.success : colors.onAccent;
   const corner = (pos: object) => <View style={[styles.corner, { borderColor: c }, pos]} />;
   return (
     <View style={{ width: size, height: size * 0.72 }}>
@@ -543,16 +550,16 @@ function Frame({ active }: { active?: boolean }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   manualRow: { flexDirection: 'row', gap: 8, alignItems: 'center', paddingHorizontal: space.lg, width: '100%', maxWidth: 360 },
-  manualInput: { flex: 1, backgroundColor: 'rgba(255,255,255,0.12)', color: colors.white, borderRadius: 12, paddingHorizontal: 14, height: 44, fontFamily: fonts.semibold, fontSize: 16, letterSpacing: 1 },
+  manualInput: { flex: 1, backgroundColor: 'rgba(255,255,255,0.12)', color: colors.onAccent, borderRadius: 12, paddingHorizontal: 14, height: 44, fontFamily: fonts.semibold, fontSize: 16, letterSpacing: 1 },
   fakeCam: { backgroundColor: '#161616', alignItems: 'center', justifyContent: 'center' },
   center: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.xl },
   hereChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 12, height: 36, borderRadius: radius.pill, maxWidth: 200 },
   recentRow: { position: 'absolute', left: 0, right: 0 },
   fastBar: { position: 'absolute', left: space.lg, right: space.lg, alignItems: 'center' },
   fastPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: radius.pill, paddingHorizontal: 12, height: 32 },
-  fastFooter: { position: 'absolute', left: space.lg, right: space.lg, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.dark, borderRadius: radius.pill, paddingHorizontal: 16, height: 52 },
+  fastFooter: { position: 'absolute', left: space.lg, right: space.lg, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.inverse, borderRadius: radius.pill, paddingHorizontal: 16, height: 52 },
   recentChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: radius.pill, paddingHorizontal: 10, height: 36 },
   pickBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   pickSheet: { backgroundColor: colors.white, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: space.lg },
@@ -574,4 +581,4 @@ const styles = StyleSheet.create({
   handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.line, alignSelf: 'center', marginBottom: space.md },
   addPrice: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: radius.pill, backgroundColor: colors.white },
   verdict: { marginTop: space.lg, padding: space.md, borderRadius: radius.md },
-});
+}));

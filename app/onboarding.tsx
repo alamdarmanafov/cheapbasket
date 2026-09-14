@@ -3,7 +3,8 @@ import { Image, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, Pres
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, radius, shadow, space } from '@/theme';
+import { fonts, radius, shadow, space } from '@/theme';
+import { makeStyles, useColors, useTheme } from '@/lib/theme';
 import { Row, Txt } from '@/components/ui';
 import { LANGS, useI18n, type Key } from '@/lib/i18n';
 import { LogoMark } from '@/components/Logo';
@@ -17,6 +18,9 @@ const SLIDES = [
 
 /** First-launch walkthrough (3 slides with illustrations), then the sign-in screen. */
 export default function Onboarding() {
+  const colors = useColors();
+  const styles = useStyles();
+  const { isDark } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const auth = useAuth();
@@ -50,7 +54,7 @@ export default function Onboarding() {
   const onEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => w > 0 && setIndex(Math.round(e.nativeEvent.contentOffset.x / w));
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#FFF4F4', paddingTop: insets.top + space.md, paddingBottom: insets.bottom + space.lg }}>
+    <View style={{ flex: 1, backgroundColor: isDark ? colors.bg : '#FFF4F4', paddingTop: insets.top + space.md, paddingBottom: insets.bottom + space.lg }}>
       <Row style={{ justifyContent: 'space-between', paddingHorizontal: space.lg }}>
         <Row gap={10}>
           <LogoMark size={40} />
@@ -133,24 +137,24 @@ export default function Onboarding() {
           ))}
         </Row>
         <Pressable onPress={next} accessibilityRole="button" style={({ pressed }) => [styles.btn, pressed && { opacity: 0.9 }]}>
-          {!last && <Ionicons name="arrow-forward" size={20} color={colors.white} style={{ marginRight: 8 }} />}
-          <Txt v="bodyStrong" color={colors.white} style={{ fontSize: 17 }}>
+          {!last && <Ionicons name="arrow-forward" size={20} color={colors.onAccent} style={{ marginRight: 8 }} />}
+          <Txt v="bodyStrong" color={colors.onAccent} style={{ fontSize: 17 }}>
             {last ? t('onb.start') : t('onb.next')}
           </Txt>
-          {last && <Ionicons name="arrow-forward" size={20} color={colors.white} style={{ marginLeft: 8 }} />}
+          {last && <Ionicons name="arrow-forward" size={20} color={colors.onAccent} style={{ marginLeft: 8 }} />}
         </Pressable>
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   h1: { fontFamily: fonts.extrabold, fontSize: 34, lineHeight: 38, letterSpacing: -1, color: colors.dark, marginTop: 12 },
   note: { fontFamily: fonts.semibold, fontSize: 15, lineHeight: 20, color: colors.primary, textAlign: 'center', fontStyle: 'italic', transform: [{ rotate: '-4deg' }], marginTop: space.md },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#E5C9C9' },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.line },
   dotActive: { width: 22, backgroundColor: colors.primary, borderRadius: radius.pill },
-  seg: { backgroundColor: '#F3E3E3', borderRadius: radius.pill, padding: 4 },
+  seg: { backgroundColor: colors.fill, borderRadius: radius.pill, padding: 4 },
   segBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 9, borderRadius: radius.pill },
   segBtnActive: { backgroundColor: colors.white, ...shadow.card },
   btn: { height: 56, borderRadius: radius.md, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
-});
+}));

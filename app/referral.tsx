@@ -3,7 +3,8 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Share, StyleShee
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, radius, space } from '@/theme';
+import { fonts, radius, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Btn, Card, Divider, Row, Txt } from '@/components/ui';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { supabase } from '@/lib/supabase';
@@ -21,6 +22,8 @@ const REASON: Record<string, Key> = { referral_received: 'ref.reasonReceived', r
 
 /** Points & referral: my code, share, enter a friend's code, convert points into Plus days. */
 export default function Referral() {
+  const colors = useColors();
+  const styles = useStyles();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const auth = useAuth();
@@ -115,7 +118,7 @@ export default function Referral() {
           <Txt v="caption" color="rgba(255,255,255,0.8)">
             {t('ref.balance')}
           </Txt>
-          <Txt v="display" color={colors.white} style={{ marginTop: 4 }}>
+          <Txt v="display" color={colors.onAccent} style={{ marginTop: 4 }}>
             {t('ref.points', { points })}
           </Txt>
           <Txt v="caption" color="rgba(255,255,255,0.85)" style={{ marginTop: 6 }}>
@@ -129,7 +132,7 @@ export default function Referral() {
           <Row gap={space.sm} style={{ marginTop: 6, flexWrap: 'wrap' }}>
             {tiers.map((tier) => (
               <View key={tier.points} style={[styles.tier, points >= tier.points && styles.tierOn]}>
-                <Txt v="captionStrong" color={colors.white} style={{ fontSize: 12 }}>
+                <Txt v="captionStrong" color={colors.onAccent} style={{ fontSize: 12 }}>
                   {t('ref.tier', { points: tier.points, days: tier.days })}
                 </Txt>
               </View>
@@ -153,11 +156,11 @@ export default function Referral() {
           </Txt>
           <Row gap={space.sm} style={{ marginTop: space.md }}>
             <Pressable onPress={share} accessibilityRole="button" style={({ pressed }) => [styles.codeBox, pressed && { opacity: 0.9 }]}>
-              <Txt style={{ fontFamily: fonts.extrabold, fontSize: 22, letterSpacing: 2, color: colors.white }}>{code ?? '……'}</Txt>
+              <Txt style={{ fontFamily: fonts.extrabold, fontSize: 22, letterSpacing: 2, color: colors.onAccent }}>{code ?? '……'}</Txt>
             </Pressable>
             <Pressable onPress={share} accessibilityRole="button" style={styles.shareBtn}>
-              <Ionicons name="share-social" size={20} color={colors.white} />
-              <Txt v="captionStrong" color={colors.white} style={{ marginLeft: 6 }}>
+              <Ionicons name="share-social" size={20} color={colors.onAccent} />
+              <Txt v="captionStrong" color={colors.onAccent} style={{ marginLeft: 6 }}>
                 {t('ref.share')}
               </Txt>
             </Pressable>
@@ -234,14 +237,14 @@ export default function Referral() {
   );
 }
 
-const styles = StyleSheet.create({
-  hero: { backgroundColor: colors.dark, borderRadius: radius.xl, padding: space.xl },
+const useStyles = makeStyles((colors) => ({
+  hero: { backgroundColor: colors.inverse, borderRadius: radius.xl, padding: space.xl },
   tier: { borderRadius: radius.pill, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)', paddingHorizontal: 10, paddingVertical: 5 },
   tierOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   // The code is the thing to read on this screen, so it is set on the dark
   // ground the app uses for emphasis rather than the grey fill, which made it
   // look like a disabled field.
-  codeBox: { flex: 1, backgroundColor: colors.dark, borderRadius: radius.md, height: 52, alignItems: 'center', justifyContent: 'center' },
+  codeBox: { flex: 1, backgroundColor: colors.inverse, borderRadius: radius.md, height: 52, alignItems: 'center', justifyContent: 'center' },
   shareBtn: { backgroundColor: colors.primary, borderRadius: radius.md, height: 52, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center' },
   input: { flex: 1, backgroundColor: colors.fill, borderRadius: radius.md, paddingHorizontal: 14, height: 48, fontFamily: fonts.semibold, fontSize: 16, letterSpacing: 2, color: colors.dark },
-});
+}));

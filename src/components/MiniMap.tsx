@@ -1,7 +1,7 @@
 import React from 'react';
 import Svg, { Circle, Line, Path, Rect, Text as SvgText } from 'react-native-svg';
 import { Branch, catalog, getStore } from '@/data/products';
-import { colors } from '@/theme';
+import { useColors } from '@/lib/theme';
 import { useT } from '@/lib/i18n';
 
 /**
@@ -9,6 +9,7 @@ import { useT } from '@/lib/i18n';
  * Production swaps this for react-native-maps and keeps the same pins/labels.
  */
 export function MiniMap({ width, height, branch, showOthers = true, labels = true }: { width: number; height: number; branch: Branch; showOthers?: boolean; labels?: boolean }) {
+  const colors = useColors();
   const t = useT();
   const me = catalog.location;
   // Scale the viewport so the selected branch always fits.

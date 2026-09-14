@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { RefreshControl } from 'react-native';
-import { colors } from '@/theme';
+import { useColors } from '@/lib/theme';
 import { useCatalog } from '@/store/catalog';
 import { useAuth } from '@/store/auth';
 
@@ -9,6 +9,7 @@ import { useAuth } from '@/store/auth';
  * and the user's profile, plus an optional screen-specific loader.
  */
 export function useRefresh(extra?: () => Promise<unknown> | void) {
+  const colors = useColors();
   const cat = useCatalog();
   const auth = useAuth();
   const [refreshing, setRefreshing] = useState(false);

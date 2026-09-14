@@ -7,9 +7,9 @@ import { BasketProvider } from '@/store/basket';
 import { CatalogProvider } from '@/store/catalog';
 import { AuthProvider, useAuth } from '@/store/auth';
 import { I18nProvider } from '@/lib/i18n';
+import { ThemeProvider, useTheme } from '@/lib/theme';
 import { PhoneFrame } from '@/components/PhoneFrame';
 import { CelebrationHost } from '@/components/CelebrationHost';
-import { colors } from '@/theme';
 import { hasSupabase } from '@/lib/supabase';
 import { syncPushToken, useNotificationDeepLink } from '@/lib/notifications';
 import { track } from '@/lib/track';
@@ -34,6 +34,7 @@ function PushTokenSync() {
 }
 
 function RootLayout() {
+  const { colors, isDark } = useTheme();
   const [loaded, error] = useFonts({ Inter_400Regular, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold });
   useNotificationDeepLink();
 
@@ -58,7 +59,7 @@ function RootLayout() {
     <BasketProvider>
       <PushTokenSync />
       <PhoneFrame>
-        <StatusBar style="dark" />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="search" options={{ animation: 'fade' }} />
@@ -87,4 +88,12 @@ function RootLayout() {
   );
 }
 
-export default withMonitoring(RootLayout);
+function ThemedRoot() {
+  return (
+    <ThemeProvider>
+      <RootLayout />
+    </ThemeProvider>
+  );
+}
+
+export default withMonitoring(ThemedRoot);

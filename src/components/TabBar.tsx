@@ -3,7 +3,8 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from 'expo-router/build/react-navigation/bottom-tabs';
-import { colors, space } from '@/theme';
+import { space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Txt } from './ui';
 import { useBasket } from '@/store/basket';
 import { useT, type Key } from '@/lib/i18n';
@@ -18,6 +19,8 @@ const META: Record<string, { key: Key; icon: keyof typeof Ionicons.glyphMap; act
 
 /** Five flat tabs, as in the design. */
 export function TabBar({ state, navigation }: BottomTabBarProps) {
+  const colors = useColors();
+  const styles = useStyles();
   const insets = useSafeAreaInsets();
   const basket = useBasket();
   const t = useT();
@@ -46,7 +49,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
                 <Ionicons name={focused ? m.active : m.icon} size={23} color={color} />
                 {route.name === 'basket' && basket.count > 0 && (
                   <View style={styles.badge}>
-                    <Txt v="captionStrong" color={colors.white} style={{ fontSize: 10, lineHeight: 12 }}>
+                    <Txt v="captionStrong" color={colors.onAccent} style={{ fontSize: 10, lineHeight: 12 }}>
                       {basket.count}
                     </Txt>
                   </View>
@@ -62,7 +65,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   bar: {
     flexDirection: 'row',
     backgroundColor: colors.white,
@@ -85,4 +88,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+}));

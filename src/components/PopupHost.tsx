@@ -3,7 +3,8 @@ import { Linking, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { colors, radius, shadow, space } from '@/theme';
+import { radius, shadow, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Btn, Txt } from './ui';
 import { useBasket } from '@/store/basket';
 import { fetchPopups, localize, pickPopup, readLog, recordView, type Popup } from '@/lib/popups';
@@ -15,6 +16,8 @@ import { useI18n } from '@/lib/i18n';
  * cannot fire twice from two screens.
  */
 export function PopupHost() {
+  const colors = useColors();
+  const styles = useStyles();
   const router = useRouter();
   const { isPlus } = useBasket();
   const { lang, t } = useI18n();
@@ -79,9 +82,9 @@ export function PopupHost() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center', padding: space.lg },
   card: { width: '100%', maxWidth: 380, backgroundColor: colors.white, borderRadius: radius.xl, overflow: 'hidden', ...shadow.card },
   image: { width: '100%', height: 160 },
   close: { position: 'absolute', top: 10, right: 10, zIndex: 2, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.9)', alignItems: 'center', justifyContent: 'center' },
-});
+}));

@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Animated, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, radius, space } from '@/theme';
+import { radius, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Btn, Divider, Pill, Price, Row, Txt } from './ui';
 import { Freshness, StoreAvatar } from './product';
 import { PriceAlertCard } from './PriceAlertCard';
@@ -18,6 +19,8 @@ import { useT } from '@/lib/i18n';
  * Shows all stores ranked by basket total, best store highlighted.
  */
 export function ResultSheet({ visible, onClose, onShowMap, onGoToStore, onShop, onShopSplit }: { visible: boolean; onClose: () => void; onShowMap: () => void; onGoToStore?: (storeId: string) => void; onShop?: (storeId: string) => void; onShopSplit?: (storeId: string, productIds: string[]) => void }) {
+  const colors = useColors();
+  const styles = useStyles();
   const insets = useSafeAreaInsets();
   const { optimization: o, count, lines } = useBasket();
   const t = useT();
@@ -134,8 +137,8 @@ export function ResultSheet({ visible, onClose, onShowMap, onGoToStore, onShop, 
                   style={({ pressed }) => [styles.goBtn, pressed && { opacity: 0.75 }]}
                   accessibilityRole="button"
                 >
-                  <Ionicons name="location" size={15} color={colors.white} />
-                  <Txt v="captionStrong" color={colors.white} style={{ marginLeft: 6 }}>
+                  <Ionicons name="location" size={15} color={colors.onAccent} />
+                  <Txt v="captionStrong" color={colors.onAccent} style={{ marginLeft: 6 }}>
                     {t('result.seeBranchesShort')}
                   </Txt>
                 </Pressable>
@@ -278,7 +281,7 @@ export function ResultSheet({ visible, onClose, onShowMap, onGoToStore, onShop, 
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   sheet: {
     backgroundColor: colors.white,
@@ -321,4 +324,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.md,
     borderRadius: 10,
   },
-});
+}));

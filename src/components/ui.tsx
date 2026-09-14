@@ -12,7 +12,8 @@ import {
   ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, fonts, numeric, radius, shadow, space, type } from '@/theme';
+import { fonts, numeric, radius, shadow, space, type } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 
 /* ---------- Typography ---------- */
 
@@ -23,7 +24,9 @@ interface TxtProps extends TextProps {
   num?: boolean;
   center?: boolean;
 }
-export function Txt({ v = 'body', color = colors.dark, num, center, style, ...rest }: TxtProps) {
+export function Txt({ v = 'body', color, num, center, style, ...rest }: TxtProps) {
+  const colors = useColors();
+  color ??= colors.dark;
   return (
     <Text
       {...rest}
@@ -37,7 +40,7 @@ export function Txt({ v = 'body', color = colors.dark, num, center, style, ...re
 export function Price({
   value,
   size = 'md',
-  color = colors.dark,
+  color,
   style,
 }: {
   value: number;
@@ -45,6 +48,8 @@ export function Price({
   color?: string;
   style?: StyleProp<ViewStyle>;
 }) {
+  const colors = useColors();
+  color ??= colors.dark;
   const sizes = { sm: 15, md: 18, lg: 28, xl: 40 };
   const fs = sizes[size];
   return (
@@ -68,6 +73,7 @@ export function Price({
 /* ---------- Surfaces ---------- */
 
 export function Card({ style, children, ...rest }: ViewProps) {
+  const styles = useStyles();
   return (
     <View {...rest} style={[styles.card, style]}>
       {children}
@@ -76,6 +82,7 @@ export function Card({ style, children, ...rest }: ViewProps) {
 }
 
 export function Divider({ inset = 0 }: { inset?: number }) {
+  const colors = useColors();
   return <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: colors.line, marginLeft: inset }} />;
 }
 
@@ -91,9 +98,11 @@ interface BtnProps extends PressableProps {
   style?: StyleProp<ViewStyle>;
 }
 export function Btn({ title, variant = 'primary', icon, size = 'lg', loading, full = true, style, disabled, ...rest }: BtnProps) {
+  const colors = useColors();
+  const styles = useStyles();
   const bg =
     variant === 'primary' ? colors.primary : variant === 'dark' ? colors.dark : variant === 'secondary' ? colors.primarySoft : 'transparent';
-  const fg = variant === 'primary' || variant === 'dark' ? colors.white : colors.primary;
+  const fg = variant === 'primary' ? colors.onAccent : variant === 'dark' ? colors.white : colors.primary;
   return (
     <Pressable
       {...rest}
@@ -123,8 +132,8 @@ export function Btn({ title, variant = 'primary', icon, size = 'lg', loading, fu
 export function IconBtn({
   name,
   onPress,
-  bg = colors.fill,
-  color = colors.dark,
+  bg,
+  color,
   size = 40,
   label,
 }: {
@@ -135,6 +144,9 @@ export function IconBtn({
   size?: number;
   label?: string;
 }) {
+  const colors = useColors();
+  bg ??= colors.fill;
+  color ??= colors.dark;
   return (
     <Pressable
       onPress={onPress}
@@ -162,6 +174,8 @@ export function Pill({
   tone?: 'neutral' | 'success' | 'primary' | 'warning';
   icon?: keyof typeof Ionicons.glyphMap;
 }) {
+  const colors = useColors();
+  const styles = useStyles();
   const map = {
     neutral: { bg: colors.fill, fg: colors.gray },
     success: { bg: colors.successSoft, fg: colors.success },
@@ -177,6 +191,8 @@ export function Pill({
 }
 
 export function Chip({ text, onPress, active }: { text: string; onPress?: () => void; active?: boolean }) {
+  const colors = useColors();
+  const styles = useStyles();
   return (
     <Pressable
       onPress={onPress}
@@ -202,6 +218,7 @@ export function Row({ style, children, gap = 0, ...rest }: ViewProps & { gap?: n
 }
 
 export function SectionTitle({ title, action, onAction }: { title: string; action?: string; onAction?: () => void }) {
+  const colors = useColors();
   return (
     <Row style={{ justifyContent: 'space-between', marginBottom: space.md }}>
       <Txt v="title">{title}</Txt>
@@ -216,7 +233,7 @@ export function SectionTitle({ title, action, onAction }: { title: string; actio
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   card: {
     backgroundColor: colors.white,
     borderRadius: radius.lg,
@@ -246,4 +263,4 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     justifyContent: 'center',
   },
-});
+}));

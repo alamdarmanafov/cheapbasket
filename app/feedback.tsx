@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, radius, space } from '@/theme';
+import { fonts, radius, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Btn, Card, Chip, Row, Txt } from '@/components/ui';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { useT, type Key } from '@/lib/i18n';
@@ -19,6 +20,8 @@ const KINDS: Array<{ id: 'question' | 'complaint' | 'suggestion'; label: Key }> 
 
 /** Support: send a question, complaint or suggestion; lands in the admin panel. */
 export default function Feedback() {
+  const colors = useColors();
+  const styles = useStyles();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const auth = useAuth();
@@ -71,6 +74,6 @@ export default function Feedback() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   input: { fontFamily: fonts.regular, fontSize: 15, color: colors.dark, minHeight: 120, padding: 0 },
-});
+}));

@@ -3,7 +3,8 @@ import { Platform, Pressable, ScrollView, Share, StyleSheet, View } from 'react-
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, radius, shadow, space } from '@/theme';
+import { radius, shadow, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { useRefresh } from '@/lib/useRefresh';
 import { Btn, Divider, IconBtn, Pill, Price, Row, Txt } from '@/components/ui';
 import { Freshness, ProductArt } from '@/components/product';
@@ -21,6 +22,8 @@ import { SITE_URL } from '@/lib/links';
 import { useT } from '@/lib/i18n';
 
 export default function Basket() {
+  const colors = useColors();
+  const styles = useStyles();
   const refresh = useRefresh();
   const t = useT();
   const router = useRouter();
@@ -258,6 +261,8 @@ export default function Basket() {
 }
 
 function StepBtn({ icon, onPress }: { icon: keyof typeof Ionicons.glyphMap; onPress: () => void }) {
+  const colors = useColors();
+  const styles = useStyles();
   return (
     <Pressable onPress={onPress} hitSlop={6} style={({ pressed }) => [styles.step, pressed && { backgroundColor: colors.fill }]}>
       <Ionicons name={icon} size={16} color={colors.dark} />
@@ -265,7 +270,7 @@ function StepBtn({ icon, onPress }: { icon: keyof typeof Ionicons.glyphMap; onPr
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   list: { backgroundColor: colors.white, borderRadius: 17, paddingHorizontal: 10, marginTop: 14, overflow: 'hidden', ...shadow.card },
   item: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
   step: { width: 28, height: 28, borderRadius: 8, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
@@ -274,7 +279,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: '#DDD',
+    borderColor: colors.line,
     backgroundColor: colors.white,
     padding: 13,
     flexDirection: 'row',
@@ -296,4 +301,4 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radius.xl,
     ...shadow.card,
   },
-});
+}));

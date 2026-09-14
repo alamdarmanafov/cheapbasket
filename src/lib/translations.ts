@@ -772,6 +772,11 @@ const az = {
   'prod.tagFail': 'Etiket oxunmadı',
   'prod.tagUnread': 'Qiymət seçilmədi — etiketi yaxından, düz çək.',
   'prod.tagNoCamera': 'Kameraya icazə lazımdır.',
+  'profile.rowTheme': 'Görünüş',
+  'theme.title': 'Görünüş',
+  'theme.system': 'Sistem kimi',
+  'theme.light': 'Açıq',
+  'theme.dark': 'Qaranlıq',
 } as const;
 
 export type Key = keyof typeof az;
@@ -1524,6 +1529,11 @@ const en: Table = {
   'prod.tagFail': 'Could not read the tag',
   'prod.tagUnread': 'No price found — shoot the tag up close and straight.',
   'prod.tagNoCamera': 'Camera permission is needed.',
+  'profile.rowTheme': 'Appearance',
+  'theme.title': 'Appearance',
+  'theme.system': 'Follow the system',
+  'theme.light': 'Light',
+  'theme.dark': 'Dark',
 };
 
 const tr: Table = {
@@ -2273,6 +2283,11 @@ const tr: Table = {
   'prod.tagFail': 'Etiket okunamadı',
   'prod.tagUnread': 'Fiyat seçilemedi — etiketi yakından ve düz çek.',
   'prod.tagNoCamera': 'Kamera izni gerekli.',
+  'profile.rowTheme': 'Görünüm',
+  'theme.title': 'Görünüm',
+  'theme.system': 'Sistemle aynı',
+  'theme.light': 'Açık',
+  'theme.dark': 'Koyu',
 };
 
 const ru: Table = {
@@ -3022,6 +3037,11 @@ const ru: Table = {
   'prod.tagFail': 'Ценник не прочитан',
   'prod.tagUnread': 'Цена не найдена — снимите ценник ближе и ровно.',
   'prod.tagNoCamera': 'Нужен доступ к камере.',
+  'profile.rowTheme': 'Оформление',
+  'theme.title': 'Оформление',
+  'theme.system': 'Как в системе',
+  'theme.light': 'Светлое',
+  'theme.dark': 'Тёмное',
 };
 
 export const dict = { az, en, tr, ru } satisfies Record<Lang, Table>;

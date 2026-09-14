@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radius, space } from '@/theme';
+import { radius, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Row, Txt } from './ui';
 import { ProductArt } from './product';
 import { PriceReportModal } from './PriceReportModal';
@@ -22,6 +23,8 @@ import { useT } from '@/lib/i18n';
  * store already chosen.
  */
 export function HelpFillCard({ points = 2 }: { points?: number }) {
+  const colors = useColors();
+  const styles = useStyles();
   const t = useT();
   const cat = useCatalog();
   const basket = useBasket();
@@ -60,7 +63,7 @@ export function HelpFillCard({ points = 2 }: { points?: number }) {
     <View style={styles.card}>
       <Row gap={8}>
         <View style={[styles.badge, { backgroundColor: store.color }]}>
-          <Txt v="captionStrong" color={colors.white}>{store.initial}</Txt>
+          <Txt v="captionStrong" color={colors.onAccent}>{store.initial}</Txt>
         </View>
         <View style={{ flex: 1 }}>
           <Txt v="bodyStrong">{t('help.title', { store: store.name })}</Txt>
@@ -85,9 +88,9 @@ export function HelpFillCard({ points = 2 }: { points?: number }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   card: { marginTop: 14, backgroundColor: colors.white, borderRadius: 17, padding: 15 },
   badge: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', paddingTop: 10, marginTop: 10, borderTopWidth: 1, borderTopColor: colors.line },
   cta: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: colors.primarySoft },
-});
+}));

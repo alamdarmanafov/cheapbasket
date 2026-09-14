@@ -3,7 +3,8 @@ import { FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleS
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, radius, space } from '@/theme';
+import { radius, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Chip, Divider, Row, Txt } from '@/components/ui';
 import { ProductRow } from '@/components/product';
 import { ProductRowSkeleton, StateView } from '@/components/states';
@@ -20,6 +21,8 @@ import { useBasket } from '@/store/basket';
 
 
 export default function Search() {
+  const colors = useColors();
+  const styles = useStyles();
   const kb = useKeyboardHeight();
   const emptyRef = useRef<ScrollView>(null);
   const refresh = useRefresh();
@@ -193,11 +196,11 @@ export default function Search() {
 
       {basket.count > 0 && (
         <Pressable onPress={() => router.push('/basket')} style={[styles.basketBar, { bottom: insets.bottom + space.lg }]}>
-          <Ionicons name="basket" size={20} color={colors.white} />
-          <Txt v="bodyStrong" color={colors.white} style={{ flex: 1, marginLeft: space.sm }}>
+          <Ionicons name="basket" size={20} color={colors.onAccent} />
+          <Txt v="bodyStrong" color={colors.onAccent} style={{ flex: 1, marginLeft: space.sm }}>
             {t('search.inBasket', { count: basket.count })}
           </Txt>
-          <Txt v="bodyStrong" color={colors.white}>
+          <Txt v="bodyStrong" color={colors.onAccent}>
             {t('search.viewBasket')}
           </Txt>
         </Pressable>
@@ -206,7 +209,7 @@ export default function Search() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   field: {
     flex: 1,
     height: 48,
@@ -226,9 +229,9 @@ const styles = StyleSheet.create({
     right: space.lg,
     height: 56,
     borderRadius: radius.md,
-    backgroundColor: colors.dark,
+    backgroundColor: colors.inverse,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: space.lg,
   },
-});
+}));

@@ -61,3 +61,18 @@ test('a budget under the basket total offers a cheaper swap or says none exists'
   await page.getByPlaceholder('Məhsul axtar...').fill('milk');
   await expect(page.getByText('Sütaş Süd 3.2%').first()).toBeVisible();
 });
+
+test('appearance can be switched to dark from the profile', async ({ page }) => {
+  await signedIn(page);
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Profil' }).click();
+  await page.getByText('Görünüş').first().click();
+  await page.getByTestId('theme-dark').click();
+  await expect(page.getByText('Qaranlıq').first()).toBeVisible();
+  // The page ground follows: near-black instead of the light grey.
+  const bg = await page.evaluate(() => {
+    const el = document.querySelector('[data-testid="profile-root"]') ?? document.body.firstElementChild;
+    return el ? getComputedStyle(el).backgroundColor : '';
+  });
+  expect(bg).not.toBe('rgb(247, 247, 247)');
+});

@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { colors, fonts, radius, shadow, space } from '@/theme';
+import { fonts, radius, shadow, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Btn, Card, Divider, Price, Row, Txt } from '@/components/ui';
 import { ProductRow, StoreAvatar } from '@/components/product';
 import { ProductRowSkeleton } from '@/components/states';
@@ -24,6 +25,8 @@ import { useT } from '@/lib/i18n';
 
 
 export default function Home() {
+  const colors = useColors();
+  const styles = useStyles();
   const router = useRouter();
   const basket = useBasket();
   const { optimization: o } = basket;
@@ -294,7 +297,7 @@ export default function Home() {
             </Txt>
           </View>
           <View style={styles.aiArrow}>
-            <Ionicons name="arrow-forward" size={18} color={colors.white} />
+            <Ionicons name="arrow-forward" size={18} color={colors.onAccent} />
           </View>
         </Pressable>
 
@@ -317,7 +320,7 @@ export default function Home() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   catCard: { width: 132, backgroundColor: colors.white, borderRadius: radius.lg, padding: 10, ...shadow.card },
   search: {
     height: 48,
@@ -347,7 +350,7 @@ const styles = StyleSheet.create({
   },
   storeChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 13, paddingVertical: 8, paddingHorizontal: 10 },
   category: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, borderRadius: 13, paddingVertical: 10, paddingHorizontal: 11 },
-  aiBanner: { marginTop: 14, borderRadius: 17, backgroundColor: '#FFF0F0', padding: 14, flexDirection: 'row', alignItems: 'center' },
+  aiBanner: { marginTop: 14, borderRadius: 17, backgroundColor: colors.primarySoft, padding: 14, flexDirection: 'row', alignItems: 'center' },
   aiArrow: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   savings: { marginTop: 12, borderRadius: 17, backgroundColor: colors.successSoft, padding: 14, flexDirection: 'row', alignItems: 'center' },
-});
+}));

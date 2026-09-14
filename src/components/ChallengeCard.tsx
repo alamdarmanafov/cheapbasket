@@ -2,7 +2,8 @@ import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { colors, radius, space } from '@/theme';
+import { radius, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Row, Txt } from './ui';
 import { useAuth } from '@/store/auth';
 import { useMyStats } from '@/lib/badges';
@@ -14,6 +15,8 @@ import { useT } from '@/lib/i18n';
  * of the way until Monday.
  */
 export function ChallengeCard() {
+  const colors = useColors();
+  const styles = useStyles();
   const t = useT();
   const router = useRouter();
   const auth = useAuth();
@@ -52,10 +55,10 @@ export function ChallengeCard() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   card: { backgroundColor: colors.white, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, padding: space.md, marginTop: space.md },
   cardDone: { borderColor: colors.successSoft, backgroundColor: colors.successSoft },
   badge: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.line },
   dotOn: { backgroundColor: colors.success },
-});
+}));

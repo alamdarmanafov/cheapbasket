@@ -3,7 +3,8 @@ import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSh
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, radius, space } from '@/theme';
+import { fonts, radius, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Btn, Divider, Row, Txt } from '@/components/ui';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { LogoMark } from '@/components/Logo';
@@ -20,6 +21,8 @@ const SHOW_GOOGLE = PROVIDERS.includes('google');
 
 /** Sign in / sign up: email + password, Apple, Google. An account is required. */
 export default function AuthScreen() {
+  const colors = useColors();
+  const styles = useStyles();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const auth = useAuth();
@@ -170,6 +173,8 @@ export default function AuthScreen() {
 }
 
 function Field({ icon, ...rest }: { icon: keyof typeof Ionicons.glyphMap } & React.ComponentProps<typeof TextInput>) {
+  const colors = useColors();
+  const styles = useStyles();
   return (
     <Row style={styles.field} gap={space.sm}>
       <Ionicons name={icon} size={20} color={colors.gray} />
@@ -198,8 +203,8 @@ function errorKey(m: string): Key | null {
   return null;
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   field: { height: 52, borderRadius: radius.md, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, paddingHorizontal: space.md, marginTop: space.sm },
   input: { flex: 1, fontSize: 15, color: colors.dark, height: 50, fontFamily: fonts.regular, ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as object) : {}) },
   note: { padding: space.md, borderRadius: radius.md, marginTop: space.md },
-});
+}));

@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { colors, radius, shadow, space } from '@/theme';
+import { radius, shadow, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Btn, Divider, Pill, Price, Row, Txt } from '@/components/ui';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { ProductArt, StoreAvatar } from '@/components/product';
@@ -28,6 +29,8 @@ import { recordPurchases } from '@/lib/purchases';
  * shelves.
  */
 export default function Shop() {
+  const colors = useColors();
+  const styles = useStyles();
   const t = useT();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -192,7 +195,7 @@ export default function Shop() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   list: { backgroundColor: colors.white, borderRadius: 17, paddingHorizontal: 10, marginTop: 14, overflow: 'hidden', ...shadow.card },
   item: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 10 },
   sticky: {
@@ -207,4 +210,4 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radius.xl,
     ...shadow.card,
   },
-});
+}));

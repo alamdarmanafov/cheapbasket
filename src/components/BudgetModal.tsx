@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
-import { colors, fonts, radius, space } from '@/theme';
+import { fonts, radius, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Btn, Txt } from './ui';
 import { setBudget } from '@/lib/budget';
 import { useT } from '@/lib/i18n';
 
 /** One number: how much this basket may cost. Empty clears the limit. */
 export function BudgetModal({ visible, value, onClose }: { visible: boolean; value: number | null; onClose: () => void }) {
+  const colors = useColors();
+  const styles = useStyles();
   const t = useT();
   const [text, setText] = useState('');
   useEffect(() => {
@@ -61,9 +64,9 @@ export function BudgetModal({ visible, value, onClose }: { visible: boolean; val
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)' },
   card: { marginTop: 'auto', marginBottom: 'auto', marginHorizontal: space.lg, backgroundColor: colors.white, borderRadius: radius.xl, padding: space.xl },
   inputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, paddingHorizontal: space.md, marginTop: space.md, backgroundColor: colors.fill },
   input: { flex: 1, fontSize: 22, fontFamily: fonts.bold, color: colors.dark, paddingVertical: 12 },
-});
+}));

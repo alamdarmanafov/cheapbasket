@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { colors, radius, shadow, space } from '@/theme';
+import { radius, shadow, space } from '@/theme';
+import { makeStyles, useColors } from '@/lib/theme';
 import { Card, Divider, Pill, Price, Row, Txt } from '@/components/ui';
 import { ProductArt, StoreAvatar } from '@/components/product';
 import { ScreenHeader } from '@/components/ScreenHeader';
@@ -18,6 +19,8 @@ interface Drop { product_id: string; store_id: string; new_price: number; old_pr
 
 /** {t('deals.title')}: recent price drops, basket items first. Push notifications deep-link here. */
 export default function Deals() {
+  const colors = useColors();
+  const styles = useStyles();
   const router = useRouter();
   const { lines, isPlus } = useBasket();
   const t = useT();
@@ -116,6 +119,6 @@ export default function Deals() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((colors) => ({
   banner: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.white, borderRadius: radius.lg, padding: space.lg, ...shadow.card },
-});
+}));
