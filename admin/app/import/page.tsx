@@ -124,6 +124,9 @@ export default function ImportPage() {
   const [csvRows, setCsvRows] = useState<string[][]>([]);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [csvMapping, setCsvMapping] = useState<Record<string, string>>({});
+  // One column per store, for a file shaped like the prices export
+  // ("Ad, Barkod, Araz, Bravo, OBA"): store id → column index.
+  const [csvStoreCols, setCsvStoreCols] = useState<Record<string, string>>({});
   const [csvMsg, setCsvMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [csvBusy, setCsvBusy] = useState(false);
 
@@ -372,7 +375,7 @@ export default function ImportPage() {
       // price as just-refreshed, and add a no-op row to the price history.
       let unchanged = 0;
       const prices = [...priceById.values()].filter((row) => {
-        const before = priceNow.get(row.product_id as string);
+        const before = priceNow.get(`${row.product_id}:${row.store_id}`);
         if (!before) return true;
         const same = before.price === numOrNull(row.price) && before.discount === numOrNull(row.discount_price);
         if (same) unchanged++;
@@ -428,6 +431,7 @@ export default function ImportPage() {
     setCsvRows([]);
     setCsvHeaders([]);
     setCsvMapping({});
+    setCsvStoreCols({});
     setCsvMsg(null);
 
     let baseHeaders: string[] = [];
@@ -462,7 +466,16 @@ export default function ImportPage() {
       if (idx >= 0) autoMap[field] = String(idx);
     }
     setCsvMapping(autoMap);
-    setCsvMsg({ ok: true, text: `${fileArr.length} fayl, cəmi ${allRows.length} sətir: ${labels.join(' · ')}. Sütunları uyğunlaşdır, sonra "Import et" düyməsinə bas.` });
+    // A header that is a store's name (or id) is that store's price column.
+    // This is what the prices page exports, so an edited export comes straight back.
+    const storeCols: Record<string, string> = {};
+    for (const st of stores) {
+      const idx = baseHeaders.findIndex((h) => h.trim().toLowerCase() === st.name.trim().toLowerCase() || h.trim().toLowerCase() === st.id.toLowerCase());
+      if (idx >= 0) storeCols[st.id] = String(idx);
+    }
+    setCsvStoreCols(storeCols);
+    const multiNote = Object.keys(storeCols).length ? ` ${Object.keys(storeCols).length} market sütunu tanındı — qiymətlər hər sütundan öz marketinə yazılacaq.` : '';
+    setCsvMsg({ ok: true, text: `${fileArr.length} fayl, cəmi ${allRows.length} sətir: ${labels.join(' · ')}. Sütunları uyğunlaşdır, sonra "Import et" düyməsinə bas.${multiNote}` });
   };
 
   const getCsvField = (row: string[], field: string): string => {
@@ -472,28 +485,36 @@ export default function ImportPage() {
   };
 
   const csvPreview = csvRows.slice(0, 10);
+  /** Stores with a price column of their own: the multi-store shape of the file. */
+  const csvMultiStores = stores.filter((st) => csvStoreCols[st.id]);
 
   const importCSV = async () => {
-    if (!csvStoreId) { setCsvMsg({ ok: false, text: 'Market seçin.' }); return; }
-    // Name the target store before writing. Every price in the file lands on the
-    // store picked above, and a wrong pick is only visible after the fact.
+    const multi = csvMultiStores.length > 0;
+    if (!multi && !csvStoreId) { setCsvMsg({ ok: false, text: 'Market seçin.' }); return; }
+    // Name the target store(s) before writing. A wrong pick is only visible after the fact.
     const csvStoreName = stores.find((s) => s.id === csvStoreId)?.name ?? csvStoreId;
-    if (!confirm(`${csvRows.length} sətir "${csvStoreName}" marketinə yazılacaq.\n\nQiymətlər başqa markete deyil, məhz bu markete əlavə olunur. Davam edilsin?`)) return;
+    const ask = multi
+      ? `${csvRows.length} sətir, ${csvMultiStores.length} market sütunu: ${csvMultiStores.map((st) => st.name).join(', ')}.\n\nHər sütundakı qiymət öz marketinə yazılır; boş xana toxunulmur. Davam edilsin?`
+      : `${csvRows.length} sətir "${csvStoreName}" marketinə yazılacaq.\n\nQiymətlər başqa markete deyil, məhz bu markete əlavə olunur. Davam edilsin?`;
+    if (!confirm(ask)) return;
     if (!csvMapping.name && !csvMapping.barcode) { setCsvMsg({ ok: false, text: '"Ad" və ya "Barkod" sütunu seçilməlidir.' }); return; }
-    if (!csvMapping.price) { setCsvMsg({ ok: false, text: '"Qiymət" sütunu seçilməlidir.' }); return; }
+    if (!multi && !csvMapping.price) { setCsvMsg({ ok: false, text: '"Qiymət" sütunu seçilməlidir (və ya market adlı sütunlar).' }); return; }
     setCsvBusy(true);
     setCsvMsg(null);
     try {
-      const [fresh, currentPrices] = await Promise.all([
+      const targetStores = multi ? csvMultiStores.map((st) => st.id) : [csvStoreId];
+      const [fresh, ...priceLists] = await Promise.all([
         db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url', fetchAll: true }),
-        db.select<{ product_id: string; price: number | null; discount_price: number | null }>('prices', {
-          columns: 'product_id, price, discount_price',
-          eq: { store_id: csvStoreId },
-          fetchAll: true,
-        }),
+        ...targetStores.map((sid) =>
+          db.select<{ product_id: string; price: number | null; discount_price: number | null }>('prices', {
+            columns: 'product_id, price, discount_price',
+            eq: { store_id: sid },
+            fetchAll: true,
+          }).then((rows) => rows.map((r) => ({ ...r, store_id: sid }))),
+        ),
       ]);
       const match = buildMatcher(fresh.map((p) => ({ id: p.id, barcode: p.barcode, brand: p.brand, name: p.name, size: p.size })));
-      const priceNow = new Map(currentPrices.map((r) => [r.product_id, { price: numOrNull(r.price), discount: numOrNull(r.discount_price) }]));
+      const priceNow = new Map(priceLists.flat().map((r) => [`${r.product_id}:${r.store_id}`, { price: numOrNull(r.price), discount: numOrNull(r.discount_price) }]));
       const products: Record<string, unknown>[] = [];
       const priceRows: Record<string, unknown>[] = [];
       const now = new Date().toISOString();
@@ -505,14 +526,22 @@ export default function ImportPage() {
         const brand = getCsvField(row, 'brand');
         const size = getCsvField(row, 'size') || '—';
         const category = getCsvField(row, 'category') || catNames[0] || 'Qida';
-        const priceRaw = getCsvField(row, 'price');
-        const discountRaw = getCsvField(row, 'discount_price');
+        const priceRaw = multi ? '' : getCsvField(row, 'price');
+        const discountRaw = multi ? '' : getCsvField(row, 'discount_price');
         if (!name && !barcode) continue;
         const parseNum = (s: string) => { const n = Number(s.replace(/[^\d.,]/g, '').replace(',', '.')); return isNaN(n) || n === 0 ? null : n; };
         let price = priceRaw ? parseNum(priceRaw) : null;
         let discount = discountRaw ? parseNum(discountRaw) : null;
         // If only one price value is provided, use it as the regular price
         if (price == null && discount != null) { price = discount; discount = null; }
+        // Multi-store file: one price per store column; an empty cell says nothing.
+        const perStore: Array<{ store_id: string; price: number }> = [];
+        if (multi) {
+          for (const st of csvMultiStores) {
+            const v = parseNum((row[Number(csvStoreCols[st.id])] ?? '').trim());
+            if (v != null) perStore.push({ store_id: st.id, price: v });
+          }
+        }
 
         const woltLike = { barcode, name: name || barcode || '', brand, size };
         const existingId = match(woltLike as Parameters<typeof match>[0]);
@@ -522,7 +551,9 @@ export default function ImportPage() {
           usedIds.add(id);
           products.push({ id, barcode, name: name || barcode, brand: brand || '', size, category, emoji: '🛒', tint: '#F3F4F6', image_url: null });
         }
-        if (price != null) {
+        if (multi) {
+          for (const ps of perStore) priceRows.push({ product_id: id, store_id: ps.store_id, price: ps.price, discount_price: null, discount_starts: null, discount_ends: null, updated_at: now });
+        } else if (price != null) {
           priceRows.push({ product_id: id, store_id: csvStoreId, price, discount_price: discount ?? null, discount_starts: null, discount_ends: null, updated_at: now });
         }
       }
@@ -540,7 +571,10 @@ export default function ImportPage() {
       for (let i = 0; i < uniqueProducts.length; i += 200) await db.upsert('products', uniqueProducts.slice(i, i + 200), 'id');
       for (let i = 0; i < uniquePrices.length; i += 200) await db.upsert('prices', uniquePrices.slice(i, i + 200), 'product_id,store_id');
       const storeName = stores.find((s) => s.id === csvStoreId)?.name ?? csvStoreId;
-      setCsvMsg({ ok: true, text: `${uniquePrices.length} qiymət, ${uniqueProducts.length} yeni məhsul → ${storeName}${unchanged ? `. ${unchanged} məhsulun qiyməti dəyişməyib — toxunulmadı` : ''}.` });
+      const perStoreCount = multi
+        ? csvMultiStores.map((st) => `${st.name} ${uniquePrices.filter((r) => r.store_id === st.id).length}`).join(', ')
+        : storeName;
+      setCsvMsg({ ok: true, text: `${uniquePrices.length} qiymət, ${uniqueProducts.length} yeni məhsul → ${perStoreCount}${unchanged ? `. ${unchanged} qiymət dəyişməyib — toxunulmadı` : ''}.` });
     } catch (e) {
       setCsvMsg({ ok: false, text: (e as Error).message });
     } finally {
@@ -701,7 +735,8 @@ export default function ImportPage() {
           <div className="note" style={{ marginBottom: 14 }}>
             <b>CSV formatı:</b> <code>barkod,ad,brend,ölçü,kateqoriya,qiymət,endirim_qiyməti</code><br />
             Vergül (<code>,</code>) və ya nöqtəli vergül (<code>;</code>) ayırıcı kimi istifadə oluna bilər. Birinci sətir başlıq olmalıdır.<br />
-            <b>Excel (.xlsx / .xls):</b> Birbaşa Excel faylını seçin — SheetJS ilə birinci vərəq avtomatik oxunur.
+            <b>Excel (.xlsx / .xls):</b> Birbaşa Excel faylını seçin — SheetJS ilə birinci vərəq avtomatik oxunur.<br />
+            <b>Bir neçə market bir faylda:</b> "Qiymətlər" səhifəsinin CSV ixracı kimi — <code>Ad,Barkod,Araz,Bravo,OBA</code>. Market adlı sütun həmin marketin qiymətidir; boş xana toxunulmur. İxracı Excel-də düzəldib olduğu kimi geri yükləmək olar.
           </div>
 
           {csvHeaders.length > 0 && (
@@ -715,6 +750,25 @@ export default function ImportPage() {
                       {CSV_LABELS[field]}
                       <select value={csvMapping[field] ?? ''} onChange={(e) => setCsvMapping({ ...csvMapping, [field]: e.target.value })}>
                         <option value="">— seçilməyib —</option>
+                        {csvHeaders.map((h, i) => <option key={i} value={String(i)}>{h}</option>)}
+                      </select>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* One column per store: the export's shape coming back */}
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ marginBottom: 4 }}>Market sütunları</h3>
+                <p className="muted" style={{ fontSize: 12, marginTop: 0, marginBottom: 10 }}>
+                  {csvMultiStores.length ? `${csvMultiStores.length} market seçilib — yuxarıdakı "Market" və "Qiymət" sahələri nəzərə alınmır.` : 'Heç biri seçilməyibsə fayl yuxarıda seçilən bir markete yazılır.'}
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+                  {stores.map((st) => (
+                    <label key={st.id}>
+                      {st.name}
+                      <select value={csvStoreCols[st.id] ?? ''} onChange={(e) => setCsvStoreCols({ ...csvStoreCols, [st.id]: e.target.value })}>
+                        <option value="">— yoxdur —</option>
                         {csvHeaders.map((h, i) => <option key={i} value={String(i)}>{h}</option>)}
                       </select>
                     </label>
@@ -741,7 +795,7 @@ export default function ImportPage() {
               </div>
 
               <button className="btn" disabled={csvBusy || !csvRows.length} onClick={importCSV}>
-                <Upload size={14} /> {csvBusy ? 'İmport olunur…' : `Import et (${csvRows.length} sətir → ${stores.find((s) => s.id === csvStoreId)?.name ?? ''})`}
+                <Upload size={14} /> {csvBusy ? 'İmport olunur…' : `Import et (${csvRows.length} sətir → ${csvMultiStores.length ? csvMultiStores.map((st) => st.name).join(', ') : stores.find((s) => s.id === csvStoreId)?.name ?? ''})`}
               </button>
             </>
           )}
