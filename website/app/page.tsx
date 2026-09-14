@@ -1,20 +1,20 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Check, ChevronDown, Clock, MapPin, ScanLine, Search, ShoppingBasket } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { StoreBadges } from '@/components/StoreBadges';
 import { LangPicker } from '@/components/LangPicker';
 import { useLang } from '@/components/LangContext';
-import { useState } from 'react';
-import { LINKS, PRICING } from '@/components/content';
+import { LINKS, PRICING, PLUS_YEARLY_SAVINGS_PERCENT } from '@/components/content';
 
 const STEP_ICONS = [ShoppingBasket, Search, MapPin];
 const BENEFIT_ICONS = [Clock, MapPin, ScanLine, Check];
 
 export default function Page() {
   const { t } = useLang();
-  const [period, setPeriod] = useState<'monthly' | 'yearly'>('monthly');
+  const [billing, setBilling] = useState<'monthly' | 'yearly'>('monthly');
 
   return (
     <main id="top">
@@ -135,12 +135,21 @@ export default function Page() {
         <div className="container">
           <h2>{t.pricing.h2}</h2>
           <p className="section-sub">{t.pricing.sub}</p>
-          <div className="period" role="tablist" aria-label="Billing period">
-            <button type="button" role="tab" aria-selected={period === 'monthly'} className={period === 'monthly' ? 'on' : ''} onClick={() => setPeriod('monthly')}>
-              {t.pricing.periodMonthly}
+          <div className="billing-toggle" role="group" aria-label={t.pricing.billingToggleLabel}>
+            <button
+              type="button"
+              className={billing === 'monthly' ? 'active' : ''}
+              onClick={() => setBilling('monthly')}
+            >
+              {t.pricing.billingMonthly}
             </button>
-            <button type="button" role="tab" aria-selected={period === 'yearly'} className={period === 'yearly' ? 'on' : ''} onClick={() => setPeriod('yearly')}>
-              {t.pricing.periodYearly} <span className="save">{t.pricing.yearlySave}</span>
+            <button
+              type="button"
+              className={billing === 'yearly' ? 'active' : ''}
+              onClick={() => setBilling('yearly')}
+            >
+              {t.pricing.billingYearly}
+              <span className="save-badge">-{PLUS_YEARLY_SAVINGS_PERCENT}%</span>
             </button>
           </div>
           <div className="plans">
@@ -162,15 +171,12 @@ export default function Page() {
               <span className="popular">{t.pricing.popular}</span>
               <h3>⭐ {t.pricing.plus}</h3>
               <div className="price">
-                {period === 'yearly' ? PRICING.plusYearly : PRICING.plusMonthly} <small>{period === 'yearly' ? t.pricing.plusPerYear : t.pricing.plusPer}</small>
+                {billing === 'monthly' ? PRICING.plusMonthly : PRICING.plusYearly}{' '}
+                <small>{billing === 'monthly' ? t.pricing.plusPer : t.pricing.plusPerYear}</small>
               </div>
-              {period === 'yearly' ? (
-                <div className="price-note">{t.pricing.yearlyNote}</div>
-              ) : (
-                <button type="button" className="price-note link" onClick={() => setPeriod('yearly')}>
-                  {t.pricing.monthlyNote}
-                </button>
-              )}
+              <div className="price-note">
+                {billing === 'monthly' ? t.pricing.plusYearlyNote : t.pricing.plusMonthlyNote}
+              </div>
               {t.pricing.plusItems.map((x) => (
                 <p key={x}>
                   <Check /> {x}
