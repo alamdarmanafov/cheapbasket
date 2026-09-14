@@ -1,6 +1,9 @@
 export type Lang = 'az' | 'en';
 
-export const PRICING = { plusMonthly: '1.99 $', plusYearly: '9.99 $' };
+export const PRICING = { plusMonthly: '1.99 $', plusYearly: '9.99 $', monthly: 1.99, yearly: 9.99 };
+/** What a year costs against twelve months, as a whole percent, and the yearly price per month. */
+export const YEARLY_SAVING = Math.round((1 - PRICING.yearly / (PRICING.monthly * 12)) * 100);
+export const YEARLY_PER_MONTH = (PRICING.yearly / 12).toFixed(2);
 
 export const LINKS = {
   appStore: '#download',
@@ -52,7 +55,13 @@ const az = {
     freeCta: 'Pulsuz başla',
     plus: 'PLUS',
     plusPer: '/ ay',
+    plusPerYear: '/ il',
     plusYearly: `və ya ${PRICING.plusYearly} / il`,
+    periodMonthly: 'Aylıq',
+    periodYearly: 'İllik',
+    yearlySave: `${YEARLY_SAVING}% qənaət`,
+    yearlyNote: `ayda ${YEARLY_PER_MONTH} $ · aylıq ödənişə görə ${YEARLY_SAVING}% ucuz`,
+    monthlyNote: `İllik seç, ${YEARLY_SAVING}% qənaət et`,
     plusItems: ['Limitsiz səbət və siyahı', 'Hər səhər AI endirim xəbəri', 'Qiymət düşən kimi dərhal bildiriş', 'Tapılmayan məhsula əvəzedici təklif', 'Qənaət statistikası və alış-veriş tarixçəsi', 'AI köməkçisi: büdcəyə görə səbət'],
     plusCta: 'Plus-a keç',
     popular: 'ƏN POPULYAR',
@@ -129,7 +138,13 @@ const en: typeof az = {
     freeCta: 'Start free',
     plus: 'PLUS',
     plusPer: '/ month',
+    plusPerYear: '/ year',
     plusYearly: `or ${PRICING.plusYearly} / year`,
+    periodMonthly: 'Monthly',
+    periodYearly: 'Yearly',
+    yearlySave: `Save ${YEARLY_SAVING}%`,
+    yearlyNote: `${YEARLY_PER_MONTH} $ a month · ${YEARLY_SAVING}% less than paying monthly`,
+    monthlyNote: `Go yearly and save ${YEARLY_SAVING}%`,
     plusItems: ['Unlimited baskets and lists', 'AI deal digest every morning', 'Instant alert when a price drops', 'Substitutes for missing products', 'Savings statistics and trip history', 'AI assistant: a basket for your budget'],
     plusCta: 'Go Plus',
     popular: 'MOST POPULAR',

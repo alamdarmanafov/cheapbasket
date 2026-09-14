@@ -6,6 +6,7 @@ import { Logo } from '@/components/Logo';
 import { StoreBadges } from '@/components/StoreBadges';
 import { LangPicker } from '@/components/LangPicker';
 import { useLang } from '@/components/LangContext';
+import { useState } from 'react';
 import { LINKS, PRICING } from '@/components/content';
 
 const STEP_ICONS = [ShoppingBasket, Search, MapPin];
@@ -13,6 +14,7 @@ const BENEFIT_ICONS = [Clock, MapPin, ScanLine, Check];
 
 export default function Page() {
   const { t } = useLang();
+  const [period, setPeriod] = useState<'monthly' | 'yearly'>('monthly');
 
   return (
     <main id="top">
@@ -133,6 +135,14 @@ export default function Page() {
         <div className="container">
           <h2>{t.pricing.h2}</h2>
           <p className="section-sub">{t.pricing.sub}</p>
+          <div className="period" role="tablist" aria-label="Billing period">
+            <button type="button" role="tab" aria-selected={period === 'monthly'} className={period === 'monthly' ? 'on' : ''} onClick={() => setPeriod('monthly')}>
+              {t.pricing.periodMonthly}
+            </button>
+            <button type="button" role="tab" aria-selected={period === 'yearly'} className={period === 'yearly' ? 'on' : ''} onClick={() => setPeriod('yearly')}>
+              {t.pricing.periodYearly} <span className="save">{t.pricing.yearlySave}</span>
+            </button>
+          </div>
           <div className="plans">
             <div className="plan">
               <h3>{t.pricing.free}</h3>
@@ -152,9 +162,15 @@ export default function Page() {
               <span className="popular">{t.pricing.popular}</span>
               <h3>⭐ {t.pricing.plus}</h3>
               <div className="price">
-                {PRICING.plusMonthly} <small>{t.pricing.plusPer}</small>
+                {period === 'yearly' ? PRICING.plusYearly : PRICING.plusMonthly} <small>{period === 'yearly' ? t.pricing.plusPerYear : t.pricing.plusPer}</small>
               </div>
-              <div className="price-note">{t.pricing.plusYearly}</div>
+              {period === 'yearly' ? (
+                <div className="price-note">{t.pricing.yearlyNote}</div>
+              ) : (
+                <button type="button" className="price-note link" onClick={() => setPeriod('yearly')}>
+                  {t.pricing.monthlyNote}
+                </button>
+              )}
               {t.pricing.plusItems.map((x) => (
                 <p key={x}>
                   <Check /> {x}
