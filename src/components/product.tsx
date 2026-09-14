@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Product, Store, cheapest, StorePrice } from '@/data/products';
+import { Product, Store, cheapest, StorePrice, coverage } from '@/data/products';
 import { colors, radius, space } from '@/theme';
 import { useT } from '@/lib/i18n';
 import { Price, Row, Txt } from './ui';
@@ -105,9 +105,15 @@ export function ProductRow({ product, showStore = true }: { product: Product; sh
           {showStore && c.price != null && (
             <>
               {'  ·  '}
-              <Txt v="caption" color={colors.success}>
-                ən ucuz {c.store.name}
-              </Txt>
+              {coverage(product) < 2 ? (
+                <Txt v="caption" color={colors.warning}>
+                  {t('row.onlyAt', { store: c.store.name })}
+                </Txt>
+              ) : (
+                <Txt v="caption" color={colors.success}>
+                  {t('row.cheapestAt', { store: c.store.name })}
+                </Txt>
+              )}
             </>
           )}
         </Txt>

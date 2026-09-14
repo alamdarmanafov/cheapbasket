@@ -21,6 +21,7 @@
     "node_modules",
     "website",
     "admin",
-    "dist"
+    "dist",
+    "dist-e2e"
   ]
 }

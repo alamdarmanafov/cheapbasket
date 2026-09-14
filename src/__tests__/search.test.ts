@@ -29,3 +29,15 @@ describe('searchProducts', () => {
     expect(ids).toEqual(['3', '5']);
   });
 });
+
+describe('coverage ordering', () => {
+  it('puts products priced at more stores first within a band', () => {
+    catalog.categories = [];
+    catalog.products = [
+      { ...catalog.products[0], id: 'one', brand: 'Sütaş', name: 'Süd 1L', category: 'süd', prices: { araz: 2.1 } } as never,
+      { ...catalog.products[0], id: 'three', brand: 'Sütaş', name: 'Süd 1L', category: 'süd', prices: { araz: 2.1, bravo: 2.2, oba: 2.3 } } as never,
+      { ...catalog.products[0], id: 'two', brand: 'Sütaş', name: 'Süd 1L', category: 'süd', prices: { araz: 2.1, bravo: 2.0 } } as never,
+    ];
+    expect(searchProducts('sütaş süd').map((p) => p.id)).toEqual(['three', 'two', 'one']);
+  });
+});

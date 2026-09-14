@@ -71,9 +71,17 @@ export default function Scan() {
   // in Bravo. With nothing to go on the chip asks instead of asserting.
   const [picked, setPicked] = useState<StoreId | null>(null);
   const [pickOpen, setPickOpen] = useState(false);
-  const nearest = cat.locationGranted === true ? cat.branches[0]?.storeId : undefined;
+  // Nearest is a guess only within a few hundred metres: across town the
+  // closest branch is still the wrong shop. The scanner is the one screen
+  // where the phone's location is plainly useful, so it asks here, once.
+  const nearestBranch = cat.locationGranted === true ? cat.branches[0] : undefined;
+  const nearest = nearestBranch && nearestBranch.distanceKm <= 0.4 ? nearestBranch.storeId : undefined;
   const hereId = ((params.store as StoreId) || picked || nearest || '') as StoreId;
   const here = hereId ? getStore(hereId) : null;
+  useEffect(() => {
+    if (Platform.OS !== 'web' && cat.locationGranted == null) cat.requestLocation({ prompt: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cat.locationGranted]);
 
   useEffect(() => {
     if (Platform.OS !== 'web' && permission && !permission.granted && permission.canAskAgain) requestPermission();
@@ -164,7 +172,7 @@ export default function Scan() {
         <Pressable onPress={() => setPickOpen(true)} style={styles.hereChip} accessibilityRole="button" accessibilityLabel={t('scan.pickStoreTitle')}>
           {here && <StoreAvatar store={here} size={20} />}
           <Txt v="captionStrong" color={colors.white} style={{ marginLeft: here ? 6 : 0 }} numberOfLines={1}>
-            {here ? t('scan.youAreAt', { store: here.name }) : t('scan.pickStore')}
+            {here ? (nearest && !picked && !params.store ? t('scan.gpsAt', { store: here.name, m: Math.round((nearestBranch?.distanceKm ?? 0) * 1000) }) : t('scan.youAreAt', { store: here.name })) : t('scan.pickStore')}
           </Txt>
           <Ionicons name="chevron-down" size={14} color="rgba(255,255,255,0.8)" style={{ marginLeft: 4 }} />
         </Pressable>

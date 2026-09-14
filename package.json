@@ -43,6 +43,7 @@
     "react-native-web": "^0.21.2"
   },
   "devDependencies": {
+    "@playwright/test": "1.55",
     "@types/jest": "^30.0.0",
     "@types/react": "~19.2.2",
     "jest-expo": "~57.0.5",
@@ -55,7 +56,9 @@
     "web": "expo start --web",
     "export:web": "expo export --platform web",
     "typecheck": "tsc --noEmit",
-    "test": "jest"
+    "test": "jest",
+    "e2e:build": "EXPO_PUBLIC_SUPABASE_URL=https://e2e.supabase.local EXPO_PUBLIC_SUPABASE_ANON_KEY=e2e-anon EXPO_PUBLIC_API_URL=https://e2e.api.local npx expo export --clear --platform web --output-dir dist-e2e",
+    "e2e": "playwright test -c e2e/playwright.config.ts"
   },
   "private": true,
   "jest": {

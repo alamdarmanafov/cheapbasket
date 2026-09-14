@@ -9,7 +9,7 @@ import { ProductRowSkeleton } from '@/components/states';
 import { TopBar } from '@/components/TopBar';
 import { BannerSlider } from '@/components/BannerSlider';
 import { PlusTag } from '@/components/PlusLock';
-import { Product, catalogCategories, categoryEmoji, cheapest, nearestBranch, searchProducts } from '@/data/products';
+import { Product, catalogCategories, categoryEmoji, cheapest, coverage, nearestBranch, searchProducts } from '@/data/products';
 import { categoryLabel } from '@/data/categoryNames';
 import { HelpFillCard } from '@/components/HelpFillCard';
 import { PulseCard } from '@/components/PulseCard';
@@ -46,7 +46,8 @@ export default function Home() {
     for (const c of categories.slice(0, 8)) {
       let best: { product: Product; price: number } | null = null;
       for (const p of cat.products) {
-        if (p.category !== c) continue;
+        // "Cheapest" means something only against other stores.
+        if (p.category !== c || coverage(p) < 2) continue;
         const price = cheapest(p).price;
         if (price != null && (best == null || price < best.price)) best = { product: p, price };
       }
