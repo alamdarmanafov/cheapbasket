@@ -12,6 +12,8 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/store/auth';
 import { useT } from '@/lib/i18n';
 import { useRefresh } from '@/lib/useRefresh';
+import { badgeProgress, useMyStats } from '@/lib/badges';
+import { ChallengeCard } from '@/components/ChallengeCard';
 
 interface Suggestion { id: string; name: string; brand: string; barcode: string | null; suggested_at: string | null }
 interface Report { id: string; product_id: string; store_id: string | null; reason: string; price: number | null; resolved: boolean; outcome: string | null; points: number; created_at: string; products: { name: string; brand: string } | null }
@@ -33,9 +35,11 @@ export default function Contributions() {
   const [reports, setReports] = useState<Report[]>([]);
   const [accepted, setAccepted] = useState<Ledger[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const { stats, reload: reloadStats } = useMyStats(auth.user?.id);
 
   const load = useCallback(async () => {
     if (!supabase || !auth.user) return;
+    reloadStats().catch(() => undefined);
     const [{ data: p }, { data: r }, { data: l }] = await Promise.all([
       supabase.from('pending_products').select('id, name, brand, barcode, suggested_at').eq('suggested_by', auth.user.id).order('suggested_at', { ascending: false }).limit(50),
       supabase.from('price_reports').select('id, product_id, store_id, reason, price, resolved, outcome, points, created_at, products(name, brand)').order('created_at', { ascending: false }).limit(50),
@@ -45,10 +49,12 @@ export default function Contributions() {
     setReports((r ?? []) as unknown as Report[]);
     setAccepted((l ?? []) as Ledger[]);
     setLoaded(true);
-  }, [auth.user]);
+  }, [auth.user, reloadStats]);
   useEffect(() => {
     load();
   }, [load]);
+  const badges = badgeProgress(stats);
+  const earned = badges.filter((b) => b.earned).length;
   const refresh = useRefresh(load);
 
   if (!auth.user) {
@@ -67,13 +73,35 @@ export default function Contributions() {
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScreenHeader title={t('contrib.title')} />
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: insets.bottom + space.xxl }} refreshControl={refresh.control}>
+        <ChallengeCard />
+
+        {/* Badges: the ladder in full, earned ones lit, the next step under
+            each unlit one so it reads as a goal rather than a gap. */}
+        <Row style={{ justifyContent: 'space-between', marginTop: space.lg, marginBottom: space.sm }}>
+          <Txt v="bodyStrong">{t('badge.title')}</Txt>
+          <Txt v="caption" color={colors.gray}>{t('badge.count', { n: earned, total: badges.length })}</Txt>
+        </Row>
+        <View style={styles.grid} testID="badge-grid">
+          {badges.map((b) => (
+            <View key={b.id} style={[styles.badge, !b.earned && styles.badgeOff]}>
+              <Txt style={{ fontSize: 26, lineHeight: 32, opacity: b.earned ? 1 : 0.35 }}>{b.emoji}</Txt>
+              <Txt v="captionStrong" center numberOfLines={2} style={{ fontSize: 11, marginTop: 2, color: b.earned ? colors.dark : colors.gray }}>
+                {t(`badge.${b.id}` as never)}
+              </Txt>
+              <Txt v="caption" center color={b.earned ? colors.success : colors.grayLight} style={{ fontSize: 10 }}>
+                {b.earned ? t('badge.earned') : `${Math.min(b.have, b.at)}/${b.at}`}
+              </Txt>
+            </View>
+          ))}
+        </View>
+
         {empty && (
           <StateView emoji="✨" title={t('contrib.emptyTitle')} body={t('contrib.emptyBody')} cta={t('home.scanBarcode')} onCta={() => router.push('/scan')} />
         )}
 
         {(pending.length > 0 || accepted.length > 0) && (
           <>
-            <Txt v="bodyStrong" style={{ marginBottom: space.sm }}>{t('contrib.suggestions')}</Txt>
+            <Txt v="bodyStrong" style={{ marginTop: space.lg, marginBottom: space.sm }}>{t('contrib.suggestions')}</Txt>
             <Card style={{ padding: space.xs }}>
               {accepted.map((l, i) => (
                 <React.Fragment key={`a${i}`}>
@@ -147,4 +175,7 @@ export default function Contributions() {
 
 const styles = StyleSheet.create({
   row: { paddingVertical: 10, paddingHorizontal: space.sm, borderRadius: radius.md },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  badge: { width: '23%', flexGrow: 1, backgroundColor: colors.white, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, paddingVertical: 10, paddingHorizontal: 4, alignItems: 'center' },
+  badgeOff: { backgroundColor: colors.fill, borderColor: colors.fill },
 });

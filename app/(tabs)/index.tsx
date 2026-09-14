@@ -14,6 +14,7 @@ import { categoryLabel } from '@/data/categoryNames';
 import { HelpFillCard } from '@/components/HelpFillCard';
 import { PulseCard } from '@/components/PulseCard';
 import { RepeatCard } from '@/components/RepeatCard';
+import { ChallengeCard } from '@/components/ChallengeCard';
 import { useCatalog } from '@/store/catalog';
 import { useAuth } from '@/store/auth';
 import { supabase } from '@/lib/supabase';
@@ -195,6 +196,7 @@ export default function Home() {
 
         {/* Fill the gaps first, then the week's pulse: a comparison needs the
             prices before it can move. */}
+        {!q.trim() && <ChallengeCard />}
         {!q.trim() && <RepeatCard />}
         {!q.trim() && <HelpFillCard />}
         {!q.trim() && <PulseCard />}
