@@ -2,6 +2,13 @@ export type Lang = 'az' | 'en';
 
 export const PRICING = { plusMonthly: '1.99 $', plusYearly: '9.99 $' };
 
+// Derived once from PRICING so the savings % and the monthly-equivalent of
+// the annual price never drift out of sync with the prices above.
+const plusMonthlyNum = parseFloat(PRICING.plusMonthly);
+const plusYearlyNum = parseFloat(PRICING.plusYearly);
+export const PLUS_YEARLY_SAVINGS_PERCENT = Math.round((1 - plusYearlyNum / (plusMonthlyNum * 12)) * 100);
+const plusMonthlyAnnualized = `${(plusMonthlyNum * 12).toFixed(2)} $`;
+
 export const LINKS = {
   appStore: '#download',
   googlePlay: '#download',
@@ -51,8 +58,13 @@ const az = {
     freeItems: ['1 aktiv səbət + 1 yadda saxlanılan siyahı', 'Bütün səbət üçün qiymət müqayisəsi', 'Ən sərfəli market və ən yaxın filial', 'Xəritə, iş saatları və marşrut', 'Barkod skanı ilə məhsul tapma'],
     freeCta: 'Pulsuz başla',
     plus: 'PLUS',
+    billingToggleLabel: 'Ödəmə dövrü',
+    billingMonthly: 'Aylıq',
+    billingYearly: 'İllik',
     plusPer: '/ ay',
-    plusYearly: `və ya ${PRICING.plusYearly} / il`,
+    plusPerYear: '/ il',
+    plusYearlyNote: `və ya ${PRICING.plusYearly} / il — ${PLUS_YEARLY_SAVINGS_PERCENT}% qənaət`,
+    plusMonthlyNote: `aylıq ödəsən ${plusMonthlyAnnualized}/il olardı — ${PLUS_YEARLY_SAVINGS_PERCENT}% qənaət edirsən`,
     plusItems: ['Limitsiz səbət və siyahı', 'Hər səhər AI endirim xəbəri', 'Qiymət düşən kimi dərhal bildiriş', 'Tapılmayan məhsula əvəzedici təklif', 'Qənaət statistikası və alış-veriş tarixçəsi', 'AI köməkçisi: büdcəyə görə səbət'],
     plusCta: 'Plus-a keç',
     popular: 'ƏN POPULYAR',
@@ -128,8 +140,13 @@ const en: typeof az = {
     freeItems: ['1 active basket + 1 saved list', 'Whole-basket price comparison', 'Cheapest store and nearest branch', 'Map, opening hours and directions', 'Find a product by scanning its barcode'],
     freeCta: 'Start free',
     plus: 'PLUS',
+    billingToggleLabel: 'Billing period',
+    billingMonthly: 'Monthly',
+    billingYearly: 'Yearly',
     plusPer: '/ month',
-    plusYearly: `or ${PRICING.plusYearly} / year`,
+    plusPerYear: '/ year',
+    plusYearlyNote: `or ${PRICING.plusYearly} / year — save ${PLUS_YEARLY_SAVINGS_PERCENT}%`,
+    plusMonthlyNote: `paying monthly would be ${plusMonthlyAnnualized}/year — you save ${PLUS_YEARLY_SAVINGS_PERCENT}%`,
     plusItems: ['Unlimited baskets and lists', 'AI deal digest every morning', 'Instant alert when a price drops', 'Substitutes for missing products', 'Savings statistics and trip history', 'AI assistant: a basket for your budget'],
     plusCta: 'Go Plus',
     popular: 'MOST POPULAR',
