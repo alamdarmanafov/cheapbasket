@@ -16,6 +16,7 @@ import { notify } from '@/lib/confirm';
 import { track } from '@/lib/track';
 import { useAuth } from '@/store/auth';
 import { useCatalog } from '@/store/catalog';
+import { useReceiptsEnabled } from '@/lib/features';
 
 interface Line { product_id: string | null; product_name: string | null; name: string; price: number; qty: number; keep: boolean }
 interface Read { store_id: string | null; store_name: string | null; total: number | null; items: Omit<Line, 'keep'>[]; remaining: number }
@@ -30,6 +31,7 @@ interface Read { store_id: string | null; store_name: string | null; total: numb
  */
 export default function Receipt() {
   const t = useT();
+  const receiptsOn = useReceiptsEnabled();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const auth = useAuth();
@@ -92,6 +94,15 @@ export default function Receipt() {
   };
 
   const matched = lines.filter((l) => l.product_id).length;
+
+  if (!receiptsOn) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.bg }}>
+        <ScreenHeader title={t('receipt.title')} />
+        <StateView emoji="🔒" title={t('receipt.offTitle')} body={t('receipt.offBody')} cta={t('common.close')} onCta={() => router.back()} />
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>

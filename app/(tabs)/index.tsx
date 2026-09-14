@@ -11,6 +11,8 @@ import { BannerSlider } from '@/components/BannerSlider';
 import { PlusTag } from '@/components/PlusLock';
 import { Product, catalogCategories, categoryEmoji, cheapest, nearestBranch, searchProducts } from '@/data/products';
 import { categoryLabel } from '@/data/categoryNames';
+import { HelpFillCard } from '@/components/HelpFillCard';
+import { PulseCard } from '@/components/PulseCard';
 import { useCatalog } from '@/store/catalog';
 import { useAuth } from '@/store/auth';
 import { supabase } from '@/lib/supabase';
@@ -188,6 +190,11 @@ export default function Home() {
             </ScrollView>
           </>
         )}
+
+        {/* Fill the gaps first, then the week's pulse: a comparison needs the
+            prices before it can move. */}
+        {!q.trim() && <HelpFillCard />}
+        {!q.trim() && <PulseCard />}
 
         {/* Categories (from the live catalog) */}
         {categories.length > 0 && (

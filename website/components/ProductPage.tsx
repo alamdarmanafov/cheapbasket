@@ -22,7 +22,7 @@ const COPY = {
 
 /**
  * The page a shared product link lands on. Reads straight from the public
- * view with the anon key — the same data the app shows — and offers the deep
+ * function with the anon key — the same data the app shows — and offers the deep
  * link, which the app answers when installed.
  */
 export function ProductPage() {
@@ -35,12 +35,15 @@ export function ProductPage() {
 
   useEffect(() => {
     if (!id || !SUPABASE_URL || !SUPABASE_KEY) { setRow(null); return; }
-    const h = { apikey: SUPABASE_KEY, authorization: `Bearer ${SUPABASE_KEY}` };
-    Promise.all([
-      fetch(`${SUPABASE_URL}/rest/v1/product_prices?id=eq.${encodeURIComponent(id)}&select=id,name,brand,size,image_url,prices`, { headers: h }).then((r) => r.json()),
-      fetch(`${SUPABASE_URL}/rest/v1/stores?select=id,name,color,logo_url`, { headers: h }).then((r) => r.json()),
-    ])
-      .then(([p, s]) => { setRow(Array.isArray(p) && p[0] ? (p[0] as Row) : null); setStores(Array.isArray(s) ? (s as Store[]) : []); })
+    // The catalogue tables answer only signed-in sessions; a shared link reads
+    // its one product through public_product(), which is bounded to one row.
+    fetch(`${SUPABASE_URL}/rest/v1/rpc/public_product`, {
+      method: 'POST',
+      headers: { apikey: SUPABASE_KEY, authorization: `Bearer ${SUPABASE_KEY}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ p_id: id }),
+    })
+      .then((r) => r.json())
+      .then((j: { product?: Row | null; stores?: Store[] } | null) => { setRow(j?.product ?? null); setStores(Array.isArray(j?.stores) ? j.stores : []); })
       .catch(() => setRow(null));
   }, [id]);
 

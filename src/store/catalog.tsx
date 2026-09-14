@@ -177,6 +177,12 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, scheduleRefresh)
       .subscribe();
 
+    // 1b) The catalogue answers only a signed-in session (0041): a launch
+    //     without one gets nothing, so the moment of sign-in reloads it.
+    const { data: authSub } = db.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') scheduleRefresh();
+    });
+
     // 2) Coming back to the app refreshes too (covers devices without a live socket).
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') scheduleRefresh();
@@ -187,6 +193,7 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       db.removeChannel(channel);
+      authSub.subscription.unsubscribe();
       sub.remove();
       clearInterval(interval);
       if (refreshTimer.current) clearTimeout(refreshTimer.current);
