@@ -8,7 +8,7 @@ import { COOKIE, verifySession } from '@/lib/server';
  */
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  if (pathname.startsWith('/login') || pathname.startsWith('/api/auth') || pathname.startsWith('/api/iap') || pathname.startsWith('/api/cron') || pathname.startsWith('/api/ai') || pathname.startsWith('/api/account') || pathname === '/icon.png') return NextResponse.next();
+  if (pathname.startsWith('/login') || pathname.startsWith('/api/auth') || pathname.startsWith('/api/iap') || pathname.startsWith('/api/cron') || pathname.startsWith('/api/ai') || pathname.startsWith('/api/account') || pathname.startsWith('/partner/') || pathname.startsWith('/api/partner') || pathname === '/icon.png') return NextResponse.next();
   const ok = await verifySession(req.cookies.get(COOKIE)?.value);
   if (ok) return NextResponse.next();
   if (pathname.startsWith('/api/')) return NextResponse.json({ error: 'Giriş tələb olunur' }, { status: 401 });

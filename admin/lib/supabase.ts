@@ -42,6 +42,8 @@ export interface Store {
   open_from?: string | null; open_until?: string | null; always_open?: boolean;
   /** Site search with {q} for the words, read by the finder when the store has no feed. */
   search_url?: string | null;
+  /** Secret in the store's own upload link (/partner/<token>); null = no link issued. */
+  partner_token?: string | null;
 }
 
 /** Announcement popup shown over the app (campaigns, release notes). */

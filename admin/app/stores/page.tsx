@@ -47,7 +47,7 @@ export default function Stores() {
     <Shell title="Marketlər">
       {msg && <div className={`alert ${msg.startsWith('Yükləmə xətası') || msg.includes('error') ? 'err' : 'ok'}`}>{msg}</div>}
       <table>
-        <thead><tr><th>ID</th><th>Ad</th><th>Rəng</th><th>Qısaltma</th><th>Logo URL</th><th>Sayt axtarışı ({'{q}'} = sözlər)</th><th>İş saatı</th><th></th></tr></thead>
+        <thead><tr><th>ID</th><th>Ad</th><th>Rəng</th><th>Qısaltma</th><th>Logo URL</th><th>Sayt axtarışı ({'{q}'} = sözlər)</th><th>İş saatı</th><th>Partnyor linki</th><th></th></tr></thead>
         <tbody>
           {rows.map((s) => (
             <tr key={s.id}>
@@ -81,6 +81,17 @@ export default function Stores() {
                   value={s}
                   onChange={(patch) => setRows(rows.map((r) => (r.id === s.id ? { ...r, ...patch } : r)))}
                 />
+              </td>
+              <td style={{ whiteSpace: 'nowrap', fontSize: 12 }}>
+                {/* The store's own upload link. A new token cancels the old link. */}
+                {s.partner_token ? (
+                  <>
+                    <button className="btn ghost" title="Linki kopyala" onClick={() => { navigator.clipboard?.writeText(`${window.location.origin}/partner/${s.partner_token}`); setMsg(`${s.name} üçün partnyor linki kopyalandı`); }}>Kopyala</button>{' '}
+                    <button className="btn ghost" title="Linki ləğv et" onClick={async () => { if (!confirm(`${s.name} üçün partnyor linki ləğv edilsin?`)) return; await db.upsert('stores', [{ ...s, partner_token: null }], 'id'); load(); }}>Ləğv</button>
+                  </>
+                ) : (
+                  <button className="btn ghost" onClick={async () => { const token = Array.from(crypto.getRandomValues(new Uint8Array(18)), (b) => b.toString(16).padStart(2, '0')).join(''); await db.upsert('stores', [{ ...s, partner_token: token }], 'id'); load(); }}>Link yarat</button>
+                )}
               </td>
               <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                 <button className="btn secondary" onClick={() => save(s)}>Saxla</button>{' '}
