@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { adminDb, errText, requireAdmin } from '@/lib/server';
 
+// A whole-table read still walks its pages in one call when a caller asks for
+// `fetchAll`; give it room, the UI's own paging (`range`) stays well under.
+export const maxDuration = 60;
+
 // Every table the admin UI may reach through this gateway. A page whose table is
 // missing here fails with "Cədvəl icazəli deyil" on read *and* write, so add the
 // table in the same change that adds the page.
@@ -11,7 +15,7 @@ const TABLES = new Set([
 ]);
 
 type Op =
-  | { op: 'select'; table: string; columns?: string; order?: string; eq?: Record<string, unknown>; limit?: number; fetchAll?: boolean }
+  | { op: 'select'; table: string; columns?: string; order?: string; eq?: Record<string, unknown>; limit?: number; fetchAll?: boolean; range?: [number, number] }
   | { op: 'count'; table: string; eq?: Record<string, unknown> }
   | { op: 'upsert'; table: string; rows: Record<string, unknown>[]; onConflict?: string }
   | { op: 'delete'; table: string; eq: Record<string, unknown> }
@@ -20,6 +24,10 @@ type Op =
 // Database functions the UI may call by name. Each one is service-role only
 // in SQL, so this list is the whole of what the admin cookie unlocks.
 const FUNCTIONS = new Set(['merge_products']);
+
+// Paging needs a fixed order or two pages can overlap; the key column is the
+// one order every table has. `id` unless the table spells it differently.
+const KEY: Record<string, string> = { prices: 'product_id', profiles: 'user_id', push_tokens: 'token', promo_codes: 'code', admin_users: 'email' };
 
 /** Tiny data gateway for the admin UI: cookie-protected, whitelisted tables, service role on the server. */
 export async function POST(req: Request) {
@@ -53,6 +61,15 @@ export async function POST(req: Request) {
           offset += PAGE;
         }
         return NextResponse.json({ data: all });
+      }
+      // One page of a table: the UI asks for the next one itself.
+      if (body.range) {
+        const [from, to] = body.range;
+        let q = buildQ();
+        if (!body.order) q = q.order(KEY[body.table] ?? 'id');
+        const { data, error } = await q.range(Math.max(0, from), Math.min(to, from + 999));
+        if (error) throw error;
+        return NextResponse.json({ data });
       }
       const q = buildQ();
       const { data, error } = await (body.limit ? q.limit(body.limit) : q);

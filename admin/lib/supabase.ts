@@ -9,9 +9,26 @@ async function call<T>(body: unknown): Promise<T> {
   return j as T;
 }
 
+const PAGE = 1000;
+
 export const db = {
-  select: <T = any>(table: string, o: { columns?: string; order?: string; eq?: Record<string, unknown>; limit?: number; fetchAll?: boolean } = {}) =>
-    call<{ data: T[] }>({ op: 'select', table, ...o }).then((r) => r.data),
+  /**
+   * `fetchAll` pages from here, one request per thousand rows, so no single
+   * serverless call has to walk the whole table: with the catalogue past a
+   * few thousand products the old server-side loop ran over Vercel's function
+   * limit and the page saw a Gateway Timeout instead of the list.
+   */
+  select: async <T = any>(table: string, o: { columns?: string; order?: string; eq?: Record<string, unknown>; limit?: number; fetchAll?: boolean } = {}): Promise<T[]> => {
+    if (!o.fetchAll) return call<{ data: T[] }>({ op: 'select', table, ...o }).then((r) => r.data);
+    const { fetchAll: _all, limit: _limit, ...rest } = o;
+    const out: T[] = [];
+    for (let from = 0; ; from += PAGE) {
+      const { data } = await call<{ data: T[] }>({ op: 'select', table, ...rest, range: [from, from + PAGE - 1] });
+      out.push(...(data ?? []));
+      if (!data || data.length < PAGE) break;
+    }
+    return out;
+  },
   count: (table: string, eq?: Record<string, unknown>) => call<{ count: number }>({ op: 'count', table, eq }).then((r) => r.count),
   upsert: (table: string, rows: Record<string, unknown>[], onConflict?: string) => call<{ ok: true }>({ op: 'upsert', table, rows, onConflict }),
   delete: (table: string, eq: Record<string, unknown>) => call<{ ok: true }>({ op: 'delete', table, eq }),
