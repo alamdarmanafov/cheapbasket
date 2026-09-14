@@ -61,7 +61,7 @@ export default function Nearby() {
         </ScrollView>
 
         {list.length === 0 ? (
-          <StateView emoji="🏪" title={t('nearby.noBranch')} body={openOnly ? t('nearby.noneOpen') : t('nearby.noneForStore')} />
+          <StateView emoji="🏪" title={t('nearby.noBranch')} body={openOnly ? t('nearby.noneOpen') : t('nearby.noneForStore')} cta={t('addBranch.cta')} onCta={() => router.push('/add-branch')} />
         ) : (
           <Card style={{ paddingVertical: space.xs }}>
             {list.map((b, i) => (

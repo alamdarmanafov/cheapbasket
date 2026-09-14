@@ -3,7 +3,9 @@ import { useEffect, useState } from 'react';
 import { normalizeGtin } from '@/lib/gtin';
 import { CheckCircle, CheckCheck, Copy, Trash2, X } from 'lucide-react';
 import { Shell } from '@/components/Shell';
-import { useCategories } from '@/lib/supabase';
+import { Store, db, useCategories } from '@/lib/supabase';
+
+interface BranchSug { id: string; user_id: string; store_id: string | null; store_name: string | null; name: string | null; address: string | null; lat: number; lng: number; note: string | null; created_at: string; stores: { name: string } | null }
 
 interface PendingProduct {
   id: string;
@@ -80,6 +82,9 @@ export default function PendingPage() {
   const [dupMerging, setDupMerging] = useState(false);
   const [dupProgress, setDupProgress] = useState<{ done: number; total: number } | null>(null);
 
+  const [branchSugs, setBranchSugs] = useState<BranchSug[]>([]);
+  const [stores, setStores] = useState<Store[]>([]);
+  const [sugStore, setSugStore] = useState<Record<string, string>>({});
   const load = async () => {
     setLoading(true);
     try {
@@ -87,6 +92,8 @@ export default function PendingPage() {
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`);
       setItems(j.data ?? []);
+      setBranchSugs(j.branches ?? []);
+      db.select<Store>('stores', { order: 'name' }).then(setStores).catch(() => undefined);
     } catch (e) {
       setMsg({ ok: false, text: (e as Error).message });
     } finally {
@@ -209,12 +216,60 @@ export default function PendingPage() {
     setMsg({ ok: !errors.length, text: errors.length ? `${totalDeleted} silindi, xəta: ${errors[0]}` : `${totalDeleted} dublikat silindi` });
   };
 
+  const decideBranch = async (sug: BranchSug, approve: boolean) => {
+    setBusy(sug.id);
+    try {
+      const store_id = sugStore[sug.id] ?? sug.store_id ?? '';
+      const r = await api(approve ? { op: 'approve_branch', id: sug.id, store_id: store_id || undefined, store_name: sug.store_name ?? undefined } : { op: 'reject_branch', id: sug.id });
+      setBranchSugs((prev) => prev.filter((x) => x.id !== sug.id));
+      setMsg({ ok: true, text: approve ? `Filial əlavə olundu (${r.branch_id})${r.points ? `, +${r.points} xal` : ''}` : 'Rədd edildi' });
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error).message });
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const count = items.length;
   const title = count > 0 ? `Təsdiq növbəsi (${count})` : 'Təsdiq növbəsi';
 
   return (
     <Shell title={title}>
       {msg && <div className={`alert ${msg.ok ? 'ok' : 'err'}`}>{msg.text}</div>}
+      {branchSugs.length > 0 && (
+        <div className="card">
+          <h2 style={{ marginTop: 0 }}>Filial təklifləri ({branchSugs.length})</h2>
+          <p className="muted" style={{ fontSize: 12 }}>İstifadəçi olduğu yerdən "burada market var" deyib. Qəbul: filial (yeni şəbəkədirsə market da) yaranır, təklif edənə xal gedir.</p>
+          <table>
+            <thead><tr><th>Market</th><th>Filial / ünvan</th><th>Yer</th><th>Qeyd</th><th>Vaxt</th><th></th></tr></thead>
+            <tbody>
+              {branchSugs.map((sg) => (
+                <tr key={sg.id}>
+                  <td>
+                    {sg.store_id ? (sg.stores?.name ?? sg.store_id) : (
+                      <span>
+                        <span className="pill orange">yeni: {sg.store_name}</span>{' '}
+                        <select value={sugStore[sg.id] ?? ''} onChange={(e) => setSugStore({ ...sugStore, [sg.id]: e.target.value })} title="Mövcud şəbəkəyə bağla, ya da boş qoy: yeni market yaranır">
+                          <option value="">— yeni market yaransın —</option>
+                          {stores.map((st) => <option key={st.id} value={st.id}>{st.name}</option>)}
+                        </select>
+                      </span>
+                    )}
+                  </td>
+                  <td>{sg.name ? <b>{sg.name}</b> : null}{sg.name && sg.address ? ' · ' : ''}{sg.address ?? ''}</td>
+                  <td><a href={`https://maps.google.com/?q=${sg.lat},${sg.lng}`} target="_blank" rel="noreferrer">{Number(sg.lat).toFixed(5)}, {Number(sg.lng).toFixed(5)}</a></td>
+                  <td className="muted" style={{ fontSize: 12 }}>{sg.note ?? ''}</td>
+                  <td className="muted" style={{ fontSize: 12 }}>{new Date(sg.created_at).toLocaleString('az-AZ')}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    <button className="btn" style={{ marginRight: 6 }} disabled={busy === sg.id} onClick={() => decideBranch(sg, true)}>Qəbul</button>
+                    <button className="btn secondary" disabled={busy === sg.id} onClick={() => decideBranch(sg, false)}>Rədd</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
           <p className="muted" style={{ margin: 0 }}>

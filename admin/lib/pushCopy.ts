@@ -30,6 +30,8 @@ const C = {
     askTitle: (store: string) => `${store}-da neçəyədir? 🏷️`,
     askBody: (name: string, pts: number) => `${name} — qiyməti bilirsənsə yaz, +${pts} xal.`,
     askAnswered: (name: string, store: string) => `${name}: ${store} üçün cavab gəldi, təsdiq gözləyir.`,
+    branchTitle: (pts: number) => pts > 0 ? `Filial əlavə olundu 🏪 +${pts} xal` : 'Filial əlavə olundu 🏪',
+    branchBody: (name: string) => `${name} artıq xəritədədir. Təşəkkürlər!`,
     aiLang: 'Azərbaycan dilində',
   },
   en: {
@@ -49,6 +51,8 @@ const C = {
     askTitle: (store: string) => `How much is it at ${store}? 🏷️`,
     askBody: (name: string, pts: number) => `${name} — if you know the price, write it in, +${pts} points.`,
     askAnswered: (name: string, store: string) => `${name}: an answer for ${store} came in, awaiting review.`,
+    branchTitle: (pts: number) => pts > 0 ? `Branch added 🏪 +${pts} points` : 'Branch added 🏪',
+    branchBody: (name: string) => `${name} is on the map now. Thank you!`,
     aiLang: 'in English',
   },
   tr: {
@@ -68,6 +72,8 @@ const C = {
     askTitle: (store: string) => `${store}'da kaç para? 🏷️`,
     askBody: (name: string, pts: number) => `${name} — fiyatı biliyorsan yaz, +${pts} puan.`,
     askAnswered: (name: string, store: string) => `${name}: ${store} için cevap geldi, onay bekliyor.`,
+    branchTitle: (pts: number) => pts > 0 ? `Şube eklendi 🏪 +${pts} puan` : 'Şube eklendi 🏪',
+    branchBody: (name: string) => `${name} artık haritada. Teşekkürler!`,
     aiLang: 'Türkçe',
   },
   ru: {
@@ -87,6 +93,8 @@ const C = {
     askTitle: (store: string) => `Сколько стоит в ${store}? 🏷️`,
     askBody: (name: string, pts: number) => `${name} — если знаете цену, впишите, +${pts} баллов.`,
     askAnswered: (name: string, store: string) => `${name}: пришёл ответ для ${store}, ждёт проверки.`,
+    branchTitle: (pts: number) => pts > 0 ? `Филиал добавлен 🏪 +${pts} баллов` : 'Филиал добавлен 🏪',
+    branchBody: (name: string) => `${name} теперь на карте. Спасибо!`,
     aiLang: 'на русском языке',
   },
 } as const;
