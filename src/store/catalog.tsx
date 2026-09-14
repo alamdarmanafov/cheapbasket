@@ -4,7 +4,7 @@ import * as Location from 'expo-location';
 import { Product, Branch, Banner, Store, LatLng, DEFAULT_LOCATION, catalog, withDistances, withStoreHours } from '@/data/products';
 import { fetchBanners, fetchBranches, fetchCategories, fetchProducts, fetchStores } from '@/lib/catalog';
 import { tr } from '@/lib/i18n';
-import { hasSupabase, supabase } from '@/lib/supabase';
+import { hasSupabase, supabase, ensureSession } from '@/lib/supabase';
 import { cacheCatalog, readCatalogCache } from '@/lib/cache';
 import { notify } from '@/lib/confirm';
 
@@ -43,6 +43,8 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
     if (!hasSupabase) return;
     setLoading(true);
     setError(null);
+    // The catalogue answers only a session (0041); the first launch has none yet.
+    await ensureSession();
 
     // Each source lands on screen as it arrives instead of everything waiting on
     // the slowest. The home screen needs the stores, the banner and the

@@ -6,7 +6,7 @@ import * as Linking from 'expo-linking';
 import * as Crypto from 'expo-crypto';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase, hasSupabase } from '@/lib/supabase';
+import { supabase, hasSupabase, ensureSession } from '@/lib/supabase';
 import { PlanId } from '@/data/plans';
 import { tr, useI18n } from '@/lib/i18n';
 import { checkRewards, REWARDS_SEEN_KEY } from '@/lib/rewards';
@@ -72,9 +72,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { lang } = useI18n();
   useEffect(() => {
     const uid = session?.user.id;
-    if (!supabase || !uid) return;
+    // An anonymous session (the one the catalogue reads with) has no profile.
+    if (!supabase || !uid || session?.user.is_anonymous) return;
     supabase.from('profiles').upsert({ user_id: uid, lang }).then(() => undefined, () => undefined);
-  }, [lang, session?.user.id]);
+  }, [lang, session?.user.id, session?.user.is_anonymous]);
 
   const loadProfile = useCallback(async (userId: string | undefined, opts: { rewards?: boolean } = {}) => {
     if (!supabase || !userId) {
@@ -109,7 +110,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       points: Number((data as { points?: number }).points ?? 0),
       referralCode: code,
     });
-    if (data.blocked) await supabase.auth.signOut();
+    if (data.blocked) {
+      await supabase.auth.signOut();
+      await ensureSession();
+    }
   }, []);
 
   useEffect(() => {
@@ -118,13 +122,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!supabase) return;
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      loadProfile(data.session?.user.id).finally(() => setLoading(false));
-    });
+    // No session at all means an anonymous one first (0041): the catalogue
+    // will not answer without it. A real account's session is left alone.
+    const client = supabase;
+    ensureSession()
+      .then(() => client.auth.getSession())
+      .then(({ data }) => {
+        setSession(data.session);
+        loadProfile(data.session?.user.is_anonymous ? undefined : data.session?.user.id).finally(() => setLoading(false));
+      });
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
-      loadProfile(s?.user.id);
+      loadProfile(s?.user.is_anonymous ? undefined : s?.user.id);
     });
     return () => sub.subscription.unsubscribe();
   }, [loadProfile]);
@@ -199,7 +208,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       enabled: hasSupabase,
       loading,
       session,
-      user: session?.user ?? null,
+      // The anonymous session exists for the catalogue, not for the person: it is nobody signed in.
+      user: session?.user && !session.user.is_anonymous ? session.user : null,
       profile,
       async signUpEmail(email, password, name) {
         if (!supabase) return { error: tr('err.noSupabase') };
@@ -230,6 +240,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await AsyncStorage.removeItem(REWARDS_SEEN_KEY).catch(() => undefined);
         await supabase?.auth.signOut();
         setProfile(null);
+        // Signed out is not sessionless: the catalogue still has to load.
+        await ensureSession();
       },
       async deleteAccount() {
         if (!supabase) return { error: tr('err.noSupabase') };
@@ -244,6 +256,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (!res.ok) return { error: body?.error ?? `Server xətası (${res.status})` };
           await supabase.auth.signOut();
           setProfile(null);
+          await ensureSession();
           return {};
         } catch (e) {
           return { error: msg(e) };
