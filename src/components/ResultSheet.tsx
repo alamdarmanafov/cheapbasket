@@ -78,7 +78,7 @@ export function ResultSheet({ visible, onClose, onShowMap, onGoToStore, onShop, 
             </Txt>
           </View>
         ) : (
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: space.lg }}>
+          <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: space.lg }}>
             {/* Best store header */}
             <View style={{ alignItems: 'center', marginBottom: space.lg }}>
               <View style={[styles.icon, { backgroundColor: colors.successSoft }]}>
