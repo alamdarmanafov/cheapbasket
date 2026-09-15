@@ -127,6 +127,11 @@ export default function ImportPage() {
   // One column per store, for a file shaped like the prices export
   // ("Ad, Barkod, Araz, Bravo, OBA"): store id → column index.
   const [csvStoreCols, setCsvStoreCols] = useState<Record<string, string>>({});
+  // Just the catalogue — barcode, name, brand, category — with no price at
+  // all: for a list that names what exists without saying what it costs
+  // (a certification database, a manufacturer's catalogue). Prices get
+  // written later the ordinary way, one store at a time.
+  const [csvProductsOnly, setCsvProductsOnly] = useState(false);
   const [csvMsg, setCsvMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [csvBusy, setCsvBusy] = useState(false);
 
@@ -489,20 +494,25 @@ export default function ImportPage() {
   const csvMultiStores = stores.filter((st) => csvStoreCols[st.id]);
 
   const importCSV = async () => {
-    const multi = csvMultiStores.length > 0;
-    if (!multi && !csvStoreId) { setCsvMsg({ ok: false, text: 'Market seçin.' }); return; }
+    // "Yalnız məhsul" always wins: a catalogue file with no prices in it is
+    // not asking to be matched against any one market's column layout.
+    const csvOnly = csvProductsOnly;
+    const multi = !csvOnly && csvMultiStores.length > 0;
+    if (!csvOnly && !multi && !csvStoreId) { setCsvMsg({ ok: false, text: 'Market seçin.' }); return; }
     // Name the target store(s) before writing. A wrong pick is only visible after the fact.
     const csvStoreName = stores.find((s) => s.id === csvStoreId)?.name ?? csvStoreId;
-    const ask = multi
+    const ask = csvOnly
+      ? `${csvRows.length} sətirdən yeni məhsullar əlavə olunacaq — ad, barkod, brend, kateqoriya. Qiymət yazılmayacaq. Davam edilsin?`
+      : multi
       ? `${csvRows.length} sətir, ${csvMultiStores.length} market sütunu: ${csvMultiStores.map((st) => st.name).join(', ')}.\n\nHər sütundakı qiymət öz marketinə yazılır; boş xana toxunulmur. Davam edilsin?`
       : `${csvRows.length} sətir "${csvStoreName}" marketinə yazılacaq.\n\nQiymətlər başqa markete deyil, məhz bu markete əlavə olunur. Davam edilsin?`;
     if (!confirm(ask)) return;
     if (!csvMapping.name && !csvMapping.barcode) { setCsvMsg({ ok: false, text: '"Ad" və ya "Barkod" sütunu seçilməlidir.' }); return; }
-    if (!multi && !csvMapping.price) { setCsvMsg({ ok: false, text: '"Qiymət" sütunu seçilməlidir (və ya market adlı sütunlar).' }); return; }
+    if (!csvOnly && !multi && !csvMapping.price) { setCsvMsg({ ok: false, text: '"Qiymət" sütunu seçilməlidir (və ya market adlı sütunlar, ya da "Yalnız məhsul" seç).' }); return; }
     setCsvBusy(true);
     setCsvMsg(null);
     try {
-      const targetStores = multi ? csvMultiStores.map((st) => st.id) : [csvStoreId];
+      const targetStores = csvOnly ? [] : multi ? csvMultiStores.map((st) => st.id) : [csvStoreId];
       const [fresh, ...priceLists] = await Promise.all([
         db.select<Product>('products', { columns: 'id, barcode, name, brand, size, category, image_url', fetchAll: true }),
         ...targetStores.map((sid) =>
@@ -526,8 +536,8 @@ export default function ImportPage() {
         const brand = getCsvField(row, 'brand');
         const size = getCsvField(row, 'size') || '—';
         const category = getCsvField(row, 'category') || catNames[0] || 'Qida';
-        const priceRaw = multi ? '' : getCsvField(row, 'price');
-        const discountRaw = multi ? '' : getCsvField(row, 'discount_price');
+        const priceRaw = multi || csvOnly ? '' : getCsvField(row, 'price');
+        const discountRaw = multi || csvOnly ? '' : getCsvField(row, 'discount_price');
         if (!name && !barcode) continue;
         const parseNum = (s: string) => { const n = Number(s.replace(/[^\d.,]/g, '').replace(',', '.')); return isNaN(n) || n === 0 ? null : n; };
         let price = priceRaw ? parseNum(priceRaw) : null;
@@ -574,7 +584,12 @@ export default function ImportPage() {
       const perStoreCount = multi
         ? csvMultiStores.map((st) => `${st.name} ${uniquePrices.filter((r) => r.store_id === st.id).length}`).join(', ')
         : storeName;
-      setCsvMsg({ ok: true, text: `${uniquePrices.length} qiymət, ${uniqueProducts.length} yeni məhsul → ${perStoreCount}${unchanged ? `. ${unchanged} qiymət dəyişməyib — toxunulmadı` : ''}.` });
+      setCsvMsg({
+        ok: true,
+        text: csvOnly
+          ? `${uniqueProducts.length} yeni məhsul əlavə olundu (qiymətsiz). Qiymətləri sonra bu səhifədən və ya "Market tapşırıqları"ndan yazmaq olar.`
+          : `${uniquePrices.length} qiymət, ${uniqueProducts.length} yeni məhsul → ${perStoreCount}${unchanged ? `. ${unchanged} qiymət dəyişməyib — toxunulmadı` : ''}.`,
+      });
     } catch (e) {
       setCsvMsg({ ok: false, text: (e as Error).message });
     } finally {
@@ -724,19 +739,23 @@ export default function ImportPage() {
               <input type="file" accept=".csv,.xlsx,.xls" multiple onChange={(e) => { if (e.target.files?.length) handleCSVFiles(e.target.files); }} />
               {csvFiles.length > 1 && <span className="muted" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>{csvFiles.length} fayl seçilib</span>}
             </div>
-            <div>
+            <div style={{ opacity: csvProductsOnly ? 0.4 : 1 }}>
               <label style={{ marginBottom: 6, display: 'block', fontWeight: 600 }}>Market</label>
-              <select value={csvStoreId} onChange={(e) => setCsvStoreId(e.target.value)}>
+              <select value={csvStoreId} onChange={(e) => setCsvStoreId(e.target.value)} disabled={csvProductsOnly}>
                 {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
+            <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, whiteSpace: 'nowrap', alignSelf: 'flex-end', height: 38 }}>
+              <input type="checkbox" checked={csvProductsOnly} onChange={(e) => setCsvProductsOnly(e.target.checked)} style={{ width: 'auto' }} /> Yalnız məhsullar (qiymətsiz)
+            </label>
           </div>
 
           <div className="note" style={{ marginBottom: 14 }}>
             <b>CSV formatı:</b> <code>barkod,ad,brend,ölçü,kateqoriya,qiymət,endirim_qiyməti</code><br />
             Vergül (<code>,</code>) və ya nöqtəli vergül (<code>;</code>) ayırıcı kimi istifadə oluna bilər. Birinci sətir başlıq olmalıdır.<br />
             <b>Excel (.xlsx / .xls):</b> Birbaşa Excel faylını seçin — SheetJS ilə birinci vərəq avtomatik oxunur.<br />
-            <b>Bir neçə market bir faylda:</b> "Qiymətlər" səhifəsinin CSV ixracı kimi — <code>Ad,Barkod,Araz,Bravo,OBA</code>. Market adlı sütun həmin marketin qiymətidir; boş xana toxunulmur. İxracı Excel-də düzəldib olduğu kimi geri yükləmək olar.
+            <b>Bir neçə market bir faylda:</b> "Qiymətlər" səhifəsinin CSV ixracı kimi — <code>Ad,Barkod,Araz,Bravo,OBA</code>. Market adlı sütun həmin marketin qiymətidir; boş xana toxunulmur. İxracı Excel-də düzəldib olduğu kimi geri yükləmək olar.<br />
+            <b>Yalnız məhsullar:</b> qiymət heç yerdə yoxdursa (bir sertifikat bazası, istehsalçı kataloqu və s.) "Yalnız məhsullar" işarəsini seç — market və qiymət sütunları nəzərə alınmır, yalnız barkod/ad/brend/kateqoriya ilə yeni məhsul yaranır, qiymət boş qalır. Sonra hər market üçün ayrıca yazmaq olar.
           </div>
 
           {csvHeaders.length > 0 && (
@@ -795,7 +814,7 @@ export default function ImportPage() {
               </div>
 
               <button className="btn" disabled={csvBusy || !csvRows.length} onClick={importCSV}>
-                <Upload size={14} /> {csvBusy ? 'İmport olunur…' : `Import et (${csvRows.length} sətir → ${csvMultiStores.length ? csvMultiStores.map((st) => st.name).join(', ') : stores.find((s) => s.id === csvStoreId)?.name ?? ''})`}
+                <Upload size={14} /> {csvBusy ? 'İmport olunur…' : `Import et (${csvRows.length} sətir → ${csvProductsOnly ? 'yalnız məhsul, qiymətsiz' : csvMultiStores.length ? csvMultiStores.map((st) => st.name).join(', ') : stores.find((s) => s.id === csvStoreId)?.name ?? ''})`}
               </button>
             </>
           )}
