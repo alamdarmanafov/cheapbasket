@@ -27,14 +27,19 @@ type RowDef = { key: Key; icon: keyof typeof Ionicons.glyphMap; value?: string; 
 // links to /stores when it has hidden ones, and both home and the basket
 // screen open /lists — so a duplicate row here was just more to scroll
 // past. Currency never did anything (Cheap Market only prices in AZN).
+// Ordered the way Halalzur's own profile menu reads: what you use the app
+// for first (here: contributing/tasks/receipts), then notifications, then
+// settings (language/theme), then the social/support/legal tail — same
+// shape as their history → favorites → … → language → appearance → …
+// → feedback flow, ending in sign-out/delete either way.
 const ROWS: RowDef[] = [
-  { key: 'profile.rowNotifications', icon: 'notifications-outline', route: '/notifications' },
   { key: 'profile.rowReceipt', icon: 'receipt-outline', route: '/receipt' },
   { key: 'profile.rowContrib', icon: 'hand-left-outline', route: '/contributions' },
   { key: 'profile.rowTasks', icon: 'clipboard-outline', route: '/tasks' },
-  { key: 'profile.rowReferral', icon: 'gift-outline', route: '/referral' },
+  { key: 'profile.rowNotifications', icon: 'notifications-outline', route: '/notifications' },
   { key: 'profile.rowLanguage', icon: 'language-outline', action: 'language' },
   { key: 'profile.rowTheme', icon: 'moon-outline', action: 'theme' },
+  { key: 'profile.rowReferral', icon: 'gift-outline', route: '/referral' },
   { key: 'profile.rowSupport', icon: 'chatbubble-ellipses-outline', route: '/feedback' },
   { key: 'profile.rowRate', icon: 'star-outline', action: 'rate' },
   // The documents the sign-in screen names; reviewers look for them in-app.
