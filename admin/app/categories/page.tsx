@@ -22,7 +22,7 @@ export default function Categories() {
   };
   useEffect(() => { load(); }, []);
 
-  const save = async (c: Category, oldName?: string) => {
+  const save = async (c: Category, oldName?: string): Promise<boolean> => {
     const err = await db.upsert('categories', [{ ...c }], 'id').then(() => null, (e: Error) => e.message);
     if (!err && oldName && oldName !== c.name && counts[oldName]) {
       // rename: move products to the new name
@@ -33,12 +33,24 @@ export default function Categories() {
     }
     setMsg({ ok: !err, text: err ?? `${c.name} yadda saxlanıldı` });
     load();
+    return !err;
   };
   const add = async () => {
     const name = draft.name.trim();
     if (!name) return;
-    await save({ id: slugify(name) || `cat-${Date.now()}`, name, emoji: draft.emoji.trim() || null, sort: rows.length, names: {} });
-    setDraft({ name: '', emoji: '' });
+    const id = slugify(name) || `cat-${Date.now()}`;
+    // "Şirniyyat" and "Sirniyyat" fold to the same id once accents are
+    // stripped; an id clash used to upsert quietly into the existing row
+    // instead of creating a new one — "əlavə et" said "saved" and nothing
+    // new showed up. A name clash hits the table's unique constraint the
+    // same way. Catch both here with a clear reason instead of either.
+    const dupe = rows.find((r) => r.id === id || r.name.trim().toLowerCase() === name.toLowerCase());
+    if (dupe) {
+      setMsg({ ok: false, text: `"${dupe.name}" artıq var — fərqli ad seç, ya da onu redaktə et.` });
+      return;
+    }
+    const ok = await save({ id, name, emoji: draft.emoji.trim() || null, sort: rows.length, names: {} });
+    if (ok) setDraft({ name: '', emoji: '' });
   };
   const remove = async (c: Category) => {
     const n = counts[c.name] ?? 0;
