@@ -7,6 +7,7 @@ import { Category, Product, db, slugify } from '@/lib/supabase';
 export default function Categories() {
   const [rows, setRows] = useState<Category[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [noPrice, setNoPrice] = useState<Record<string, number>>({});
   const [draft, setDraft] = useState({ name: '', emoji: '', en: '', tr: '', ru: '' });
   const [mergeTarget, setMergeTarget] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -32,10 +33,22 @@ export default function Categories() {
     return c;
   };
   const loadCounts = async () => {
-    const p = await db.select<Product>('products', { columns: 'id, category', fetchAll: true }).catch((e: Error) => { setMsg({ ok: false, text: e.message }); return [] as Product[]; });
+    const [p, pr] = await Promise.all([
+      db.select<Product>('products', { columns: 'id, category', fetchAll: true }),
+      // Just enough to know which products have *any* real price anywhere —
+      // this is what tells a batch import (Halalzur's 5155 price-less
+      // products, say) apart from the catalogue's already-priced bulk.
+      db.select<{ product_id: string; price: number | null; discount_price: number | null }>('prices', { columns: 'product_id, price, discount_price', fetchAll: true }),
+    ]).catch((e: Error) => { setMsg({ ok: false, text: e.message }); return [[], []] as [Product[], { product_id: string; price: number | null; discount_price: number | null }[]]; });
+    const priced = new Set(pr.filter((r) => r.price != null || r.discount_price != null).map((r) => r.product_id));
     const n: Record<string, number> = {};
-    p.forEach((x) => { n[x.category] = (n[x.category] ?? 0) + 1; });
+    const np: Record<string, number> = {};
+    p.forEach((x) => {
+      n[x.category] = (n[x.category] ?? 0) + 1;
+      if (!priced.has(x.id)) np[x.category] = (np[x.category] ?? 0) + 1;
+    });
     setCounts(n);
+    setNoPrice(np);
   };
   useEffect(() => {
     loadCategories();
@@ -108,6 +121,8 @@ export default function Categories() {
       .filter(([name, n]) => n > 0 && !known.has(name))
       .sort((a, b) => b[1] - a[1]);
   }, [rows, counts]);
+  const unmatchedTotal = useMemo(() => unmatched.reduce((a, [, n]) => a + n, 0), [unmatched]);
+  const unmatchedNoPrice = useMemo(() => unmatched.reduce((a, [name]) => a + (noPrice[name] ?? 0), 0), [unmatched, noPrice]);
 
   const promoteUnmatched = async (name: string) => {
     const id = slugify(name) || `cat-${Date.now()}`;
@@ -152,14 +167,16 @@ export default function Categories() {
           <p style={{ fontWeight: 600, marginTop: 0 }}>Uyğunsuz kateqoriyalar ({unmatched.length})</p>
           <p className="note" style={{ marginTop: 0 }}>
             İmportdan (məs. Halalzur) gələn məhsullarda bu adlar var, amma yuxarıdakı siyahıda yoxdur — ona görə tətbiqdə çip/emoji görünmür. Hər birini ya yeni kateqoriya kimi əlavə et, ya da mövcud birinə köçür.
+            {' '}Bu {unmatched.length} kateqoriyada cəmi <strong>{unmatchedTotal}</strong> məhsul var, onlardan <strong>{unmatchedNoPrice}</strong>-də ({unmatchedTotal ? Math.round((unmatchedNoPrice / unmatchedTotal) * 100) : 0}%) heç bir marketdə qiymət yoxdur — "Avtomatik yeniləmə" səhifəsindəki sync bunları barkod/ada görə uyğunlaşdırıb qiymət tapdıqca faiz düşəcək.
           </p>
           <table>
-            <thead><tr><th>Ad</th><th>Məhsul sayı</th><th></th></tr></thead>
+            <thead><tr><th>Ad</th><th>Məhsul sayı</th><th>Qiymətsiz</th><th></th></tr></thead>
             <tbody>
               {unmatched.map(([name, n]) => (
                 <tr key={name}>
                   <td>{name}</td>
                   <td className="muted">{n}</td>
+                  <td className="muted">{noPrice[name] ?? 0} ({Math.round(((noPrice[name] ?? 0) / n) * 100)}%)</td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <select
                       value={mergeTarget[name] ?? ''}
@@ -179,7 +196,7 @@ export default function Categories() {
         </div>
       )}
       <table>
-        <thead><tr><th>Sıra</th><th>Emoji</th><th>Ad</th><th>EN</th><th>TR</th><th>RU</th><th>Məhsul sayı</th><th></th></tr></thead>
+        <thead><tr><th>Sıra</th><th>Emoji</th><th>Ad</th><th>EN</th><th>TR</th><th>RU</th><th>Məhsul sayı</th><th>Qiymətsiz</th><th></th></tr></thead>
         <tbody>
           {rows.map((c, i) => (
             <tr key={c.id}>
@@ -221,10 +238,11 @@ export default function Categories() {
                 </td>
               ))}
               <td className="muted">{counts[c.name] ?? 0}</td>
+              <td className="muted">{(counts[c.name] ?? 0) > 0 ? `${noPrice[c.name] ?? 0} (${Math.round(((noPrice[c.name] ?? 0) / (counts[c.name] ?? 1)) * 100)}%)` : '—'}</td>
               <td style={{ textAlign: 'right' }}><button className="btn ghost" onClick={() => remove(c)}><Trash2 size={14} /></button></td>
             </tr>
           ))}
-          {rows.length === 0 && <tr><td colSpan={8} className="muted" style={{ textAlign: 'center', padding: 30 }}>Kateqoriya yoxdur. Yuxarıdan əlavə et və ya "Wolt-dan import" səhifəsində "Kateqoriyaları götür" düyməsini bas.</td></tr>}
+          {rows.length === 0 && <tr><td colSpan={9} className="muted" style={{ textAlign: 'center', padding: 30 }}>Kateqoriya yoxdur. Yuxarıdan əlavə et və ya "Wolt-dan import" səhifəsində "Kateqoriyaları götür" düyməsini bas.</td></tr>}
         </tbody>
       </table>
       <p className="note">Tətbiqdə ana səhifə və axtarışdakı kateqoriya çipləri bu sıra ilə göstərilir (yalnız məhsulu olan kateqoriyalar). Adı dəyişəndə həmin kateqoriyadakı məhsullar avtomatik yeni ada keçir. EN/TR/RU sütunları tətbiqi o dildə oxuyana göstərilən addır; boş qalsa tətbiqdəki daxili cədvəl, o da yoxdursa Azərbaycan adı görünür.</p>
