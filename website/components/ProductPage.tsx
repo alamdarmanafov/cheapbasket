@@ -64,8 +64,34 @@ export function ProductPage({ id: idProp, seed }: { id?: string; seed?: Seed } =
     : [];
   const deepLink = `cheapbasket://product/${encodeURIComponent(id)}`;
 
+  // Rendered once the row (and, ideally, its prices) have loaded — Google
+  // executes page JS before reading structured data, so this reaches the
+  // index even though the price list itself is fetched client-side.
+  const productSchema = row
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'Product',
+        name: [row.brand, row.name, row.size].filter(Boolean).join(' ').trim(),
+        ...(row.brand ? { brand: { '@type': 'Brand', name: row.brand } } : {}),
+        ...(row.image_url ? { image: row.image_url } : {}),
+        ...(priced.length > 0
+          ? {
+              offers: {
+                '@type': 'AggregateOffer',
+                priceCurrency: 'AZN',
+                lowPrice: priced[0].price,
+                highPrice: priced[priced.length - 1].price,
+                offerCount: priced.length,
+                availability: 'https://schema.org/InStock',
+              },
+            }
+          : {}),
+      }
+    : null;
+
   return (
     <main>
+      {productSchema && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }} />}
       <header className="nav"><div className="container nav-inner"><Logo /></div></header>
       <section className="container" style={{ maxWidth: 560, padding: '32px 20px 64px' }}>
         {row === undefined ? (
