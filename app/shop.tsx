@@ -19,6 +19,7 @@ import { recordTrip } from '@/lib/trips';
 import { noteTripForReview } from '@/lib/review';
 import { receiptsEnabled } from '@/lib/features';
 import { recordPurchases } from '@/lib/purchases';
+import { optimize } from '@/lib/optimizer';
 
 /**
  * The basket as a checklist to walk the aisles with.
@@ -77,9 +78,15 @@ export default function Shop() {
     const p = priceOf(id);
     return sum + (l && p != null ? p * l.qty : 0);
   }, 0);
-  const rank = o.ranked.find((r) => r.store.id === storeId);
-  const subsetTotal = lines.reduce((sum, l) => sum + (l.product.prices[storeId] ?? 0) * l.qty, 0);
-  const expected = isSubset ? subsetTotal : (rank?.total ?? 0);
+  // A split plan sends only half the basket here: the full-basket ranking
+  // in `o` would compare stores on lines this trip never touches (buying the
+  // Bravo half at Araz "saves" nothing real, but a full-basket comparison
+  // said otherwise). Re-ranking on just `lines`, over the same store set `o`
+  // already considered, scopes the total and the saving to this trip.
+  const storeUniverse = useMemo(() => o.ranked.map((r) => r.store), [o.ranked]);
+  const shopOpt = useMemo(() => optimize(lines, storeUniverse), [lines, storeUniverse]);
+  const rank = shopOpt.ranked.find((r) => r.store.id === storeId);
+  const expected = rank?.total ?? 0;
 
   const finish = async () => {
     if (!auth.user) {
@@ -88,7 +95,7 @@ export default function Shop() {
     }
     setBusy(true);
     const total = ticked.size ? tickedTotal : expected;
-    const saving = rank && o.best ? (rank.store.id === o.best.store.id ? o.saving : Math.max(0, (o.worst?.total ?? rank.total) - rank.total)) : 0;
+    const saving = rank && shopOpt.best ? (rank.store.id === shopOpt.best.store.id ? shopOpt.saving : Math.max(0, (shopOpt.worst?.total ?? rank.total) - rank.total)) : 0;
     const r = await recordTrip({ storeId, branchId: branch?.id ?? null, total, saving, items: ticked.size || lines.length });
     setBusy(false);
     if (r.error) return notify(t('common.error'), r.error);
