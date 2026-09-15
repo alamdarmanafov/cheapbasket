@@ -27,6 +27,11 @@ const az = {
     h1c: ' tap.',
     p: 'Almaq istədiyin məhsulları səbətə əlavə et. Cheap Market AI qiymətləri müqayisə etsin və sənə ən sərfəli marketi göstərsin.',
   },
+  compare: {
+    h2: 'Fərqi hiss et',
+    before: { tag: 'ƏVVƏL', text: 'Hər dəfə hər marketi ayrı-ayrı yoxlayırdın və çox vaxt bahasına alırdın.' },
+    after: { tag: 'İNDİ', text: 'Cheap Market AI bütün marketləri anında müqayisə edir — sən həmişə ən sərfəli qiymətə bazarlıq edirsən.' },
+  },
   how: {
     h2: 'Necə işləyir?',
     sub: '3 sadə addımda daha ağıllı alış-veriş et.',
@@ -108,6 +113,11 @@ const en: typeof az = {
     h1b: 'cheapest supermarket',
     h1c: ' before you go.',
     p: 'Add what you need to your basket. Cheap Market AI compares prices across supermarkets and tells you where the whole basket costs least.',
+  },
+  compare: {
+    h2: 'Feel the difference',
+    before: { tag: 'BEFORE', text: 'You checked every store yourself and often paid more than you had to.' },
+    after: { tag: 'NOW', text: 'Cheap Market AI compares every store instantly — you always shop at the best price.' },
   },
   how: {
     h2: 'How it works',

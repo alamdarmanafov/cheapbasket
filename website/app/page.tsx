@@ -61,6 +61,24 @@ export default function Page() {
         </div>
       </section>
 
+      {/* Compare */}
+      <section className="compare">
+        <div className="container">
+          <h2>{t.compare.h2}</h2>
+          <div className="compare-cards">
+            <div className="compare-card before">
+              <span className="compare-tag">{t.compare.before.tag}</span>
+              <p>{t.compare.before.text}</p>
+            </div>
+            <ArrowRight className="compare-arrow" aria-hidden="true" />
+            <div className="compare-card after">
+              <span className="compare-tag">{t.compare.after.tag}</span>
+              <p>{t.compare.after.text}</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* How it works */}
       <section className="how" id="how">
         <div className="container">
