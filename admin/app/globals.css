@@ -9,11 +9,14 @@ h2{font-size:18px;margin:0 0 12px}
 .sidebar{background:#fff;border-right:1px solid #ECECEE;padding:20px 14px;display:flex;flex-direction:column;gap:20px;position:sticky;top:0;height:100vh}
 .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:14px;padding:0 6px}
 .brand small{display:block;font-size:11px;color:#E53935;font-weight:700}
-.sidebar nav{display:flex;flex-direction:column;gap:4px}
+.sidebar nav{display:flex;flex-direction:column;gap:4px;overflow-y:auto;flex:1 1 auto;min-height:0}
 .sidebar nav a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;font-weight:500;color:#444}
 .sidebar nav a:hover{background:#F1F1F3}
 .sidebar nav a.active{background:#FDECEC;color:#E53935;font-weight:600}
-.sidebar-foot{margin-top:auto;display:flex;flex-direction:column;gap:8px;padding:0 6px}
+.nav-group-toggle{display:flex;align-items:center;justify-content:space-between;width:100%;padding:10px 12px;margin-top:6px;border:none;background:none;font:inherit;font-weight:700;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:#9CA3AF;cursor:pointer;border-radius:10px}
+.nav-group-toggle:hover{background:#F1F1F3;color:#6B7280}
+.nav-group-items{display:flex;flex-direction:column;gap:2px}
+.sidebar-foot{margin-top:auto;flex:none;display:flex;flex-direction:column;gap:8px;padding:0 6px}
 .content{padding:28px 32px;max-width:1200px}
 .card{background:#fff;border:1px solid #ECECEE;border-radius:16px;padding:20px}
 .grid{display:grid;gap:16px}
