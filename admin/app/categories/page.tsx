@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import { Shell } from '@/components/Shell';
 import { Category, Product, db, slugify } from '@/lib/supabase';
@@ -9,30 +9,55 @@ export default function Categories() {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [draft, setDraft] = useState({ name: '', emoji: '', en: '', tr: '', ru: '' });
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // The name each row had in the database as of the last load/save, kept
+  // outside React state so it survives every keystroke without re-render
+  // churn. `save()` needs this to know whether a name actually *changed*
+  // (and so whether products need moving to the new name) — `rows` alone
+  // can't answer that once the input has already been typed into, because
+  // by then the state holds the new text too.
+  const savedNames = useRef<Record<string, string>>({});
 
-  const load = async () => {
-    const [c, p] = await Promise.all([
-      db.select<Category>('categories', { order: 'sort' }),
-      db.select<Product>('products', { columns: 'id, category', fetchAll: true }),
-    ]).catch((e: Error) => { setMsg({ ok: false, text: e.message }); return [[], []] as [Category[], Product[]]; });
+  // Split so an edit's own save doesn't have to re-download every product
+  // just to redraw a count that didn't change. Blurring one field used to
+  // re-fetch the whole `products` table (paged, but still a lot once the
+  // catalogue is a few thousand rows) before the row could re-render —
+  // slow, and one flaky page of that fetch turned an emoji edit into
+  // "Failed to fetch" at the top of the screen.
+  const loadCategories = async (): Promise<Category[]> => {
+    const c = await db.select<Category>('categories', { order: 'sort' }).catch((e: Error) => { setMsg({ ok: false, text: e.message }); return [] as Category[]; });
     setRows(c);
+    savedNames.current = Object.fromEntries(c.map((x) => [x.id, x.name]));
+    return c;
+  };
+  const loadCounts = async () => {
+    const p = await db.select<Product>('products', { columns: 'id, category', fetchAll: true }).catch((e: Error) => { setMsg({ ok: false, text: e.message }); return [] as Product[]; });
     const n: Record<string, number> = {};
     p.forEach((x) => { n[x.category] = (n[x.category] ?? 0) + 1; });
     setCounts(n);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    loadCategories();
+    loadCounts();
+  }, []);
 
   const save = async (c: Category, oldName?: string): Promise<boolean> => {
     const err = await db.upsert('categories', [{ ...c }], 'id').then(() => null, (e: Error) => e.message);
+    let movedProducts = false;
     if (!err && oldName && oldName !== c.name && counts[oldName]) {
       // rename: move products to the new name
+      movedProducts = true;
       const prods = await db.select<Product>('products', { eq: { category: oldName }, fetchAll: true }).catch(() => [] as Product[]);
       const seen = new Set<string>();
       const uniq = prods.filter((p) => (seen.has(p.id) ? false : (seen.add(p.id), true)));
       if (uniq.length) await db.upsert('products', uniq.map((p) => ({ ...p, category: c.name })), 'id').catch((e: Error) => setMsg({ ok: false, text: e.message }));
     }
     setMsg({ ok: !err, text: err ?? `${c.name} yadda saxlanıldı` });
-    load();
+    await loadCategories();
+    // Only a rename touches how many products sit under which name — every
+    // other edit (emoji, a translation, reordering) leaves counts exactly
+    // as they were, so there is nothing here worth re-fetching the whole
+    // products table for.
+    if (movedProducts) await loadCounts();
     return !err;
   };
   const add = async () => {
@@ -58,13 +83,13 @@ export default function Categories() {
     if (!confirm(n ? `${c.name} silinsin? ${n} məhsul bu kateqoriyada qalır (adı dəyişmir), sonra "Məhsullar"da dəyişərsən.` : `${c.name} silinsin?`)) return;
     const err = await db.delete('categories', { id: c.id }).then(() => null, (e: Error) => e.message);
     setMsg({ ok: !err, text: err ?? 'Silindi' });
-    load();
+    loadCategories();
   };
   const move = async (i: number, dir: -1 | 1) => {
     const j = i + dir;
     if (j < 0 || j >= rows.length) return;
     await db.upsert('categories', [{ ...rows[i], sort: j }, { ...rows[j], sort: i }], 'id').catch((e: Error) => setMsg({ ok: false, text: e.message }));
-    load();
+    loadCategories();
   };
 
   return (
@@ -90,7 +115,23 @@ export default function Categories() {
                 <button className="btn ghost" onClick={() => move(i, 1)} disabled={i === rows.length - 1}><ArrowDown size={14} /></button>
               </td>
               <td><input value={c.emoji ?? ''} placeholder="🛒" style={{ width: 56, textAlign: 'center' }} onChange={(e) => setRows(rows.map((r) => (r.id === c.id ? { ...r, emoji: e.target.value } : r)))} onBlur={() => save(rows.find((r) => r.id === c.id) ?? c)} /></td>
-              <td><input value={c.name} style={{ width: 260, textAlign: 'left' }} onChange={(e) => setRows(rows.map((r) => (r.id === c.id ? { ...r, name: e.target.value } : r)))} onBlur={(e) => { const cur = rows.find((r) => r.id === c.id) ?? c; if (cur.name.trim() && cur.name !== c.name) save({ ...cur, name: cur.name.trim() }, c.name); else if (cur.name.trim() !== e.target.value) save(cur); }} /></td>
+              <td>
+                <input
+                  value={c.name}
+                  style={{ width: 260, textAlign: 'left' }}
+                  onChange={(e) => setRows(rows.map((r) => (r.id === c.id ? { ...r, name: e.target.value } : r)))}
+                  onBlur={() => {
+                    // Always save on blur — the field's own live value is
+                    // the only copy of "did this change" left by now, and
+                    // `save()` itself already no-ops the product-move step
+                    // when the trimmed name matches what was on file.
+                    const cur = rows.find((r) => r.id === c.id) ?? c;
+                    const name = cur.name.trim();
+                    if (!name) return; // never write a blank name over a real one
+                    save({ ...cur, name }, savedNames.current[c.id]);
+                  }}
+                />
+              </td>
               {(['en', 'tr', 'ru'] as const).map((l) => (
                 <td key={l}>
                   <input
@@ -101,7 +142,7 @@ export default function Categories() {
                     onBlur={() => {
                       const cur = rows.find((r) => r.id === c.id) ?? c;
                       const names = Object.fromEntries(Object.entries(cur.names ?? {}).map(([k, v]) => [k, (v ?? '').trim()]).filter(([, v]) => v));
-                      if (JSON.stringify(names) !== JSON.stringify(Object.fromEntries(Object.entries(c.names ?? {}).filter(([, v]) => v)))) save({ ...cur, names });
+                      save({ ...cur, names });
                     }}
                   />
                 </td>
