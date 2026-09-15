@@ -21,21 +21,25 @@ import { LANGS, useI18n, type Key } from '@/lib/i18n';
 import { ThemeMode, useTheme } from '@/lib/theme';
 import { useReceiptsEnabled } from '@/lib/features';
 
-type RowDef = { key: Key; icon: keyof typeof Ionicons.glyphMap; value?: string; route?: string; href?: string; plus?: boolean; action?: 'location' | 'rate' | 'language' | 'theme'; info?: boolean };
+type RowDef = { key: Key; icon: keyof typeof Ionicons.glyphMap; value?: string; route?: string; href?: string; plus?: boolean; action?: 'rate' | 'language' | 'theme'; info?: boolean };
+// Account, location, lists and stores are already one tap away — the
+// profile header card opens /account, the Markets tab handles location and
+// links to /stores when it has hidden ones, and both home and the basket
+// screen open /lists — so a duplicate row here was just more to scroll
+// past. Currency never did anything (Cheap Market only prices in AZN).
+// Ordered the way Halalzur's own profile menu reads: what you use the app
+// for first (here: contributing/tasks/receipts), then notifications, then
+// settings (language/theme), then the social/support/legal tail — same
+// shape as their history → favorites → … → language → appearance → …
+// → feedback flow, ending in sign-out/delete either way.
 const ROWS: RowDef[] = [
-  { key: 'profile.rowAccount', icon: 'person-outline', route: '/account' },
-  { key: 'profile.rowLocation', icon: 'location-outline', action: 'location' },
-  { key: 'profile.rowNotifications', icon: 'notifications-outline', route: '/notifications' },
-  { key: 'profile.rowLists', icon: 'list-outline', route: '/lists' },
-  { key: 'profile.rowStores', icon: 'storefront-outline', route: '/stores' },
   { key: 'profile.rowReceipt', icon: 'receipt-outline', route: '/receipt' },
   { key: 'profile.rowContrib', icon: 'hand-left-outline', route: '/contributions' },
   { key: 'profile.rowTasks', icon: 'clipboard-outline', route: '/tasks' },
-  { key: 'profile.rowReferral', icon: 'gift-outline', route: '/referral' },
-  { key: 'profile.rowSavings', icon: 'trending-up-outline', route: '/savings', plus: true },
+  { key: 'profile.rowNotifications', icon: 'notifications-outline', route: '/notifications' },
   { key: 'profile.rowLanguage', icon: 'language-outline', action: 'language' },
   { key: 'profile.rowTheme', icon: 'moon-outline', action: 'theme' },
-  { key: 'profile.rowCurrency', icon: 'cash-outline', value: '₼ AZN', info: true },
+  { key: 'profile.rowReferral', icon: 'gift-outline', route: '/referral' },
   { key: 'profile.rowSupport', icon: 'chatbubble-ellipses-outline', route: '/feedback' },
   { key: 'profile.rowRate', icon: 'star-outline', action: 'rate' },
   // The documents the sign-in screen names; reviewers look for them in-app.
@@ -94,7 +98,6 @@ export default function Profile() {
   const onRow = async (r: RowDef) => {
     if (r.route) return router.push(r.route as never);
     if (r.href) return Linking.openURL(r.href).catch(() => undefined);
-    if (r.action === 'location') return cat.requestLocation({ interactive: true });
     if (r.action === 'language') return setLangOpen(true);
     if (r.action === 'theme') return setThemeOpen(true);
     if (r.action === 'rate') {
@@ -117,7 +120,6 @@ export default function Profile() {
   };
 
   const rowValue = (r: RowDef) => {
-    if (r.action === 'location') return cat.place ?? t(cat.locationGranted === false ? 'profile.locationOff' : 'profile.locationOn');
     if (r.action === 'language') return LANGS.find((l) => l.id === lang)?.label;
     if (r.action === 'theme') return t(THEMES.find((x) => x.id === theme.mode)?.key ?? 'theme.system');
     // The code is issued with the account, so the row can show it outright —
