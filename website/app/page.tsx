@@ -63,18 +63,27 @@ export default function Page() {
 
       {/* Compare */}
       <section className="compare">
-        <div className="container">
-          <h2>{t.compare.h2}</h2>
-          <div className="compare-cards">
-            <div className="compare-card before">
-              <span className="compare-tag">{t.compare.before.tag}</span>
-              <p>{t.compare.before.text}</p>
+        <div className="container compare-grid">
+          <div className="compare-visual" aria-hidden="true">
+            <div className="compare-phone">
+              <img src="/screens/04-ai-result.png" alt="" />
             </div>
-            <ArrowRight className="compare-arrow" aria-hidden="true" />
-            <div className="compare-card after">
-              <span className="compare-tag">{t.compare.after.tag}</span>
-              <p>{t.compare.after.text}</p>
+          </div>
+          <div className="compare-copy">
+            <h2>{t.compare.h2}</h2>
+            <p>{t.compare.sub}</p>
+            <div className="compare-stats">
+              <div className="compare-stat before">
+                <span className="compare-tag">{t.compare.beforeLabel}</span>
+                <div className="compare-amount">{t.compare.beforePrice}</div>
+              </div>
+              <ArrowRight className="compare-arrow" aria-hidden="true" />
+              <div className="compare-stat after">
+                <span className="compare-tag">{t.compare.afterLabel}</span>
+                <div className="compare-amount">{t.compare.afterPrice}</div>
+              </div>
             </div>
+            <div className="compare-save">{t.compare.saveBadge}</div>
           </div>
         </div>
       </section>

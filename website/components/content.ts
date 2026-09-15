@@ -29,8 +29,12 @@ const az = {
   },
   compare: {
     h2: 'Fərqi hiss et',
-    before: { tag: 'ƏVVƏL', text: 'Hər dəfə hər marketi ayrı-ayrı yoxlayırdın və çox vaxt bahasına alırdın.' },
-    after: { tag: 'İNDİ', text: 'Cheap Market AI bütün marketləri anında müqayisə edir — sən həmişə ən sərfəli qiymətə bazarlıq edirsən.' },
+    sub: 'Eyni səbət, fərqli marketlər — sən həmişə ən ucuzuna gedirsən.',
+    beforeLabel: 'Ən bahalı seçim',
+    beforePrice: '50.80 ₼',
+    afterLabel: 'Cheap Market ilə',
+    afterPrice: '47.89 ₼',
+    saveBadge: '2.91 ₼ (6%) qənaət',
   },
   how: {
     h2: 'Necə işləyir?',
@@ -116,8 +120,12 @@ const en: typeof az = {
   },
   compare: {
     h2: 'Feel the difference',
-    before: { tag: 'BEFORE', text: 'You checked every store yourself and often paid more than you had to.' },
-    after: { tag: 'NOW', text: 'Cheap Market AI compares every store instantly — you always shop at the best price.' },
+    sub: 'Same basket, different stores — you always end up at the cheapest one.',
+    beforeLabel: 'Most expensive pick',
+    beforePrice: '₼50.80',
+    afterLabel: 'With Cheap Market',
+    afterPrice: '₼47.89',
+    saveBadge: 'Save ₼2.91 (6%)',
   },
   how: {
     h2: 'How it works',
