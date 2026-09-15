@@ -226,6 +226,15 @@ export default function Products() {
   useEffect(() => { load(); }, []);
 
   const brands = useMemo(() => [...new Set(products.map((p) => p.brand).filter(Boolean))].sort(), [products]);
+  // Imports write whatever category string sat in the source data straight
+  // onto the product — a string with no matching `categories` row never
+  // shows up in the filter above, so those products were only findable by
+  // scrolling the whole unfiltered list. List them separately so they stay
+  // reachable here, not just from the Kateqoriyalar page's own review panel.
+  const unknownCatNames = useMemo(() => {
+    const known = new Set(catNames);
+    return [...new Set(products.map((p) => p.category).filter((c): c is string => !!c && !known.has(c)))].sort();
+  }, [products, catNames]);
 
   const hasPriceAt = useCallback((pid: string, sid: string) => num(prices[pid]?.[sid]?.price ?? '') != null, [prices]);
 
@@ -542,6 +551,11 @@ export default function Products() {
         <select value={cat} onChange={(e) => setCat(e.target.value)}>
           <option value="">Bütün kateqoriyalar</option>
           {catNames.map((c) => <option key={c}>{c}</option>)}
+          {unknownCatNames.length > 0 && (
+            <optgroup label="Naməlum (Kateqoriyalar siyahısında yoxdur)">
+              {unknownCatNames.map((c) => <option key={c}>{c}</option>)}
+            </optgroup>
+          )}
         </select>
         <button className="btn secondary" onClick={exportXlsx} disabled={!filtered.length} title="Süzgəcdən keçən məhsulları Excel-ə yaz">
           <Download size={14} /> Excel-ə çıxar
