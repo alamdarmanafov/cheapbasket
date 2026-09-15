@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import { Shell } from '@/components/Shell';
 import { Category, Product, db, slugify } from '@/lib/supabase';
@@ -8,6 +8,8 @@ export default function Categories() {
   const [rows, setRows] = useState<Category[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [draft, setDraft] = useState({ name: '', emoji: '', en: '', tr: '', ru: '' });
+  const [mergeTarget, setMergeTarget] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   // The name each row had in the database as of the last load/save, kept
   // outside React state so it survives every keystroke without re-render
@@ -92,6 +94,46 @@ export default function Categories() {
     loadCategories();
   };
 
+  // Imports (Halalzur, CSV, Wolt) write whatever string sat in the source
+  // data straight into `products.category` — that string only shows up as a
+  // real category (with an emoji, a place in the app's chip row) once a
+  // `categories` row with the same name exists. Anything in `counts` that
+  // has no matching row here is one of those orphaned strings; surface them
+  // so they can be promoted to a real category or folded into one that
+  // already covers the same thing, instead of only being visible as an
+  // uncategorised product count.
+  const unmatched = useMemo(() => {
+    const known = new Set(rows.map((r) => r.name));
+    return Object.entries(counts)
+      .filter(([name, n]) => n > 0 && !known.has(name))
+      .sort((a, b) => b[1] - a[1]);
+  }, [rows, counts]);
+
+  const promoteUnmatched = async (name: string) => {
+    const id = slugify(name) || `cat-${Date.now()}`;
+    if (rows.some((r) => r.id === id)) {
+      setMsg({ ok: false, text: `"${name}" adına bənzər id artıq var — adını dəyişib yenidən yarat.` });
+      return;
+    }
+    setBusy(name);
+    await save({ id, name, emoji: null, sort: rows.length, names: {} });
+    setBusy(null);
+  };
+
+  const mergeUnmatched = async (fromName: string) => {
+    const toName = mergeTarget[fromName];
+    if (!toName) return;
+    if (!confirm(`"${fromName}" (${counts[fromName] ?? 0} məhsul) → "${toName}" kateqoriyasına köçürülsün?`)) return;
+    setBusy(fromName);
+    const prods = await db.select<Product>('products', { eq: { category: fromName }, fetchAll: true }).catch((e: Error) => { setMsg({ ok: false, text: e.message }); return [] as Product[]; });
+    if (prods.length) {
+      await db.upsert('products', prods.map((p) => ({ ...p, category: toName })), 'id').catch((e: Error) => setMsg({ ok: false, text: e.message }));
+    }
+    setMsg({ ok: true, text: `${prods.length} məhsul "${toName}" kateqoriyasına köçürüldü` });
+    await loadCounts();
+    setBusy(null);
+  };
+
   return (
     <Shell title="Kateqoriyalar">
       {msg && <div className={`alert ${msg.ok ? 'ok' : 'err'}`}>{msg.text}</div>}
@@ -105,6 +147,37 @@ export default function Categories() {
         <input placeholder="RU (Молочные)" value={draft.ru} onChange={(e) => setDraft({ ...draft, ru: e.target.value })} style={{ width: 130, flex: 'none' }} onKeyDown={(e) => e.key === 'Enter' && add()} />
         <button className="btn" disabled={!draft.name.trim()} onClick={add}><Plus size={14} /> Əlavə et</button>
       </div>
+      {unmatched.length > 0 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <p style={{ fontWeight: 600, marginTop: 0 }}>Uyğunsuz kateqoriyalar ({unmatched.length})</p>
+          <p className="note" style={{ marginTop: 0 }}>
+            İmportdan (məs. Halalzur) gələn məhsullarda bu adlar var, amma yuxarıdakı siyahıda yoxdur — ona görə tətbiqdə çip/emoji görünmür. Hər birini ya yeni kateqoriya kimi əlavə et, ya da mövcud birinə köçür.
+          </p>
+          <table>
+            <thead><tr><th>Ad</th><th>Məhsul sayı</th><th></th></tr></thead>
+            <tbody>
+              {unmatched.map(([name, n]) => (
+                <tr key={name}>
+                  <td>{name}</td>
+                  <td className="muted">{n}</td>
+                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <select
+                      value={mergeTarget[name] ?? ''}
+                      onChange={(e) => setMergeTarget({ ...mergeTarget, [name]: e.target.value })}
+                      style={{ marginRight: 8 }}
+                    >
+                      <option value="">Köçür...</option>
+                      {rows.map((r) => <option key={r.id} value={r.name}>{r.name}</option>)}
+                    </select>
+                    <button className="btn ghost" disabled={!mergeTarget[name] || busy === name} onClick={() => mergeUnmatched(name)}>Köçür</button>
+                    <button className="btn" disabled={busy === name} onClick={() => promoteUnmatched(name)} style={{ marginLeft: 8 }}>Kateqoriya kimi əlavə et</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
       <table>
         <thead><tr><th>Sıra</th><th>Emoji</th><th>Ad</th><th>EN</th><th>TR</th><th>RU</th><th>Məhsul sayı</th><th></th></tr></thead>
         <tbody>
