@@ -154,7 +154,7 @@ img{display:block;max-width:100%}
   .nav{height:66px}.nav nav{display:none}.nav-inner{gap:10px}.nav-actions{margin-left:auto}
   .hero-grid,.choice-grid{grid-template-columns:1fr}
   .hero-copy{padding:55px 0 20px}
-  .hero h1{font-size:43px;letter-spacing:-2px}
+  .hero h1{font-size:34px;line-height:1.08;letter-spacing:-1.2px}
   .hero-visual{height:500px;transform:scale(.85);transform-origin:top center;margin-bottom:-60px}
   .phone-back{right:46%}.phone-front{right:7%}.red-orb{right:-100px}
   .steps,.review-grid{grid-template-columns:1fr}
