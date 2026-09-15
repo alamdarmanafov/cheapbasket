@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { LangProvider } from '@/components/LangContext';
 
@@ -13,8 +13,11 @@ export const metadata: Metadata = {
     locale: 'az_AZ',
     type: 'website',
   },
-  themeColor: '#E53935',
   icons: { icon: '/icon.png', apple: '/apple-touch-icon.png' },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#E53935',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
