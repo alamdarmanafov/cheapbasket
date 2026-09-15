@@ -776,24 +776,29 @@ export default function ImportPage() {
                 </div>
               </div>
 
-              {/* One column per store: the export's shape coming back */}
-              <div style={{ marginBottom: 16 }}>
-                <h3 style={{ marginBottom: 4 }}>Market sütunları</h3>
-                <p className="muted" style={{ fontSize: 12, marginTop: 0, marginBottom: 10 }}>
-                  {csvMultiStores.length ? `${csvMultiStores.length} market seçilib — yuxarıdakı "Market" və "Qiymət" sahələri nəzərə alınmır.` : 'Heç biri seçilməyibsə fayl yuxarıda seçilən bir markete yazılır.'}
-                </p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
-                  {stores.map((st) => (
-                    <label key={st.id}>
-                      {st.name}
-                      <select value={csvStoreCols[st.id] ?? ''} onChange={(e) => setCsvStoreCols({ ...csvStoreCols, [st.id]: e.target.value })}>
-                        <option value="">— yoxdur —</option>
-                        {csvHeaders.map((h, i) => <option key={i} value={String(i)}>{h}</option>)}
-                      </select>
-                    </label>
-                  ))}
+              {/* One column per store: the export's shape coming back. Not
+                  relevant to a products-only file at all — showing it
+                  anyway (even correctly ignored) reads as "something is
+                  wrong" when nothing is. */}
+              {!csvProductsOnly && (
+                <div style={{ marginBottom: 16 }}>
+                  <h3 style={{ marginBottom: 4 }}>Market sütunları</h3>
+                  <p className="muted" style={{ fontSize: 12, marginTop: 0, marginBottom: 10 }}>
+                    {csvMultiStores.length ? `${csvMultiStores.length} market seçilib — yuxarıdakı "Market" və "Qiymət" sahələri nəzərə alınmır.` : 'Heç biri seçilməyibsə fayl yuxarıda seçilən bir markete yazılır.'}
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+                    {stores.map((st) => (
+                      <label key={st.id}>
+                        {st.name}
+                        <select value={csvStoreCols[st.id] ?? ''} onChange={(e) => setCsvStoreCols({ ...csvStoreCols, [st.id]: e.target.value })}>
+                          <option value="">— yoxdur —</option>
+                          {csvHeaders.map((h, i) => <option key={i} value={String(i)}>{h}</option>)}
+                        </select>
+                      </label>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Preview */}
               <div style={{ marginBottom: 16 }}>
