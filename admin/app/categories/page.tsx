@@ -7,7 +7,7 @@ import { Category, Product, db, slugify } from '@/lib/supabase';
 export default function Categories() {
   const [rows, setRows] = useState<Category[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
-  const [draft, setDraft] = useState({ name: '', emoji: '' });
+  const [draft, setDraft] = useState({ name: '', emoji: '', en: '', tr: '', ru: '' });
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const load = async () => {
@@ -49,8 +49,9 @@ export default function Categories() {
       setMsg({ ok: false, text: `"${dupe.name}" artıq var — fərqli ad seç, ya da onu redaktə et.` });
       return;
     }
-    const ok = await save({ id, name, emoji: draft.emoji.trim() || null, sort: rows.length, names: {} });
-    if (ok) setDraft({ name: '', emoji: '' });
+    const names = Object.fromEntries((['en', 'tr', 'ru'] as const).map((l) => [l, draft[l].trim()]).filter(([, v]) => v));
+    const ok = await save({ id, name, emoji: draft.emoji.trim() || null, sort: rows.length, names });
+    if (ok) setDraft({ name: '', emoji: '', en: '', tr: '', ru: '' });
   };
   const remove = async (c: Category) => {
     const n = counts[c.name] ?? 0;
@@ -71,7 +72,12 @@ export default function Categories() {
       {msg && <div className={`alert ${msg.ok ? 'ok' : 'err'}`}>{msg.text}</div>}
       <div className="toolbar">
         <input placeholder="Yeni kateqoriya adı" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && add()} />
-        <input placeholder="Emoji" value={draft.emoji} onChange={(e) => setDraft({ ...draft, emoji: e.target.value })} style={{ width: 80, flex: 'none' }} />
+        <input placeholder="Emoji" value={draft.emoji} onChange={(e) => setDraft({ ...draft, emoji: e.target.value })} style={{ width: 80, flex: 'none' }} onKeyDown={(e) => e.key === 'Enter' && add()} />
+        {/* Tərcümələr əlavə etmə anında da yazıla bilsin — sonra cədvəldə
+            hər sətir üçün ayrıca doldurmaq məcburi deyil, istəyə görədir. */}
+        <input placeholder="EN (Dairy)" value={draft.en} onChange={(e) => setDraft({ ...draft, en: e.target.value })} style={{ width: 130, flex: 'none' }} onKeyDown={(e) => e.key === 'Enter' && add()} />
+        <input placeholder="TR (Süt ürünleri)" value={draft.tr} onChange={(e) => setDraft({ ...draft, tr: e.target.value })} style={{ width: 130, flex: 'none' }} onKeyDown={(e) => e.key === 'Enter' && add()} />
+        <input placeholder="RU (Молочные)" value={draft.ru} onChange={(e) => setDraft({ ...draft, ru: e.target.value })} style={{ width: 130, flex: 'none' }} onKeyDown={(e) => e.key === 'Enter' && add()} />
         <button className="btn" disabled={!draft.name.trim()} onClick={add}><Plus size={14} /> Əlavə et</button>
       </div>
       <table>
